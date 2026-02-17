@@ -131,19 +131,19 @@ export const resolvers = {
 
     // ==================== CONNECTION DATA QUERIES ====================
     getKoneksiData: async (_, { id }) => {
-      return await ConnectionData.findById(id).populate('idPelanggan');
+      return await ConnectionData.findById(id).populate('userId');
     },
 
     getAllKoneksiData: async () => {
-      return await ConnectionData.find().populate('idPelanggan');
+      return await ConnectionData.find().populate('userId');
     },
 
     getPendingKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: false }).populate('idPelanggan');
+      return await ConnectionData.find({ statusVerifikasi: false }).populate('userId');
     },
 
     getVerifiedKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: true }).populate('idPelanggan');
+      return await ConnectionData.find({ statusVerifikasi: true }).populate('userId');
     },
 
     // ==================== TAGIHAN QUERIES ====================
