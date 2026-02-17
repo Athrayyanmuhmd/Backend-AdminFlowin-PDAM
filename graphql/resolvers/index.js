@@ -86,15 +86,31 @@ export const resolvers = {
 
     // ==================== TEKNISI QUERIES ====================
     getTeknisi: async (_, { id }) => {
-      return await Technician.findById(id);
+      const teknisi = await Technician.findById(id);
+      if (!teknisi) return null;
+      return {
+        ...teknisi.toObject(),
+        createdAt: teknisi.createdAt?.toISOString(),
+        updatedAt: teknisi.updatedAt?.toISOString(),
+      };
     },
 
     getAllTeknisi: async () => {
-      return await Technician.find();
+      const teknisis = await Technician.find();
+      return teknisis.map(tek => ({
+        ...tek.toObject(),
+        createdAt: tek.createdAt?.toISOString(),
+        updatedAt: tek.updatedAt?.toISOString(),
+      }));
     },
 
     getTeknisiByDivisi: async (_, { divisi }) => {
-      return await Technician.find({ divisi });
+      const teknisis = await Technician.find({ divisi });
+      return teknisis.map(tek => ({
+        ...tek.toObject(),
+        createdAt: tek.createdAt?.toISOString(),
+        updatedAt: tek.updatedAt?.toISOString(),
+      }));
     },
 
     // ==================== KELOMPOK PELANGGAN QUERIES ====================

@@ -6,7 +6,7 @@ const Technician = new mongoose.Schema(
       type: String,
       required: true,
     },
-    nip: {  // Added from ERD
+    NIP: {  // Added from ERD (use uppercase to match GraphQL schema)
       type: String,
       default: null,
     },
