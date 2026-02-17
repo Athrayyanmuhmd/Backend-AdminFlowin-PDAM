@@ -1,0 +1,135 @@
+# ==========================================
+# CLEAN REPOSITORY - NO DOCUMENTATION FILES
+# ==========================================
+
+# All .md files EXCEPT README.md
+*.md
+!README.md
+
+# Claude AI files and folders
+CLAUDE.md
+.claude/
+**/claude/
+**/.claude/
+*.claude.*
+*_CLAUDE_*
+*CLAUDE*
+
+# Documentation files (keep only README.md)
+DOCUMENTATION*.md
+GUIDE*.md
+WORKFLOW*.md
+ARCHITECTURE*.md
+API*.md
+TESTING*.md
+BILLING*.md
+IOT*.md
+WEBHOOK*.md
+MIDTRANS*.md
+*_DOCUMENTATION.md
+*_GUIDE.md
+docs/
+DOCS/
+
+# Migration and audit reports
+MIGRATION*.md
+AUDIT*.md
+REPORT*.md
+
+# Dependencies
+/node_modules
+node_modules/
+
+# Deployment
+.vercel
+
+# Environment variables
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.example
+.env.backup*
+*.env.backup*
+
+# Sensitive scripts
+*midtrans*.sh
+update-*.sh
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary folders
+tmp/
+temp/
+
+# Uploads
+uploads/
+public/uploads/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# SSL certificates
+ssl/
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# PDF files (documentation)
+*.pdf
+*.PDF
+
+# Testing
+test-results/
+playwright-report/
+
+# Local development
+.local/
+local/
