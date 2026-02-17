@@ -109,14 +109,16 @@ export const resolvers = {
     // ==================== METERAN QUERIES ====================
     getMeteran: async (_, { id }) => {
       return await Meteran.findById(id)
-        .populate('idKelompokPelanggan')
-        .populate('idKoneksiData');
+        .populate('kelompokPelangganId')
+        .populate('connectionDataId')
+        .populate('userId');
     },
 
     getAllMeteran: async () => {
       return await Meteran.find()
-        .populate('idKelompokPelanggan')
-        .populate('idKoneksiData');
+        .populate('kelompokPelangganId')
+        .populate('connectionDataId')
+        .populate('userId');
     },
 
     getMeteranByPelanggan: async (_, { idPelanggan }) => {
@@ -647,6 +649,75 @@ export const resolvers = {
         { isRead: true },
         { new: true }
       );
+    }
+  },
+
+  // ==================== FIELD RESOLVERS (for schema/model field name mismatches) ====================
+  Meteran: {
+    idKelompokPelanggan: async (parent) => {
+      if (parent.kelompokPelangganId) {
+        // If already populated, return it
+        if (typeof parent.kelompokPelangganId === 'object' && parent.kelompokPelangganId._id) {
+          return parent.kelompokPelangganId;
+        }
+        // Otherwise fetch it
+        return await KelompokPelanggan.findById(parent.kelompokPelangganId);
+      }
+      return null;
+    },
+    idKoneksiData: async (parent) => {
+      console.log('🔍 idKoneksiData resolver called, parent.connectionDataId:', parent.connectionDataId);
+      if (parent.connectionDataId) {
+        if (typeof parent.connectionDataId === 'object' && parent.connectionDataId._id) {
+          console.log('✅ Already populated');
+          return parent.connectionDataId;
+        }
+        console.log('🔄 Fetching from DB');
+        const result = await ConnectionData.findById(parent.connectionDataId).populate('userId');
+        console.log('📦 Result:', result ? 'Found' : 'Not found');
+        return result;
+      }
+      console.log('❌ No connectionDataId');
+      return null;
+    }
+  },
+
+  KoneksiData: {
+    idPelanggan: async (parent) => {
+      if (!parent.userId) {
+        return null;
+      }
+
+      let user;
+      // If already populated
+      if (typeof parent.userId === 'object' && parent.userId._id) {
+        user = parent.userId;
+      } else {
+        // Otherwise fetch it
+        user = await User.findById(parent.userId);
+      }
+
+      if (!user) return null;
+
+      // Return plain object with explicit fields
+      const result = {
+        _id: user._id,
+        email: user.email,
+        noHP: user.noHP,
+        namaLengkap: user.namaLengkap,
+        nik: user.nik,
+        address: user.address,
+        gender: user.gender,
+        birthDate: user.birthDate,
+        occupation: user.occupation,
+        customerType: user.customerType,
+        accountStatus: user.accountStatus,
+        isVerified: user.isVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      };
+      console.log('🎯 Returning user:', JSON.stringify({ _id: result._id, namaLengkap: result.namaLengkap, email: result.email }));
+      return result;
     }
   }
 };

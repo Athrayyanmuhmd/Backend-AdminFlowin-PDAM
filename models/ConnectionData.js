@@ -4,7 +4,7 @@ const ConnectionData = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Types.ObjectId,
-      ref: "Users",
+      ref: "Pengguna",
       required: true,
     },
     nik: {
