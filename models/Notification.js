@@ -1,20 +1,31 @@
 import mongoose from "mongoose";
 
-const Notifications = new mongoose.Schema(
+const NotificationSchema = new mongoose.Schema(
   {
-    userId: {
+    idAdmin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Admin',
+      default: null,
+    },
+    idTeknisi: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Teknisi',
+      default: null,
+    },
+    idPelanggan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    judul: {
       type: String,
       required: true,
     },
-    judul: {  // Renamed from title to match ERD
+    pesan: {
       type: String,
       required: true,
     },
-    pesan: {  // Renamed from message to match ERD
-      type: String,
-      required: true,
-    },
-    kategori: {  // Renamed from category to match ERD
+    kategori: {
       type: String,
       enum: ["Transaksi", "Informasi", "Peringatan"],
       required: true,
@@ -23,15 +34,15 @@ const Notifications = new mongoose.Schema(
       type: String,
       default: null,
     },
-    isRead: {  // Added from ERD
+    isRead: {
       type: Boolean,
       default: false,
     },
   },
   {
     timestamps: true,
-    collection: 'notifikasis'  // Explicit collection name (ERD-compliant)
+    collection: 'notifikasis',
   }
 );
 
-export default mongoose.model("Notifikasi", Notifications);
+export default mongoose.model("Notifikasi", NotificationSchema);

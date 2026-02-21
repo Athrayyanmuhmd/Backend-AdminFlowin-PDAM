@@ -417,6 +417,7 @@ export const typeDefs = gql`
     getNotifikasi(id: ID!): Notifikasi
     getNotifikasiByAdmin(idAdmin: ID!): [Notifikasi!]!
     getUnreadNotifikasi(idAdmin: ID!): [Notifikasi!]!
+    getAllNotifikasiAdmin: [Notifikasi!]!
 
     # Dashboard Stats
     getDashboardStats: DashboardStats!

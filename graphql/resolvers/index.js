@@ -15,6 +15,24 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getCache, setCache } from '../../utils/redis.js';
 
+// Helper: kirim notifikasi ke semua admin
+async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
+  try {
+    const admins = await AdminAccount.find({}, '_id');
+    const notifs = admins.map(admin => ({
+      idAdmin: admin._id,
+      judul,
+      pesan,
+      kategori,
+      link,
+      isRead: false,
+    }));
+    if (notifs.length > 0) await Notification.insertMany(notifs);
+  } catch (err) {
+    console.error('Gagal kirim notifikasi admin:', err.message);
+  }
+}
+
 export const resolvers = {
   Query: {
     // ==================== ADMIN QUERIES ====================
@@ -261,11 +279,16 @@ export const resolvers = {
     },
 
     getNotifikasiByAdmin: async (_, { idAdmin }) => {
-      return await Notification.find({ idAdmin });
+      return await Notification.find({ idAdmin }).sort({ createdAt: -1 });
     },
 
     getUnreadNotifikasi: async (_, { idAdmin }) => {
-      return await Notification.find({ idAdmin, isRead: false });
+      return await Notification.find({ idAdmin, isRead: false }).sort({ createdAt: -1 });
+    },
+
+    getAllNotifikasiAdmin: async () => {
+      // Return all admin-targeted notifications (sorted newest first)
+      return await Notification.find({ idAdmin: { $ne: null } }).sort({ createdAt: -1 }).limit(50);
     },
 
     // ==================== DASHBOARD STATS ====================
@@ -403,6 +426,10 @@ export const resolvers = {
 
     // ==================== LAPORAN KEUANGAN QUERIES ====================
     getLaporanKeuanganBulanan: async () => {
+      const cacheKey = 'laporan:keuangan_bulanan';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const enamBulanLalu = new Date();
       enamBulanLalu.setMonth(enamBulanLalu.getMonth() - 5);
       enamBulanLalu.setDate(1);
@@ -427,16 +454,22 @@ export const resolvers = {
       ]);
 
       const namaBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-      return hasil.map(item => ({
+      const result = hasil.map(item => ({
         bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
         totalTagihan: item.totalTagihan,
         totalLunas: item.totalLunas,
         jumlahTagihan: item.jumlahTagihan,
         jumlahLunas: item.jumlahLunas,
       }));
+      await setCache(cacheKey, result, 300); // 5 menit
+      return result;
     },
 
     getTunggakanPerKelompok: async () => {
+      const cacheKey = 'laporan:tunggakan_kelompok';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const hasil = await Billing.aggregate([
         { $match: { menunggak: true } },
         {
@@ -467,11 +500,13 @@ export const resolvers = {
         { $sort: { totalTunggakan: -1 } }
       ]);
 
-      return hasil.map(item => ({
+      const result = hasil.map(item => ({
         namaKelompok: item._id,
         totalTunggakan: item.totalTunggakan,
         jumlahTunggakan: item.jumlahTunggakan,
       }));
+      await setCache(cacheKey, result, 300); // 5 menit
+      return result;
     },
 
     getTagihanTertinggi: async (_, { limit = 10 }) => {
@@ -519,6 +554,10 @@ export const resolvers = {
     },
 
     getRingkasanStatusTagihan: async () => {
+      const cacheKey = 'laporan:ringkasan_tagihan';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const hasil = await Billing.aggregate([
         {
           $group: {
@@ -537,7 +576,7 @@ export const resolvers = {
       if (hasil.length === 0) {
         return { totalTagihan: 0, totalLunas: 0, totalTunggakan: 0, totalPending: 0, nilaiTotal: 0, nilaiLunas: 0, nilaiTunggakan: 0 };
       }
-      return {
+      const result = {
         totalTagihan: hasil[0].totalTagihan,
         totalLunas: hasil[0].totalLunas,
         totalTunggakan: hasil[0].totalTunggakan,
@@ -546,10 +585,16 @@ export const resolvers = {
         nilaiLunas: hasil[0].nilaiLunas,
         nilaiTunggakan: hasil[0].nilaiTunggakan,
       };
+      await setCache(cacheKey, result, 120); // 2 menit
+      return result;
     },
 
     // ==================== LAPORAN OPERASIONAL QUERIES ====================
     getKpiOperasional: async () => {
+      const cacheKey = 'laporan:kpi_operasional';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const [
         totalMeteranTerpasang,
         totalPelanggan,
@@ -572,7 +617,7 @@ export const resolvers = {
         ? parseFloat(((totalLaporanSelesai / totalLaporanMasuk) * 100).toFixed(1))
         : 0;
 
-      return {
+      const result = {
         totalMeteranTerpasang,
         totalPelanggan,
         totalLaporanMasuk,
@@ -582,22 +627,36 @@ export const resolvers = {
         totalTeknisi,
         tingkatPenyelesaianLaporan,
       };
+      await setCache(cacheKey, result, 300); // 5 menit
+      return result;
     },
 
     getRingkasanWorkOrder: async () => {
+      const cacheKey = 'laporan:ringkasan_wo';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const hasil = await WorkOrder.aggregate([
         { $group: { _id: '$status', jumlah: { $count: {} } } },
         { $sort: { jumlah: -1 } }
       ]);
-      return hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+      const result = hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+      await setCache(cacheKey, result, 120); // 2 menit
+      return result;
     },
 
     getRingkasanLaporan: async () => {
+      const cacheKey = 'laporan:ringkasan_laporan';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const hasil = await Report.aggregate([
         { $group: { _id: '$status', jumlah: { $count: {} } } },
         { $sort: { jumlah: -1 } }
       ]);
-      return hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+      const result = hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+      await setCache(cacheKey, result, 120); // 2 menit
+      return result;
     },
 
     // ==================== PEKERJAAN TEKNISI QUERIES (ERD Compliant) ====================
@@ -882,7 +941,14 @@ export const resolvers = {
         status: 'Ditugaskan',
         disetujui: null
       });
-      return await (await workOrder.save()).populate('tim');
+      const saved = await (await workOrder.save()).populate('tim');
+      await notifikasiSemuaAdmin(
+        'Work Order Baru Dibuat',
+        'Work order baru telah dibuat dan ditugaskan ke teknisi.',
+        'Informasi',
+        '/operations/work-orders'
+      );
+      return saved;
     },
 
     assignWorkOrder: async (_, { id, teknisiIds }) => {
@@ -894,11 +960,21 @@ export const resolvers = {
     },
 
     updateWorkOrderStatus: async (_, { id, status, catatan }) => {
-      return await WorkOrder.findByIdAndUpdate(
+      const updated = await WorkOrder.findByIdAndUpdate(
         id,
         { status, catatan },
         { new: true }
       ).populate('tim');
+      // Notif ke admin saat teknisi mengubah status ke DitinjauAdmin
+      if (status === 'DitinjauAdmin') {
+        await notifikasiSemuaAdmin(
+          'Work Order Menunggu Peninjauan',
+          'Teknisi telah menyelesaikan pekerjaan dan membutuhkan persetujuan admin.',
+          'Peringatan',
+          '/operations/work-orders'
+        );
+      }
+      return updated;
     },
 
     approveWorkOrder: async (_, { id, disetujui, catatan }) => {
@@ -911,11 +987,21 @@ export const resolvers = {
 
     // ==================== LAPORAN MUTATIONS ====================
     updateLaporanStatus: async (_, { id, status }) => {
-      return await Report.findByIdAndUpdate(
+      const updated = await Report.findByIdAndUpdate(
         id,
         { status },
         { new: true }
       ).populate('idPengguna');
+      // Notif ke admin saat laporan baru masuk (status Diajukan)
+      if (status === 'Diajukan') {
+        await notifikasiSemuaAdmin(
+          'Laporan Pelanggan Baru',
+          'Ada laporan baru dari pelanggan yang memerlukan penanganan.',
+          'Peringatan',
+          '/operations/work-orders'
+        );
+      }
+      return updated;
     },
 
     // ==================== NOTIFIKASI MUTATIONS ====================
@@ -937,6 +1023,19 @@ export const resolvers = {
   },
 
   // ==================== FIELD RESOLVERS (for schema/model field name mismatches) ====================
+  Notifikasi: {
+    idAdmin: async (parent) => {
+      if (!parent.idAdmin) return null;
+      if (typeof parent.idAdmin === 'object' && parent.idAdmin._id) return parent.idAdmin;
+      return await AdminAccount.findById(parent.idAdmin);
+    },
+    idTeknisi: async (parent) => {
+      if (!parent.idTeknisi) return null;
+      if (typeof parent.idTeknisi === 'object' && parent.idTeknisi._id) return parent.idTeknisi;
+      return await Technician.findById(parent.idTeknisi);
+    },
+  },
+
   Meteran: {
     idKelompokPelanggan: async (parent) => {
       if (parent.kelompokPelangganId) {
