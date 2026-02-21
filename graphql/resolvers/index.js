@@ -332,6 +332,274 @@ export const resolvers = {
       return stats;
     },
 
+    // ==================== DASHBOARD CHART QUERIES ====================
+    getChartKonsumsiPerBulan: async () => {
+      // Ambil data tagihan 6 bulan terakhir, group by bulan
+      const enamBulanLalu = new Date();
+      enamBulanLalu.setMonth(enamBulanLalu.getMonth() - 5);
+      enamBulanLalu.setDate(1);
+      enamBulanLalu.setHours(0, 0, 0, 0);
+
+      const hasilAgregasi = await Billing.aggregate([
+        {
+          $match: {
+            createdAt: { $gte: enamBulanLalu }
+          }
+        },
+        {
+          $group: {
+            _id: {
+              tahun: { $year: '$createdAt' },
+              bulan: { $month: '$createdAt' }
+            },
+            totalTagihan: { $sum: '$totalBiaya' },
+            jumlahTagihan: { $count: {} }
+          }
+        },
+        {
+          $sort: { '_id.tahun': 1, '_id.bulan': 1 }
+        }
+      ]);
+
+      const namaBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+
+      return hasilAgregasi.map(item => ({
+        bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
+        totalTagihan: item.totalTagihan,
+        jumlahTagihan: item.jumlahTagihan
+      }));
+    },
+
+    getDistribusiKelompokPelanggan: async () => {
+      // Ambil semua meteran dengan kelompok pelanggan, hitung distribusi
+      const hasilAgregasi = await Meteran.aggregate([
+        {
+          $lookup: {
+            from: 'kelompokpelanggans',
+            localField: 'kelompokPelangganId',
+            foreignField: '_id',
+            as: 'kelompok'
+          }
+        },
+        {
+          $unwind: { path: '$kelompok', preserveNullAndEmpty: false }
+        },
+        {
+          $group: {
+            _id: '$kelompok.namaKelompok',
+            jumlahMeteran: { $count: {} }
+          }
+        },
+        {
+          $sort: { jumlahMeteran: -1 }
+        }
+      ]);
+
+      return hasilAgregasi.map(item => ({
+        namaKelompok: item._id,
+        jumlahMeteran: item.jumlahMeteran
+      }));
+    },
+
+    // ==================== LAPORAN KEUANGAN QUERIES ====================
+    getLaporanKeuanganBulanan: async () => {
+      const enamBulanLalu = new Date();
+      enamBulanLalu.setMonth(enamBulanLalu.getMonth() - 5);
+      enamBulanLalu.setDate(1);
+      enamBulanLalu.setHours(0, 0, 0, 0);
+
+      const hasil = await Billing.aggregate([
+        { $match: { createdAt: { $gte: enamBulanLalu } } },
+        {
+          $group: {
+            _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } },
+            totalTagihan: { $sum: '$totalBiaya' },
+            jumlahTagihan: { $count: {} },
+            totalLunas: {
+              $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, '$totalBiaya', 0] }
+            },
+            jumlahLunas: {
+              $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, 1, 0] }
+            },
+          }
+        },
+        { $sort: { '_id.tahun': 1, '_id.bulan': 1 } }
+      ]);
+
+      const namaBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
+      return hasil.map(item => ({
+        bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
+        totalTagihan: item.totalTagihan,
+        totalLunas: item.totalLunas,
+        jumlahTagihan: item.jumlahTagihan,
+        jumlahLunas: item.jumlahLunas,
+      }));
+    },
+
+    getTunggakanPerKelompok: async () => {
+      const hasil = await Billing.aggregate([
+        { $match: { menunggak: true } },
+        {
+          $lookup: {
+            from: 'meterans',
+            localField: 'idMeteran',
+            foreignField: '_id',
+            as: 'meteran'
+          }
+        },
+        { $unwind: { path: '$meteran', preserveNullAndEmpty: false } },
+        {
+          $lookup: {
+            from: 'kelompokpelanggans',
+            localField: 'meteran.kelompokPelangganId',
+            foreignField: '_id',
+            as: 'kelompok'
+          }
+        },
+        { $unwind: { path: '$kelompok', preserveNullAndEmpty: true } },
+        {
+          $group: {
+            _id: { $ifNull: ['$kelompok.namaKelompok', 'Tidak Diketahui'] },
+            totalTunggakan: { $sum: '$totalBiaya' },
+            jumlahTunggakan: { $count: {} },
+          }
+        },
+        { $sort: { totalTunggakan: -1 } }
+      ]);
+
+      return hasil.map(item => ({
+        namaKelompok: item._id,
+        totalTunggakan: item.totalTunggakan,
+        jumlahTunggakan: item.jumlahTunggakan,
+      }));
+    },
+
+    getTagihanTertinggi: async (_, { limit = 10 }) => {
+      const hasil = await Billing.aggregate([
+        {
+          $lookup: {
+            from: 'meterans',
+            localField: 'idMeteran',
+            foreignField: '_id',
+            as: 'meteran'
+          }
+        },
+        { $unwind: { path: '$meteran', preserveNullAndEmpty: false } },
+        {
+          $lookup: {
+            from: 'kelompokpelanggans',
+            localField: 'meteran.kelompokPelangganId',
+            foreignField: '_id',
+            as: 'kelompok'
+          }
+        },
+        { $unwind: { path: '$kelompok', preserveNullAndEmpty: true } },
+        { $sort: { totalBiaya: -1 } },
+        { $limit: limit },
+        {
+          $project: {
+            nomorMeteran: '$meteran.nomorMeteran',
+            nomorAkun: '$meteran.nomorAkun',
+            namaKelompok: { $ifNull: ['$kelompok.namaKelompok', '-'] },
+            totalBiaya: 1,
+            periode: { $dateToString: { format: '%Y-%m', date: '$periode' } },
+            statusPembayaran: 1,
+          }
+        }
+      ]);
+
+      return hasil.map(item => ({
+        nomorMeteran: item.nomorMeteran,
+        nomorAkun: item.nomorAkun,
+        namaKelompok: item.namaKelompok,
+        totalBiaya: item.totalBiaya,
+        periode: item.periode,
+        statusPembayaran: item.statusPembayaran,
+      }));
+    },
+
+    getRingkasanStatusTagihan: async () => {
+      const hasil = await Billing.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalTagihan: { $count: {} },
+            nilaiTotal: { $sum: '$totalBiaya' },
+            totalLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, 1, 0] } },
+            nilaiLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, '$totalBiaya', 0] } },
+            totalTunggakan: { $sum: { $cond: ['$menunggak', 1, 0] } },
+            nilaiTunggakan: { $sum: { $cond: ['$menunggak', '$totalBiaya', 0] } },
+            totalPending: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Pending'] }, 1, 0] } },
+          }
+        }
+      ]);
+
+      if (hasil.length === 0) {
+        return { totalTagihan: 0, totalLunas: 0, totalTunggakan: 0, totalPending: 0, nilaiTotal: 0, nilaiLunas: 0, nilaiTunggakan: 0 };
+      }
+      return {
+        totalTagihan: hasil[0].totalTagihan,
+        totalLunas: hasil[0].totalLunas,
+        totalTunggakan: hasil[0].totalTunggakan,
+        totalPending: hasil[0].totalPending,
+        nilaiTotal: hasil[0].nilaiTotal,
+        nilaiLunas: hasil[0].nilaiLunas,
+        nilaiTunggakan: hasil[0].nilaiTunggakan,
+      };
+    },
+
+    // ==================== LAPORAN OPERASIONAL QUERIES ====================
+    getKpiOperasional: async () => {
+      const [
+        totalMeteranTerpasang,
+        totalPelanggan,
+        totalLaporanMasuk,
+        totalLaporanSelesai,
+        totalWorkOrderAktif,
+        totalWorkOrderSelesai,
+        totalTeknisi,
+      ] = await Promise.all([
+        Meteran.countDocuments(),
+        User.countDocuments(),
+        Report.countDocuments(),
+        Report.countDocuments({ status: 'Selesai' }),
+        WorkOrder.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
+        WorkOrder.countDocuments({ status: 'Selesai' }),
+        Technician.countDocuments(),
+      ]);
+
+      const tingkatPenyelesaianLaporan = totalLaporanMasuk > 0
+        ? parseFloat(((totalLaporanSelesai / totalLaporanMasuk) * 100).toFixed(1))
+        : 0;
+
+      return {
+        totalMeteranTerpasang,
+        totalPelanggan,
+        totalLaporanMasuk,
+        totalLaporanSelesai,
+        totalWorkOrderAktif,
+        totalWorkOrderSelesai,
+        totalTeknisi,
+        tingkatPenyelesaianLaporan,
+      };
+    },
+
+    getRingkasanWorkOrder: async () => {
+      const hasil = await WorkOrder.aggregate([
+        { $group: { _id: '$status', jumlah: { $count: {} } } },
+        { $sort: { jumlah: -1 } }
+      ]);
+      return hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+    },
+
+    getRingkasanLaporan: async () => {
+      const hasil = await Report.aggregate([
+        { $group: { _id: '$status', jumlah: { $count: {} } } },
+        { $sort: { jumlah: -1 } }
+      ]);
+      return hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
+    },
+
     // ==================== PEKERJAAN TEKNISI QUERIES (ERD Compliant) ====================
     getPekerjaanTeknisi: async (_, { id }) => {
       return await PekerjaanTeknisi.findById(id)

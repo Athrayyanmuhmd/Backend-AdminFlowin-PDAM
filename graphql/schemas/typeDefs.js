@@ -420,6 +420,19 @@ export const typeDefs = gql`
 
     # Dashboard Stats
     getDashboardStats: DashboardStats!
+    getChartKonsumsiPerBulan: [BulanKonsumsiData!]!
+    getDistribusiKelompokPelanggan: [KelompokDistribusiData!]!
+
+    # Laporan Keuangan
+    getLaporanKeuanganBulanan: [LaporanKeuanganBulanan!]!
+    getTunggakanPerKelompok: [TunggakanPerKelompok!]!
+    getTagihanTertinggi(limit: Int): [TagihanTertinggi!]!
+    getRingkasanStatusTagihan: RingkasanStatusTagihan!
+
+    # Laporan Operasional
+    getKpiOperasional: KpiOperasional!
+    getRingkasanWorkOrder: [RingkasanWorkOrder!]!
+    getRingkasanLaporan: [RingkasanLaporan!]!
 
     # Pekerjaan Teknisi queries (ERD Compliant)
     getPekerjaanTeknisi(id: ID!): PekerjaanTeknisi
@@ -796,8 +809,73 @@ export const typeDefs = gql`
     laporanTerbuka: Int!
   }
 
+  type BulanKonsumsiData {
+    bulan: String!
+    totalTagihan: Float!
+    jumlahTagihan: Int!
+  }
+
+  type KelompokDistribusiData {
+    namaKelompok: String!
+    jumlahMeteran: Int!
+  }
+
+  type LaporanKeuanganBulanan {
+    bulan: String!
+    totalTagihan: Float!
+    totalLunas: Float!
+    jumlahTagihan: Int!
+    jumlahLunas: Int!
+  }
+
+  type TunggakanPerKelompok {
+    namaKelompok: String!
+    totalTunggakan: Float!
+    jumlahTunggakan: Int!
+  }
+
+  type TagihanTertinggi {
+    nomorMeteran: String!
+    nomorAkun: String!
+    namaKelompok: String!
+    totalBiaya: Float!
+    periode: String!
+    statusPembayaran: String!
+  }
+
+  type RingkasanStatusTagihan {
+    totalTagihan: Int!
+    totalLunas: Int!
+    totalTunggakan: Int!
+    totalPending: Int!
+    nilaiTotal: Float!
+    nilaiLunas: Float!
+    nilaiTunggakan: Float!
+  }
+
   type AverageRatingResult {
     avgRating: Float!
     count: Int!
+  }
+
+  type KpiOperasional {
+    totalMeteranTerpasang: Int!
+    totalPelanggan: Int!
+    totalLaporanMasuk: Int!
+    totalLaporanSelesai: Int!
+    totalWorkOrderAktif: Int!
+    totalWorkOrderSelesai: Int!
+    totalTeknisi: Int!
+    tingkatPenyelesaianLaporan: Float!
+  }
+
+  type RingkasanWorkOrder {
+    status: String!
+    jumlah: Int!
+  }
+
+  type RingkasanLaporan {
+    status: String!
+    jumlah: Int!
   }
 `;
