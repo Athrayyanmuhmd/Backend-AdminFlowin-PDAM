@@ -51,6 +51,20 @@ const KoneksiDataSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    idTeknisi: {
+      type: mongoose.Types.ObjectId,
+      ref: "Teknisi",
+      default: null,
+    },
+    assignedAt: {
+      type: Date,
+      default: null,
+    },
+    assignedBy: {
+      type: mongoose.Types.ObjectId,
+      ref: "AdminAccount",
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -135,6 +135,9 @@ export const typeDefs = gql`
     kelurahan: String
     kecamatan: String
     luasBangunan: Float
+    idTeknisi: Teknisi
+    assignedAt: String
+    assignedBy: Admin
     createdAt: String
     updatedAt: String
   }
@@ -517,6 +520,8 @@ export const typeDefs = gql`
     verifyKoneksiData(id: ID!, verified: Boolean!, catatan: String): KoneksiData!
     updateKoneksiData(id: ID!, input: UpdateKoneksiDataInput!): KoneksiData!
     deleteKoneksiData(id: ID!): Boolean!
+    assignTeknisiToKoneksi(id: ID!, technicianId: ID!): KoneksiData!
+    unassignTeknisiFromKoneksi(id: ID!): KoneksiData!
 
     # Tagihan mutations
     # Meteran mutations

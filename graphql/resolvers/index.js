@@ -972,6 +972,36 @@ export const resolvers = {
       return true;
     },
 
+    assignTeknisiToKoneksi: async (_, { id, technicianId }, { token }) => {
+      const adminPayload = verifyAdminToken(token);
+      const koneksi = await ConnectionData.findById(id);
+      if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
+      const teknisi = await Technician.findById(technicianId);
+      if (!teknisi) throw new Error('Teknisi tidak ditemukan');
+      koneksi.idTeknisi = technicianId;
+      koneksi.assignedAt = new Date();
+      koneksi.assignedBy = adminPayload.id;
+      await koneksi.save();
+      return await ConnectionData.findById(id)
+        .populate('idPelanggan')
+        .populate('idTeknisi')
+        .populate('assignedBy');
+    },
+
+    unassignTeknisiFromKoneksi: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const koneksi = await ConnectionData.findById(id);
+      if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
+      koneksi.idTeknisi = null;
+      koneksi.assignedAt = null;
+      koneksi.assignedBy = null;
+      await koneksi.save();
+      return await ConnectionData.findById(id)
+        .populate('idPelanggan')
+        .populate('idTeknisi')
+        .populate('assignedBy');
+    },
+
     verifyKoneksiData: async (_, { id, verified, catatan }) => {
       return await ConnectionData.findByIdAndUpdate(
         id,
