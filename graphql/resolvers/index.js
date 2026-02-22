@@ -1004,6 +1004,54 @@ export const resolvers = {
       return updated;
     },
 
+    // ==================== TAGIHAN BULK MUTATION ====================
+    generateTagihanBulanan: async (_, { periode, idMeteranList }, { token }) => {
+      verifyAdminToken(token);
+      let berhasil = 0;
+      let gagal = 0;
+
+      for (const idMeteran of idMeteranList) {
+        try {
+          const meteran = await Meteran.findById(idMeteran).populate('idKoneksiData');
+          if (!meteran) { gagal++; continue; }
+
+          // Cek apakah tagihan periode ini sudah ada
+          const periodeDate = new Date(periode + '-01');
+          const existing = await Billing.findOne({ idMeteran, periode: { $gte: periodeDate, $lt: new Date(new Date(periodeDate).setMonth(new Date(periodeDate).getMonth() + 1)) } });
+          if (existing) { gagal++; continue; }
+
+          // Ambil kelompok pelanggan untuk tarif
+          const kelompok = await KelompokPelanggan.findById(meteran.kelompokPelangganId);
+          const pemakaian = 10; // default, karena IoT belum terintegrasi penuh
+          const biaya = pemakaian <= 10
+            ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
+            : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
+          const biayaBeban = kelompok?.biayaBeban || 5000;
+
+          const billing = new Billing({
+            userId: meteran.idKoneksiData?.idPelanggan || null,
+            idMeteran: meteran._id,
+            periode: periodeDate,
+            penggunaanSebelum: 0,
+            penggunaanSekarang: pemakaian,
+            totalPemakaian: pemakaian,
+            biaya,
+            biayaBeban,
+            totalBiaya: biaya + biayaBeban,
+            statusPembayaran: 'Pending',
+            tenggatWaktu: new Date(new Date(periodeDate).setDate(new Date(periodeDate).getDate() + 30)),
+            menunggak: false,
+          });
+          await billing.save();
+          berhasil++;
+        } catch (err) {
+          console.error('Gagal generate tagihan untuk meteran', idMeteran, err.message);
+          gagal++;
+        }
+      }
+      return { berhasil, gagal, pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal` };
+    },
+
     // ==================== NOTIFIKASI MUTATIONS ====================
     createNotifikasi: async (_, { input }) => {
       const notification = new Notification({

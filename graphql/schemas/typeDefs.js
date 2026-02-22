@@ -502,6 +502,7 @@ export const typeDefs = gql`
 
     # Tagihan mutations
     generateTagihan(idMeteran: ID!, periode: String!): Tagihan!
+    generateTagihanBulanan(periode: String!, idMeteranList: [ID!]!): HasilGenerateTagihan!
     updateStatusPembayaran(id: ID!, status: EnumPaymentStatus!): Tagihan!
 
     # Work Order mutations
@@ -857,6 +858,12 @@ export const typeDefs = gql`
   type AverageRatingResult {
     avgRating: Float!
     count: Int!
+  }
+
+  type HasilGenerateTagihan {
+    berhasil: Int!
+    gagal: Int!
+    pesan: String
   }
 
   type KpiOperasional {
