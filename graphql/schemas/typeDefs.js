@@ -520,6 +520,48 @@ export const typeDefs = gql`
     updateWorkOrderStatus(id: ID!, status: EnumWorkStatus!, catatan: String): PekerjaanTeknisi!
     approveWorkOrder(id: ID!, disetujui: Boolean!, catatan: String): PekerjaanTeknisi!
 
+    # Survei mutations
+    createSurvei(
+      idKoneksiData: ID!
+      idTeknisi: ID!
+      urlJaringan: String!
+      diameterPipa: Float!
+      urlPosisiBak: String!
+      posisiMeteran: String!
+      jumlahPenghuni: String!
+      standar: Boolean!
+      catatan: String
+      koordinat: GeolocationInput
+    ): Survei!
+    updateSurvei(
+      id: ID!
+      urlJaringan: String
+      diameterPipa: Float
+      urlPosisiBak: String
+      posisiMeteran: String
+      jumlahPenghuni: String
+      standar: Boolean
+      catatan: String
+      koordinat: GeolocationInput
+    ): Survei!
+    deleteSurvei(id: ID!): Boolean!
+
+    # RAB Connection mutations
+    createRABConnection(
+      idKoneksiData: ID!
+      totalBiaya: Float!
+      urlRab: String!
+      catatan: String
+    ): RABConnection!
+    updateRABConnection(
+      id: ID!
+      totalBiaya: Float
+      urlRab: String
+      catatan: String
+      statusPembayaran: EnumPaymentStatus
+    ): RABConnection!
+    deleteRABConnection(id: ID!): Boolean!
+
     # Laporan mutations
     updateLaporanStatus(id: ID!, status: EnumWorkStatusPelanggan!): Laporan!
     createWorkOrderFromLaporan(idLaporan: ID!, teknisiIds: [ID!]!, catatan: String): PekerjaanTeknisi!

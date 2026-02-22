@@ -1106,7 +1106,11 @@ export const resolvers = {
       if (existing) throw new Error(`Tagihan untuk meteran ini pada periode ${periode} sudah ada`);
 
       const kelompok = await KelompokPelanggan.findById(meteran.idKelompokPelanggan);
-      const pemakaian = 10; // default karena IoT belum terintegrasi penuh
+
+      // Gunakan pemakaianBelumTerbayar dari meteran (diisi oleh IoT via REST pipeline)
+      // Jika belum ada data IoT, fallback ke 0 (tagihan biaya beban saja)
+      const pemakaian = meteran.pemakaianBelumTerbayar || 0;
+      const penggunaanSebelum = meteran.totalPemakaian - pemakaian;
       const biaya = pemakaian <= 10
         ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
         : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
@@ -1116,8 +1120,8 @@ export const resolvers = {
         userId: meteran.idKoneksiData?.idPelanggan || null,
         idMeteran: meteran._id,
         periode: periodeDate,
-        penggunaanSebelum: 0,
-        penggunaanSekarang: pemakaian,
+        penggunaanSebelum: penggunaanSebelum > 0 ? penggunaanSebelum : 0,
+        penggunaanSekarang: meteran.totalPemakaian,
         totalPemakaian: pemakaian,
         biaya,
         biayaBeban,
@@ -1126,7 +1130,12 @@ export const resolvers = {
         tenggatWaktu: new Date(new Date(periodeDate).setDate(new Date(periodeDate).getDate() + 30)),
         menunggak: false,
       });
-      return await billing.save();
+      await billing.save();
+      // Populate untuk memenuhi kontrak GraphQL schema (idMeteran: Meteran!)
+      return await Billing.findById(billing._id).populate({
+        path: 'idMeteran',
+        populate: [{ path: 'idKelompokPelanggan' }, { path: 'idKoneksiData' }],
+      });
     },
 
     updateStatusPembayaran: async (_, { id, status }, { token }) => {
@@ -1161,7 +1170,9 @@ export const resolvers = {
 
           // Ambil kelompok pelanggan untuk tarif
           const kelompok = await KelompokPelanggan.findById(meteran.idKelompokPelanggan);
-          const pemakaian = 10; // default, karena IoT belum terintegrasi penuh
+          // Gunakan pemakaianBelumTerbayar dari meteran (diisi oleh IoT via REST pipeline)
+          const pemakaian = meteran.pemakaianBelumTerbayar || 0;
+          const penggunaanSebelum = meteran.totalPemakaian - pemakaian;
           const biaya = pemakaian <= 10
             ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
             : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
@@ -1171,8 +1182,8 @@ export const resolvers = {
             userId: meteran.idKoneksiData?.idPelanggan || null,
             idMeteran: meteran._id,
             periode: periodeDate,
-            penggunaanSebelum: 0,
-            penggunaanSekarang: pemakaian,
+            penggunaanSebelum: penggunaanSebelum > 0 ? penggunaanSebelum : 0,
+            penggunaanSekarang: meteran.totalPemakaian,
             totalPemakaian: pemakaian,
             biaya,
             biayaBeban,
@@ -1189,6 +1200,86 @@ export const resolvers = {
         }
       }
       return { berhasil, gagal, pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal` };
+    },
+
+    // ==================== SURVEI MUTATIONS ====================
+    createSurvei: async (_, args, { token }) => {
+      verifyAdminToken(token);
+      const { idKoneksiData, idTeknisi, urlJaringan, diameterPipa, urlPosisiBak, posisiMeteran, jumlahPenghuni, standar, catatan, koordinat } = args;
+      const survei = new SurveyData({
+        idKoneksiData,
+        idTeknisi,
+        urlJaringan,
+        diameterPipa,
+        urlPosisiBak,
+        posisiMeteran,
+        jumlahPenghuni,
+        standar,
+        catatan: catatan || '',
+        koordinat: koordinat || { latitude: null, longitude: null },
+      });
+      await survei.save();
+      return await SurveyData.findById(survei._id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } })
+        .populate('idTeknisi');
+    },
+
+    updateSurvei: async (_, { id, ...updates }, { token }) => {
+      verifyAdminToken(token);
+      const survei = await SurveyData.findById(id);
+      if (!survei) throw new Error('Survei tidak ditemukan');
+      Object.keys(updates).forEach((key) => {
+        if (updates[key] !== undefined) survei[key] = updates[key];
+      });
+      await survei.save();
+      return await SurveyData.findById(id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } })
+        .populate('idTeknisi');
+    },
+
+    deleteSurvei: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const survei = await SurveyData.findById(id);
+      if (!survei) throw new Error('Survei tidak ditemukan');
+      await SurveyData.findByIdAndDelete(id);
+      return true;
+    },
+
+    // ==================== RAB CONNECTION MUTATIONS ====================
+    createRABConnection: async (_, { idKoneksiData, totalBiaya, urlRab, catatan }, { token }) => {
+      verifyAdminToken(token);
+      const existing = await RabConnection.findOne({ idKoneksiData });
+      if (existing) throw new Error('RAB untuk koneksi data ini sudah ada');
+      const rab = new RabConnection({
+        idKoneksiData,
+        totalBiaya,
+        urlRab,
+        catatan: catatan || '',
+        statusPembayaran: 'Pending',
+      });
+      await rab.save();
+      return await RabConnection.findById(rab._id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+    },
+
+    updateRABConnection: async (_, { id, ...updates }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB Connection tidak ditemukan');
+      Object.keys(updates).forEach((key) => {
+        if (updates[key] !== undefined) rab[key] = updates[key];
+      });
+      await rab.save();
+      return await RabConnection.findById(id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+    },
+
+    deleteRABConnection: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB Connection tidak ditemukan');
+      await RabConnection.findByIdAndDelete(id);
+      return true;
     },
 
     // ==================== NOTIFIKASI MUTATIONS ====================
