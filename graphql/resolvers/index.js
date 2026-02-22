@@ -20,6 +20,17 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getCache, setCache } from '../../utils/redis.js';
 
+// Helper: verifikasi token admin
+function verifyAdminToken(token) {
+  if (!token) throw new Error('Token tidak ditemukan. Silakan login terlebih dahulu.');
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return decoded;
+  } catch (err) {
+    throw new Error('Token tidak valid atau sudah kadaluarsa.');
+  }
+}
+
 // Helper: kirim notifikasi ke semua admin
 async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
   try {
@@ -1050,6 +1061,86 @@ export const resolvers = {
       return await PekerjaanTeknisi.findById(saved._id)
         .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
         .populate('tim');
+    },
+
+    // ==================== METERAN MUTATIONS ====================
+    createMeteran: async (_, { idKelompokPelanggan, nomorMeteran, nomorAkun, idKoneksiData }, { token }) => {
+      verifyAdminToken(token);
+      const existing = await Meteran.findOne({ nomorAkun });
+      if (existing) throw new Error(`Nomor akun ${nomorAkun} sudah digunakan`);
+      const meteran = new Meteran({ idKelompokPelanggan, nomorMeteran, nomorAkun, idKoneksiData: idKoneksiData || null });
+      await meteran.save();
+      return await Meteran.findById(meteran._id).populate('idKelompokPelanggan').populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+    },
+
+    updateMeteran: async (_, { id, ...updates }, { token }) => {
+      verifyAdminToken(token);
+      const meteran = await Meteran.findByIdAndUpdate(id, updates, { new: true })
+        .populate('idKelompokPelanggan')
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+      if (!meteran) throw new Error('Meteran tidak ditemukan');
+      return meteran;
+    },
+
+    deleteMeteran: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const meteran = await Meteran.findById(id);
+      if (!meteran) throw new Error('Meteran tidak ditemukan');
+      const activeBilling = await Billing.findOne({ idMeteran: id, statusPembayaran: { $in: ['Pending'] } });
+      if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
+      await Meteran.findByIdAndDelete(id);
+      return true;
+    },
+
+    // ==================== TAGIHAN MUTATIONS ====================
+    generateTagihan: async (_, { idMeteran, periode }, { token }) => {
+      verifyAdminToken(token);
+      const meteran = await Meteran.findById(idMeteran).populate('idKoneksiData');
+      if (!meteran) throw new Error('Meteran tidak ditemukan');
+
+      // Cek tagihan periode ini sudah ada
+      const periodeDate = new Date(periode + '-01');
+      const nextMonth = new Date(periodeDate);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      const existing = await Billing.findOne({ idMeteran, periode: { $gte: periodeDate, $lt: nextMonth } });
+      if (existing) throw new Error(`Tagihan untuk meteran ini pada periode ${periode} sudah ada`);
+
+      const kelompok = await KelompokPelanggan.findById(meteran.idKelompokPelanggan);
+      const pemakaian = 10; // default karena IoT belum terintegrasi penuh
+      const biaya = pemakaian <= 10
+        ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
+        : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
+      const biayaBeban = kelompok?.biayaBeban || 5000;
+
+      const billing = new Billing({
+        userId: meteran.idKoneksiData?.idPelanggan || null,
+        idMeteran: meteran._id,
+        periode: periodeDate,
+        penggunaanSebelum: 0,
+        penggunaanSekarang: pemakaian,
+        totalPemakaian: pemakaian,
+        biaya,
+        biayaBeban,
+        totalBiaya: biaya + biayaBeban,
+        statusPembayaran: 'Pending',
+        tenggatWaktu: new Date(new Date(periodeDate).setDate(new Date(periodeDate).getDate() + 30)),
+        menunggak: false,
+      });
+      return await billing.save();
+    },
+
+    updateStatusPembayaran: async (_, { id, status }, { token }) => {
+      verifyAdminToken(token);
+      const tagihan = await Billing.findById(id);
+      if (!tagihan) throw new Error('Tagihan tidak ditemukan');
+
+      const updateData = { statusPembayaran: status };
+      if (status === 'Settlement') {
+        updateData.tanggalPembayaran = new Date().toISOString();
+      }
+
+      const updated = await Billing.findByIdAndUpdate(id, updateData, { new: true }).populate('idMeteran');
+      return updated;
     },
 
     // ==================== TAGIHAN BULK MUTATION ====================

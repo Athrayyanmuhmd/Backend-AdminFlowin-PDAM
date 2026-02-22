@@ -505,6 +505,11 @@ export const typeDefs = gql`
     updateKoneksiData(id: ID!, input: UpdateKoneksiDataInput!): KoneksiData!
 
     # Tagihan mutations
+    # Meteran mutations
+    createMeteran(idKelompokPelanggan: ID!, nomorMeteran: String!, nomorAkun: String!, idKoneksiData: ID): Meteran!
+    updateMeteran(id: ID!, idKelompokPelanggan: ID, nomorMeteran: String, nomorAkun: String, idKoneksiData: ID, statusAktif: Boolean): Meteran!
+    deleteMeteran(id: ID!): Boolean!
+
     generateTagihan(idMeteran: ID!, periode: String!): Tagihan!
     generateTagihanBulanan(periode: String!, idMeteranList: [ID!]!): HasilGenerateTagihan!
     updateStatusPembayaran(id: ID!, status: EnumPaymentStatus!): Tagihan!
