@@ -30,6 +30,9 @@ function createRedisClient() {
       return null;
     }
 
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
     // Upstash Redis configuration
     const redis = new Redis(process.env.REDIS_URL, {
       // Upstash requires TLS
@@ -40,32 +43,28 @@ function createRedisClient() {
       // Connection settings
       maxRetriesPerRequest: 1,
       retryStrategy: (times) => {
-        // Max 3 retries, then give up (return null = no retry)
-        if (times >= 3) {
-          console.warn('⚠️  Redis: max retries reached, disabling cache.');
+        retryCount = times;
+        if (times > MAX_RETRIES) {
+          // Stop retrying — will trigger 'end' event, client goes silent
           return null;
         }
-        return Math.min(times * 500, 2000);
+        return Math.min(times * 500, 1000);
       },
 
-      // Reconnect settings
+      // Only reconnect for READONLY errors, not DNS failures
       reconnectOnError: (err) => {
-        const targetError = 'READONLY';
-        if (err.message.includes(targetError)) {
-          return true;
-        }
-        return false;
+        return err.message.includes('READONLY');
       },
 
       // Disable offline queue (fail fast)
       enableOfflineQueue: false,
 
       // Timeout settings
-      connectTimeout: 10000,
-      commandTimeout: 5000,
+      connectTimeout: 5000,
+      commandTimeout: 3000,
     });
 
-    // Connection event handlers
+    // Connection event handlers — suppress noise after max retries
     redis.on('connect', () => {
       console.log('✅ Redis connected successfully');
     });
@@ -75,15 +74,26 @@ function createRedisClient() {
     });
 
     redis.on('error', (err) => {
-      console.error('❌ Redis error:', err.message);
+      if (retryCount <= MAX_RETRIES) {
+        console.error('❌ Redis error:', err.message);
+      }
     });
 
     redis.on('close', () => {
-      console.warn('⚠️  Redis connection closed');
+      if (retryCount <= MAX_RETRIES) {
+        console.warn('⚠️  Redis connection closed');
+      }
     });
 
     redis.on('reconnecting', () => {
-      console.log('🔄 Reconnecting to Redis...');
+      if (retryCount <= MAX_RETRIES) {
+        console.log('🔄 Reconnecting to Redis...');
+      }
+    });
+
+    redis.on('end', () => {
+      console.warn('⚠️  Redis disabled (unreachable). Caching off — server tetap jalan.');
+      redisClient = null;
     });
 
     return redis;
