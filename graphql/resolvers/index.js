@@ -8,6 +8,7 @@ import Billing from '../../models/Billing.js';
 import HistoryUsage from '../../models/HistoryUsage.js';
 import Report from '../../models/Report.js';
 import WorkOrder from '../../models/WorkOrder.js';
+import PekerjaanTeknisi from '../../models/PekerjaanTeknisi.js';
 import RabConnection from '../../models/RabConnection.js';
 import SurveyData from '../../models/SurveyData.js';
 import Notification from '../../models/Notification.js';
@@ -220,31 +221,34 @@ export const resolvers = {
 
     // ==================== WORK ORDER QUERIES ====================
     getWorkOrder: async (_, { id }) => {
-      return await WorkOrder.findById(id)
-        .populate('idSurvei')
+      return await PekerjaanTeknisi.findById(id)
+        .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
         .populate('tim');
     },
 
     getAllWorkOrders: async () => {
-      return await WorkOrder.find()
-        .populate('idSurvei')
+      return await PekerjaanTeknisi.find()
+        .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
-        .populate('tim');
+        .populate('tim')
+        .sort({ createdAt: -1 });
     },
 
     getWorkOrdersByStatus: async (_, { status }) => {
-      return await WorkOrder.find({ status })
-        .populate('idSurvei')
+      return await PekerjaanTeknisi.find({ status })
+        .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
-        .populate('tim');
+        .populate('tim')
+        .sort({ createdAt: -1 });
     },
 
     getWorkOrdersByTeknisi: async (_, { idTeknisi }) => {
-      return await WorkOrder.find({ tim: idTeknisi })
-        .populate('idSurvei')
+      return await PekerjaanTeknisi.find({ tim: idTeknisi })
+        .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
-        .populate('tim');
+        .populate('tim')
+        .sort({ createdAt: -1 });
     },
 
     // ==================== RAB CONNECTION QUERIES ====================
@@ -314,7 +318,7 @@ export const resolvers = {
         Technician.countDocuments(),
         Meteran.countDocuments(),
         ConnectionData.countDocuments({ statusVerifikasi: false }),
-        WorkOrder.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
+        PekerjaanTeknisi.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
         Billing.countDocuments({ menunggak: true }),
         Report.countDocuments({ status: { $in: ['Diajukan', 'ProsesPerbaikan'] } })
       ]);
@@ -405,7 +409,7 @@ export const resolvers = {
           }
         },
         {
-          $unwind: { path: '$kelompok', preserveNullAndEmpty: false }
+          $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: false }
         },
         {
           $group: {
@@ -480,7 +484,7 @@ export const resolvers = {
             as: 'meteran'
           }
         },
-        { $unwind: { path: '$meteran', preserveNullAndEmpty: false } },
+        { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
         {
           $lookup: {
             from: 'kelompokpelanggans',
@@ -489,7 +493,7 @@ export const resolvers = {
             as: 'kelompok'
           }
         },
-        { $unwind: { path: '$kelompok', preserveNullAndEmpty: true } },
+        { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
         {
           $group: {
             _id: { $ifNull: ['$kelompok.namaKelompok', 'Tidak Diketahui'] },
@@ -519,7 +523,7 @@ export const resolvers = {
             as: 'meteran'
           }
         },
-        { $unwind: { path: '$meteran', preserveNullAndEmpty: false } },
+        { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
         {
           $lookup: {
             from: 'kelompokpelanggans',
@@ -528,7 +532,7 @@ export const resolvers = {
             as: 'kelompok'
           }
         },
-        { $unwind: { path: '$kelompok', preserveNullAndEmpty: true } },
+        { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
         { $sort: { totalBiaya: -1 } },
         { $limit: limit },
         {
@@ -608,8 +612,8 @@ export const resolvers = {
         User.countDocuments(),
         Report.countDocuments(),
         Report.countDocuments({ status: 'Selesai' }),
-        WorkOrder.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
-        WorkOrder.countDocuments({ status: 'Selesai' }),
+        PekerjaanTeknisi.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
+        PekerjaanTeknisi.countDocuments({ status: 'Selesai' }),
         Technician.countDocuments(),
       ]);
 
@@ -636,7 +640,7 @@ export const resolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      const hasil = await WorkOrder.aggregate([
+      const hasil = await PekerjaanTeknisi.aggregate([
         { $group: { _id: '$status', jumlah: { $count: {} } } },
         { $sort: { jumlah: -1 } }
       ]);
@@ -936,7 +940,7 @@ export const resolvers = {
 
     // ==================== WORK ORDER MUTATIONS ====================
     createWorkOrder: async (_, { input }) => {
-      const workOrder = new WorkOrder({
+      const workOrder = new PekerjaanTeknisi({
         ...input,
         status: 'Ditugaskan',
         disetujui: null
@@ -952,7 +956,7 @@ export const resolvers = {
     },
 
     assignWorkOrder: async (_, { id, teknisiIds }) => {
-      return await WorkOrder.findByIdAndUpdate(
+      return await PekerjaanTeknisi.findByIdAndUpdate(
         id,
         { tim: teknisiIds },
         { new: true }
@@ -960,7 +964,7 @@ export const resolvers = {
     },
 
     updateWorkOrderStatus: async (_, { id, status, catatan }) => {
-      const updated = await WorkOrder.findByIdAndUpdate(
+      const updated = await PekerjaanTeknisi.findByIdAndUpdate(
         id,
         { status, catatan },
         { new: true }
@@ -978,7 +982,7 @@ export const resolvers = {
     },
 
     approveWorkOrder: async (_, { id, disetujui, catatan }) => {
-      return await WorkOrder.findByIdAndUpdate(
+      return await PekerjaanTeknisi.findByIdAndUpdate(
         id,
         { disetujui, catatan },
         { new: true }

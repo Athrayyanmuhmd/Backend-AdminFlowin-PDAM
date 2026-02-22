@@ -68,9 +68,9 @@ export const typeDefs = gql`
 
   type Pengguna {
     _id: ID!
-    email: String!
-    noHP: String!
-    namaLengkap: String!
+    email: String
+    noHP: String
+    namaLengkap: String
     nik: String
     address: String
     gender: String
@@ -80,7 +80,7 @@ export const typeDefs = gql`
     accountStatus: String
     password: String
     token: String
-    isVerified: Boolean!
+    isVerified: Boolean
     createdAt: String
     updatedAt: String
   }
@@ -120,18 +120,18 @@ export const typeDefs = gql`
 
   type KoneksiData {
     _id: ID!
-    idPelanggan: Pengguna!
-    statusVerifikasi: Boolean!
-    NIK: String!
-    NIKUrl: String!
-    noKK: String!
-    KKUrl: String!
-    IMB: String!
-    IMBUrl: String!
-    alamat: String!
-    kelurahan: String!
-    kecamatan: String!
-    luasBangunan: Float!
+    idPelanggan: Pengguna
+    statusVerifikasi: Boolean
+    NIK: String
+    NIKUrl: String
+    noKK: String
+    KKUrl: String
+    IMB: String
+    IMBUrl: String
+    alamat: String
+    kelurahan: String
+    kecamatan: String
+    luasBangunan: Float
     createdAt: String
     updatedAt: String
   }
