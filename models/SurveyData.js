@@ -2,22 +2,17 @@ import mongoose from "mongoose";
 
 const SurveyData = new mongoose.Schema(
   {
-    connectionDataId: {
+    idKoneksiData: {
       type: mongoose.Types.ObjectId,
       ref: "ConnectionData",
       required: true,
     },
-    userId: {
+    idTeknisi: {
       type: mongoose.Types.ObjectId,
-      ref: "Users",
+      ref: "Teknisi",
       required: true,
     },
-    technicianId: {
-      type: mongoose.Types.ObjectId,
-      ref: "Technician",
-      required: true,
-    },
-    jaringanUrl: {
+    urlJaringan: {
       type: String,
       required: true,
     },
@@ -25,26 +20,26 @@ const SurveyData = new mongoose.Schema(
       type: Number,
       required: true,
     },
-    posisiBakUrl: {
+    urlPosisiBak: {
       type: String,
       required: true,
     },
-    posisiMeteranUrl: {
+    posisiMeteran: {
       type: String,
       required: true,
     },
     jumlahPenghuni: {
-      type: Number,
+      type: String,
       required: true,
     },
     koordinat: {
       lat: {
         type: Number,
-        required: true,
+        default: null,
       },
       long: {
         type: Number,
-        required: true,
+        default: null,
       },
     },
     standar: {
@@ -56,7 +51,10 @@ const SurveyData = new mongoose.Schema(
       default: "",
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: 'surveydatas',
+  }
 );
 
 export default mongoose.model("SurveyData", SurveyData);

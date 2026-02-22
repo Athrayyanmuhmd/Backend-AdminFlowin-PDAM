@@ -31,7 +31,7 @@ export const createRabConnection = async (req, res) => {
     }
 
     // Check if RAB already exists
-    const existingRab = await RabConnection.findOne({ connectionDataId });
+    const existingRab = await RabConnection.findOne({ idKoneksiData: connectionDataId });
     if (existingRab) {
       return res.status(400).json({
         status: 400,
@@ -55,11 +55,9 @@ export const createRabConnection = async (req, res) => {
     );
 
     const rabConnection = new RabConnection({
-      connectionDataId,
-      userId: connectionData.userId,
-      technicianId: req.technicianId,
+      idKoneksiData: connectionDataId,
       totalBiaya: parseInt(totalBiaya),
-      rabUrl,
+      urlRab: rabUrl,
       catatan: catatan || "",
     });
 
@@ -97,8 +95,7 @@ export const getAllRabConnections = async (req, res) => {
     if (isPaid !== undefined) filter.isPaid = isPaid === "true";
 
     const rabConnections = await RabConnection.find(filter)
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+      .populate("idKoneksiData");
 
     res.status(200).json({
       status: 200,
@@ -118,8 +115,7 @@ export const getRabConnectionById = async (req, res) => {
     const { id } = req.params;
 
     const rabConnection = await RabConnection.findById(id)
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+      .populate("idKoneksiData");
 
     if (!rabConnection) {
       return res.status(404).json({
@@ -140,14 +136,18 @@ export const getRabConnectionById = async (req, res) => {
   }
 };
 
-// Get RAB Connection by User ID
+// Get RAB Connection by User ID (via ConnectionData.idPelanggan)
 export const getRabConnectionByUserId = async (req, res) => {
   try {
     const userId = req.user.userId;
 
-    const rabConnection = await RabConnection.findOne({ userId })
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+    // Find KoneksiData yang dimiliki user, lalu cari RAB yang terhubung
+    const koneksiData = await ConnectionData.findOne({ idPelanggan: userId });
+    if (!koneksiData) {
+      return res.status(404).json({ status: 404, pesan: "RAB connection not found" });
+    }
+    const rabConnection = await RabConnection.findOne({ idKoneksiData: koneksiData._id })
+      .populate("idKoneksiData");
 
     if (!rabConnection) {
       return res.status(404).json({
@@ -173,9 +173,8 @@ export const getRabConnectionByConnectionId = async (req, res) => {
   try {
     const { connectionDataId } = req.params;
 
-    const rabConnection = await RabConnection.findOne({ connectionDataId })
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+    const rabConnection = await RabConnection.findOne({ idKoneksiData: connectionDataId })
+      .populate("idKoneksiData");
 
     if (!rabConnection) {
       return res.status(404).json({
@@ -286,7 +285,7 @@ export const deleteRabConnection = async (req, res) => {
     }
 
     // Remove RAB ID from connection data
-    await ConnectionData.findByIdAndUpdate(rabConnection.connectionDataId, {
+    await ConnectionData.findByIdAndUpdate(rabConnection.idKoneksiData, {
       rabConnectionId: null,
     });
 
@@ -310,8 +309,10 @@ export const createRabPayment = async (req, res) => {
 
     // Get RAB data
     const rab = await RabConnection.findById(rabId)
-      .populate("userId", "namaLengkap email phone")
-      .populate("connectionDataId");
+      .populate({
+        path: "idKoneksiData",
+        populate: { path: "idPelanggan", select: "namaLengkap email noHP" }
+      });
 
     if (!rab) {
       return res.status(404).json({
@@ -320,8 +321,9 @@ export const createRabPayment = async (req, res) => {
       });
     }
 
-    // Verify user ownership
-    if (rab.userId._id.toString() !== userId) {
+    // Verify user ownership via idKoneksiData.idPelanggan
+    const pelanggan = rab.idKoneksiData?.idPelanggan;
+    if (!pelanggan || pelanggan._id.toString() !== userId) {
       return res.status(403).json({
         status: 403,
         pesan: "Unauthorized to pay this RAB",
@@ -329,7 +331,7 @@ export const createRabPayment = async (req, res) => {
     }
 
     // Check if already paid
-    if (rab.isPaid) {
+    if (rab.statusPembayaran === 'Settlement') {
       return res.status(400).json({
         status: 400,
         pesan: "RAB already paid",
@@ -350,9 +352,9 @@ export const createRabPayment = async (req, res) => {
         gross_amount: rab.totalBiaya,
       },
       customer_details: {
-        first_name: rab.userId.namaLengkap,
-        email: rab.userId.email,
-        phone: rab.userId.noHP || "08123456789",
+        first_name: pelanggan.namaLengkap,
+        email: pelanggan.email,
+        phone: pelanggan.noHP || "08123456789",
       },
       item_details: [
         {

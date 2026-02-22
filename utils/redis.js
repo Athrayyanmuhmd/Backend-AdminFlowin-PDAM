@@ -38,17 +38,20 @@ function createRedisClient() {
       } : undefined,
 
       // Connection settings
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
       retryStrategy: (times) => {
-        const delay = Math.min(times * 50, 2000);
-        return delay;
+        // Max 3 retries, then give up (return null = no retry)
+        if (times >= 3) {
+          console.warn('⚠️  Redis: max retries reached, disabling cache.');
+          return null;
+        }
+        return Math.min(times * 500, 2000);
       },
 
       // Reconnect settings
       reconnectOnError: (err) => {
         const targetError = 'READONLY';
         if (err.message.includes(targetError)) {
-          // Reconnect when Redis is in readonly mode
           return true;
         }
         return false;

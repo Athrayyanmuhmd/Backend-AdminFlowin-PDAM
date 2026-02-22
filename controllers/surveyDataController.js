@@ -77,7 +77,7 @@ export const createSurveyData = async (req, res) => {
     );
 
     // Check if survey already exists
-    const existingSurvey = await SurveyData.findOne({ connectionDataId });
+    const existingSurvey = await SurveyData.findOne({ idKoneksiData: connectionDataId });
     if (existingSurvey) {
       return res.status(400).json({
         status: 400,
@@ -117,14 +117,13 @@ export const createSurveyData = async (req, res) => {
     );
 
     const surveyData = new SurveyData({
-      connectionDataId,
-      userId: connectionData.userId,
-      technicianId: req.technicianId,
-      jaringanUrl,
+      idKoneksiData: connectionDataId,
+      idTeknisi: req.technicianId,
+      urlJaringan: jaringanUrl,
       diameterPipa: parseInt(diameterPipa),
-      posisiBakUrl,
-      posisiMeteranUrl,
-      jumlahPenghuni: parseInt(jumlahPenghuni),
+      urlPosisiBak: posisiBakUrl,
+      posisiMeteran: posisiMeteranUrl,
+      jumlahPenghuni: String(jumlahPenghuni),
       koordinat: {
         lat: parseFloat(koordinatLat),
         long: parseFloat(koordinatLong),
@@ -162,8 +161,8 @@ export const createSurveyData = async (req, res) => {
 export const getAllSurveyData = async (req, res) => {
   try {
     const surveyData = await SurveyData.find()
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+      .populate("idKoneksiData")
+      .populate("idTeknisi", "email namaLengkap noHP");
 
     res.status(200).json({
       status: 200,
@@ -183,8 +182,8 @@ export const getSurveyDataById = async (req, res) => {
     const { id } = req.params;
 
     const surveyData = await SurveyData.findById(id)
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+      .populate("idKoneksiData")
+      .populate("idTeknisi", "email namaLengkap noHP");
 
     if (!surveyData) {
       return res.status(404).json({
@@ -210,9 +209,9 @@ export const getSurveyDataByConnectionId = async (req, res) => {
   try {
     const { connectionDataId } = req.params;
 
-    const surveyData = await SurveyData.findOne({ connectionDataId })
-      .populate("connectionDataId")
-      .populate("userId", "email namaLengkap phone");
+    const surveyData = await SurveyData.findOne({ idKoneksiData: connectionDataId })
+      .populate("idKoneksiData")
+      .populate("idTeknisi", "email namaLengkap noHP");
 
     if (!surveyData) {
       return res.status(404).json({
@@ -242,21 +241,21 @@ export const updateSurveyData = async (req, res) => {
     // Handle PDF/image file uploads if provided
     if (req.files) {
       if (req.files.jaringanFile) {
-        updates.jaringanUrl = await uploadPdfAsImage(
+        updates.urlJaringan = await uploadPdfAsImage(
           req.files.jaringanFile[0].buffer,
           "aqualink/survey/jaringan",
           req.files.jaringanFile[0].mimetype
         );
       }
       if (req.files.posisiBakFile) {
-        updates.posisiBakUrl = await uploadPdfAsImage(
+        updates.urlPosisiBak = await uploadPdfAsImage(
           req.files.posisiBakFile[0].buffer,
           "aqualink/survey/bak",
           req.files.posisiBakFile[0].mimetype
         );
       }
       if (req.files.posisiMeteranFile) {
-        updates.posisiMeteranUrl = await uploadPdfAsImage(
+        updates.posisiMeteran = await uploadPdfAsImage(
           req.files.posisiMeteranFile[0].buffer,
           "aqualink/survey/meteran",
           req.files.posisiMeteranFile[0].mimetype
@@ -322,7 +321,7 @@ export const deleteSurveyData = async (req, res) => {
     }
 
     // Remove survey ID from connection data
-    await ConnectionData.findByIdAndUpdate(surveyData.connectionDataId, {
+    await ConnectionData.findByIdAndUpdate(surveyData.idKoneksiData, {
       surveiId: null,
     });
 

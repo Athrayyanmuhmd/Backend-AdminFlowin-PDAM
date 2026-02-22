@@ -123,7 +123,7 @@ connectDB()
     // Setup GraphQL Apollo Server (sesuai proposal - GraphQL layer)
     await setupApolloServer(app);
 
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       console.log(`Server running on port ${port}`);
       console.log(`🚀 GraphQL endpoint: http://localhost:${port}/graphql`);
 
@@ -133,6 +133,15 @@ connectDB()
       setupOverdueCron(); // Check overdue daily
       setupReminderCron(); // Send reminders daily
       console.log("✅ All cron jobs are active\n");
+    });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`❌ Port ${port} sudah digunakan. Hentikan proses lain dulu (taskkill /F /IM node.exe) atau ganti PORT di .env`);
+        process.exit(1);
+      } else {
+        throw err;
+      }
     });
   })
   .catch(console.dir);
