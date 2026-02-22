@@ -170,9 +170,9 @@ export const typeDefs = gql`
   }
 
   type Geolocation {
-    _id: ID!
-    longitude: Float!
-    latitude: Float!
+    _id: ID
+    longitude: Float
+    latitude: Float
   }
 
   input GeolocationInput {
@@ -182,12 +182,12 @@ export const typeDefs = gql`
 
   type Laporan {
     _id: ID!
-    idPengguna: Pengguna!
-    namaLaporan: String!
-    masalah: String!
-    alamat: String!
-    imageUrl: [String!]!
-    jenisLaporan: EnumJenisLaporan!
+    idPengguna: Pengguna
+    namaLaporan: String
+    masalah: String
+    alamat: String
+    imageUrl: [String!]
+    jenisLaporan: EnumJenisLaporan
     catatan: String
     koordinat: Geolocation
     status: EnumWorkStatusPelanggan!

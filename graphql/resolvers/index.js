@@ -1150,6 +1150,18 @@ export const resolvers = {
     }
   },
 
+  Laporan: {
+    koordinat: (parent) => {
+      const k = parent.koordinat;
+      if (!k || (k.latitude == null && k.longitude == null)) return null;
+      return {
+        _id: parent._id,
+        latitude: k.latitude ?? null,
+        longitude: k.longitude ?? null,
+      };
+    }
+  },
+
   PekerjaanTeknisi: {
     idLaporan: async (parent) => {
       if (!parent.idLaporan) return null;
