@@ -15,13 +15,15 @@ export const createSurveyData = async (req, res) => {
       catatan,
     } = req.body;
 
+    const isAdmin = req.userRole === "admin";
     console.log(
-      "[createSurveyData] Request from technician:",
-      req.technicianId
+      "[createSurveyData] Request from:",
+      isAdmin ? "admin" : "technician",
+      isAdmin ? req.userId : req.technicianId
     );
     console.log("[createSurveyData] Connection Data ID:", connectionDataId);
 
-    // Check if connection data exists and verified by admin
+    // Check if connection data exists
     const connectionData = await ConnectionData.findById(connectionDataId);
     if (!connectionData) {
       return res.status(404).json({
@@ -30,50 +32,30 @@ export const createSurveyData = async (req, res) => {
       });
     }
 
-    if (!connectionData.isVerifiedByData) {
-      return res.status(400).json({
-        status: 400,
-        pesan: "Connection data must be verified by admin first",
-      });
-    }
+    // For technicians, enforce assignment check
+    if (!isAdmin) {
+      if (!connectionData.assignedTechnicianId) {
+        return res.status(403).json({
+          status: 403,
+          message:
+            "This connection data has not been assigned to any technician yet",
+        });
+      }
 
-    // Check if technician is assigned to this connection data
-    if (!connectionData.assignedTechnicianId) {
-      return res.status(403).json({
-        status: 403,
-        message:
-          "This connection data has not been assigned to any technician yet",
-      });
-    }
-
-    console.log("[createSurveyData] Checking assignment...");
-    console.log(
-      "[createSurveyData] Assigned technician ID:",
-      connectionData.assignedTechnicianId
-    );
-    console.log("[createSurveyData] Request technician ID:", req.technicianId);
-    console.log(
-      "[createSurveyData] Assigned (string):",
-      connectionData.assignedTechnicianId.toString()
-    );
-    console.log(
-      "[createSurveyData] Request (string):",
-      req.technicianId.toString()
-    );
-
-    if (
-      connectionData.assignedTechnicianId.toString() !==
-      req.technicianId.toString()
-    ) {
-      return res.status(403).json({
-        status: 403,
-        pesan: "You are not assigned to this connection data",
-      });
+      if (
+        connectionData.assignedTechnicianId.toString() !==
+        req.technicianId.toString()
+      ) {
+        return res.status(403).json({
+          status: 403,
+          pesan: "You are not assigned to this connection data",
+        });
+      }
     }
 
     console.log(
-      "[createSurveyData] Assignment verified for technician:",
-      req.technicianId
+      "[createSurveyData] Access granted for:",
+      isAdmin ? "admin " + req.userId : "technician " + req.technicianId
     );
 
     // Check if survey already exists
@@ -118,7 +100,7 @@ export const createSurveyData = async (req, res) => {
 
     const surveyData = new SurveyData({
       idKoneksiData: connectionDataId,
-      idTeknisi: req.technicianId,
+      idTeknisi: req.technicianId || connectionData.assignedTechnicianId || null,
       urlJaringan: jaringanUrl,
       diameterPipa: parseInt(diameterPipa),
       urlPosisiBak: posisiBakUrl,

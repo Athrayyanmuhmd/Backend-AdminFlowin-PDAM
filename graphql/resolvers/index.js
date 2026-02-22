@@ -943,6 +943,35 @@ export const resolvers = {
     },
 
     // ==================== CONNECTION DATA MUTATIONS ====================
+    createKoneksiData: async (_, args, { token }) => {
+      verifyAdminToken(token);
+      const { idPelanggan, NIK, NIKUrl, noKK, KKUrl, IMB, IMBUrl, alamat, kelurahan, kecamatan, luasBangunan } = args;
+      const koneksi = new ConnectionData({
+        idPelanggan: idPelanggan || null,
+        NIK: NIK || null,
+        NIKUrl: NIKUrl || null,
+        noKK: noKK || null,
+        KKUrl: KKUrl || null,
+        IMB: IMB || null,
+        IMBUrl: IMBUrl || null,
+        alamat: alamat || null,
+        kelurahan: kelurahan || null,
+        kecamatan: kecamatan || null,
+        luasBangunan: luasBangunan || null,
+        statusVerifikasi: false,
+      });
+      await koneksi.save();
+      return await ConnectionData.findById(koneksi._id).populate('idPelanggan');
+    },
+
+    deleteKoneksiData: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const koneksi = await ConnectionData.findById(id);
+      if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
+      await ConnectionData.findByIdAndDelete(id);
+      return true;
+    },
+
     verifyKoneksiData: async (_, { id, verified, catatan }) => {
       return await ConnectionData.findByIdAndUpdate(
         id,

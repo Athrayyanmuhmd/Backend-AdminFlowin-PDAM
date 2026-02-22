@@ -501,8 +501,22 @@ export const typeDefs = gql`
     deleteKelompokPelanggan(id: ID!): DeleteResponse!
 
     # Connection Data mutations
+    createKoneksiData(
+      idPelanggan: ID
+      NIK: String
+      NIKUrl: String
+      noKK: String
+      KKUrl: String
+      IMB: String
+      IMBUrl: String
+      alamat: String
+      kelurahan: String
+      kecamatan: String
+      luasBangunan: Float
+    ): KoneksiData!
     verifyKoneksiData(id: ID!, verified: Boolean!, catatan: String): KoneksiData!
     updateKoneksiData(id: ID!, input: UpdateKoneksiDataInput!): KoneksiData!
+    deleteKoneksiData(id: ID!): Boolean!
 
     # Tagihan mutations
     # Meteran mutations

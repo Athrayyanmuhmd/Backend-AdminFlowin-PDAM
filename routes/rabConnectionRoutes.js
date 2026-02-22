@@ -23,9 +23,9 @@ router.get("/my-rab", verifyToken, getRabConnectionByUserId);
 router.post("/:rabId/pay", verifyToken, createRabPayment); // Endpoint baru untuk bayar RAB
 router.put("/:id/payment", verifyToken, updateRabPaymentStatus);
 
-// Technician routes (create/update)
-router.post("/", verifyTechnician, uploadRabFile, createRabConnection);
-router.put("/:id", verifyTechnician, uploadRabFile, updateRabConnection);
+// Admin or Technician routes (create/update)
+router.post("/", verifyAdminOrTechnician, uploadRabFile, createRabConnection);
+router.put("/:id", verifyAdminOrTechnician, uploadRabFile, updateRabConnection);
 
 // Admin & Technician routes (read access)
 router.get("/", verifyAdminOrTechnician, getAllRabConnections);

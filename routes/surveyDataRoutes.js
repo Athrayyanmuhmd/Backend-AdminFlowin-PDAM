@@ -14,9 +14,9 @@ import { uploadSurveyDataFiles } from "../middleware/upload.js";
 
 const router = express.Router();
 
-// Technician routes (create/update)
-router.post("/", verifyTechnician, uploadSurveyDataFiles, createSurveyData);
-router.put("/:id", verifyTechnician, uploadSurveyDataFiles, updateSurveyData);
+// Admin or Technician routes (create/update)
+router.post("/", verifyAdminOrTechnician, uploadSurveyDataFiles, createSurveyData);
+router.put("/:id", verifyAdminOrTechnician, uploadSurveyDataFiles, updateSurveyData);
 
 // Admin & Technician routes (read access)
 router.get("/", verifyAdminOrTechnician, getAllSurveyData);
