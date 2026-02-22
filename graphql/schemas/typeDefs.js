@@ -114,6 +114,9 @@ export const typeDefs = gql`
     idKoneksiData: KoneksiData
     nomorMeteran: String!
     nomorAkun: String!
+    totalPemakaian: Float
+    pemakaianBelumTerbayar: Float
+    statusAktif: Boolean
     createdAt: String
     updatedAt: String
   }

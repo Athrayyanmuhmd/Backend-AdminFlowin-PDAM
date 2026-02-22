@@ -2,24 +2,24 @@ import mongoose from "mongoose";
 
 const Meteran = new mongoose.Schema(
   {
-    connectionDataId: {
+    idKelompokPelanggan: {
+      type: mongoose.Types.ObjectId,
+      ref: "KelompokPelanggan",
+      required: true,
+    },
+    idKoneksiData: {
       type: mongoose.Types.ObjectId,
       ref: "ConnectionData",
       default: null,
     },
-    nomorMeteran: {  // Renamed from noMeteran to match ERD
+    nomorMeteran: {
       type: String,
       required: true,
     },
-    nomorAkun: {  // Added field from ERD
+    nomorAkun: {
       type: String,
       required: true,
       unique: true,
-    },
-    kelompokPelangganId: {
-      type: mongoose.Types.ObjectId,
-      ref: "KelompokPelanggan",
-      required: true,
     },
     totalPemakaian: {
       type: Number,
@@ -29,19 +29,14 @@ const Meteran = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    jatuhTempo: {
-      type: Date,
-      default: null,
-    },
-    userId: {
-      type: mongoose.Types.ObjectId,
-      ref: "Pengguna",
-      required: true,
+    statusAktif: {
+      type: Boolean,
+      default: true,
     },
   },
   {
     timestamps: true,
-    collection: 'meterans'  // Explicit collection name (ERD-compliant)
+    collection: 'meterans'
   }
 );
 
