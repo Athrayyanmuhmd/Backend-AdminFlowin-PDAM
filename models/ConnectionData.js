@@ -1,95 +1,61 @@
 import mongoose from "mongoose";
 
-const ConnectionData = new mongoose.Schema(
+const KoneksiDataSchema = new mongoose.Schema(
   {
-    userId: {
+    idPelanggan: {
       type: mongoose.Types.ObjectId,
       ref: "Pengguna",
-      required: true,
+      default: null,
     },
-    nik: {
-      type: String,
-      required: true,
+    statusVerifikasi: {
+      type: Boolean,
+      default: false,
     },
-    nikUrl: {
+    NIK: {
       type: String,
-      required: true,
+      default: null,
+    },
+    NIKUrl: {
+      type: String,
+      default: null,
     },
     noKK: {
       type: String,
-      required: true,
+      default: null,
     },
-    kkUrl: {
+    KKUrl: {
       type: String,
-      required: true,
+      default: null,
+    },
+    IMB: {
+      type: String,
+      default: null,
+    },
+    IMBUrl: {
+      type: String,
+      default: null,
     },
     alamat: {
       type: String,
-      required: true,
-    },
-    kecamatan: {
-      type: String,
-      required: true,
+      default: null,
     },
     kelurahan: {
       type: String,
-      required: true,
+      default: null,
     },
-    noImb: {
+    kecamatan: {
       type: String,
-      required: true,
-    },
-    imbUrl: {
-      type: String,
-      required: true,
+      default: null,
     },
     luasBangunan: {
       type: Number,
-      required: true,
-    },
-    isVerifiedByData: {
-      type: Boolean,
-      default: false,
-    },
-    isVerifiedByTechnician: {
-      type: Boolean,
-      default: false,
-    },
-    assignedTechnicianId: {
-      type: mongoose.Types.ObjectId,
-      ref: "Technician",
       default: null,
-    },
-    assignedAt: {
-      type: Date,
-      default: null,
-    },
-    assignedBy: {
-      type: mongoose.Types.ObjectId,
-      ref: "AdminAccount",
-      default: null,
-    },
-    surveiId: {
-      type: mongoose.Types.ObjectId,
-      ref: "SurveyData",
-      default: null,
-    },
-    rabConnectionId: {
-      type: mongoose.Types.ObjectId,
-      ref: "RabConnection",
-      default: null,
-    },
-    meteranId: {
-      type: mongoose.Types.ObjectId,
-      ref: "Meteran",
-      default: null,
-    },
-    isAllProcedureDone: {
-      type: Boolean,
-      default: false,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    collection: 'koneksidatas',
+  }
 );
 
-export default mongoose.model("ConnectionData", ConnectionData);
+export default mongoose.model("ConnectionData", KoneksiDataSchema);

@@ -125,8 +125,8 @@ export const createSurveyData = async (req, res) => {
       posisiMeteran: posisiMeteranUrl,
       jumlahPenghuni: String(jumlahPenghuni),
       koordinat: {
-        lat: parseFloat(koordinatLat),
-        long: parseFloat(koordinatLong),
+        latitude: parseFloat(koordinatLat),
+        longitude: parseFloat(koordinatLong),
       },
       standar: standar === "true" || standar === true,
       catatan: catatan || "",
@@ -267,9 +267,9 @@ export const updateSurveyData = async (req, res) => {
     if (updates.koordinatLat || updates.koordinatLong) {
       updates.koordinat = {};
       if (updates.koordinatLat)
-        updates.koordinat.lat = parseFloat(updates.koordinatLat);
+        updates.koordinat.latitude = parseFloat(updates.koordinatLat);
       if (updates.koordinatLong)
-        updates.koordinat.long = parseFloat(updates.koordinatLong);
+        updates.koordinat.longitude = parseFloat(updates.koordinatLong);
       delete updates.koordinatLat;
       delete updates.koordinatLong;
     }

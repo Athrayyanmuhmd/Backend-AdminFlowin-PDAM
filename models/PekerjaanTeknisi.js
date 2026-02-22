@@ -27,6 +27,13 @@ const PekerjaanTeknisiSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Direct Laporan reference (optional) - for work orders created from customer reports
+    idLaporan: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Laporan",  // Collection name: laporans
+      default: null,
+    },
+
     // Report Resolution reference (optional)
     idPenyelesaianLaporan: {
       type: mongoose.Schema.Types.ObjectId,
@@ -151,6 +158,7 @@ PekerjaanTeknisiSchema.pre('save', function(next) {
   const hasReference =
     this.idSurvei ||
     this.rabId ||
+    this.idLaporan ||
     this.idPenyelesaianLaporan ||
     this.idPemasangan ||
     this.idPengawasanPemasangan ||

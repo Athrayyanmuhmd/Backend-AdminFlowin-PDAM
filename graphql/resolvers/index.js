@@ -12,6 +12,10 @@ import PekerjaanTeknisi from '../../models/PekerjaanTeknisi.js';
 import RabConnection from '../../models/RabConnection.js';
 import SurveyData from '../../models/SurveyData.js';
 import Notification from '../../models/Notification.js';
+import PenyelesaianLaporan from '../../models/PenyelesaianLaporan.js';
+import Pemasangan from '../../models/Pemasangan.js';
+import PengawasanPemasangan from '../../models/PengawasanPemasangan.js';
+import PengawasanSetelahPemasangan from '../../models/PengawasanSetelahPemasangan.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getCache, setCache } from '../../utils/redis.js';
@@ -144,14 +148,14 @@ export const resolvers = {
     // ==================== METERAN QUERIES ====================
     getMeteran: async (_, { id }) => {
       return await Meteran.findById(id)
-        .populate('idKelompokPelanggan')
-        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
+        .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
 
     getAllMeteran: async () => {
       return await Meteran.find()
-        .populate('idKelompokPelanggan')
-        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
+        .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
 
     getMeteranByPelanggan: async (_, { idPelanggan }) => {
@@ -164,19 +168,19 @@ export const resolvers = {
 
     // ==================== CONNECTION DATA QUERIES ====================
     getKoneksiData: async (_, { id }) => {
-      return await ConnectionData.findById(id).populate('userId');
+      return await ConnectionData.findById(id).populate('idPelanggan');
     },
 
     getAllKoneksiData: async () => {
-      return await ConnectionData.find().populate('userId');
+      return await ConnectionData.find().populate('idPelanggan');
     },
 
     getPendingKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: false }).populate('userId');
+      return await ConnectionData.find({ statusVerifikasi: false }).populate('idPelanggan');
     },
 
     getVerifiedKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: true }).populate('userId');
+      return await ConnectionData.find({ statusVerifikasi: true }).populate('idPelanggan');
     },
 
     // ==================== TAGIHAN QUERIES ====================
@@ -222,6 +226,7 @@ export const resolvers = {
       return await PekerjaanTeknisi.findById(id)
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
+        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
         .populate('tim');
     },
 
@@ -229,6 +234,7 @@ export const resolvers = {
       return await PekerjaanTeknisi.find()
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
+        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
         .populate('tim')
         .sort({ createdAt: -1 });
     },
@@ -237,6 +243,7 @@ export const resolvers = {
       return await PekerjaanTeknisi.find({ status })
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
+        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
         .populate('tim')
         .sort({ createdAt: -1 });
     },
@@ -245,6 +252,7 @@ export const resolvers = {
       return await PekerjaanTeknisi.find({ tim: idTeknisi })
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
+        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
         .populate('tim')
         .sort({ createdAt: -1 });
     },
@@ -401,7 +409,7 @@ export const resolvers = {
         {
           $lookup: {
             from: 'kelompokpelanggans',
-            localField: 'kelompokPelangganId',
+            localField: 'idKelompokPelanggan',
             foreignField: '_id',
             as: 'kelompok'
           }
@@ -486,7 +494,7 @@ export const resolvers = {
         {
           $lookup: {
             from: 'kelompokpelanggans',
-            localField: 'meteran.kelompokPelangganId',
+            localField: 'meteran.idKelompokPelanggan',
             foreignField: '_id',
             as: 'kelompok'
           }
@@ -525,7 +533,7 @@ export const resolvers = {
         {
           $lookup: {
             from: 'kelompokpelanggans',
-            localField: 'meteran.kelompokPelangganId',
+            localField: 'meteran.idKelompokPelanggan',
             foreignField: '_id',
             as: 'kelompok'
           }
@@ -1000,10 +1008,48 @@ export const resolvers = {
           'Laporan Pelanggan Baru',
           'Ada laporan baru dari pelanggan yang memerlukan penanganan.',
           'Peringatan',
-          '/operations/work-orders'
+          '/operations/laporan'
         );
       }
       return updated;
+    },
+
+    createWorkOrderFromLaporan: async (_, { idLaporan, teknisiIds, catatan }) => {
+      // Cek laporan ada
+      const laporan = await Report.findById(idLaporan);
+      if (!laporan) throw new Error('Laporan tidak ditemukan');
+
+      // Cek belum ada work order aktif untuk laporan ini
+      const existingWO = await PekerjaanTeknisi.findOne({
+        idLaporan,
+        status: { $nin: ['Selesai', 'Dibatalkan'] }
+      });
+      if (existingWO) throw new Error('Work order aktif untuk laporan ini sudah ada');
+
+      // Buat PekerjaanTeknisi (Work Order) dengan referensi langsung ke laporan
+      const workOrder = new PekerjaanTeknisi({
+        idLaporan,
+        tim: teknisiIds,
+        status: 'Ditugaskan',
+        disetujui: null,
+        catatan: catatan || '',
+      });
+      const saved = await workOrder.save();
+
+      // Update status laporan menjadi ProsesPerbaikan
+      await Report.findByIdAndUpdate(idLaporan, { status: 'ProsesPerbaikan' });
+
+      // Kirim notifikasi
+      await notifikasiSemuaAdmin(
+        'Work Order Baru dari Laporan',
+        `Work order telah dibuat untuk menangani laporan: ${laporan.namaLaporan}`,
+        'Informasi',
+        '/operations/work-orders'
+      );
+
+      return await PekerjaanTeknisi.findById(saved._id)
+        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
+        .populate('tim');
     },
 
     // ==================== TAGIHAN BULK MUTATION ====================
@@ -1023,7 +1069,7 @@ export const resolvers = {
           if (existing) { gagal++; continue; }
 
           // Ambil kelompok pelanggan untuk tarif
-          const kelompok = await KelompokPelanggan.findById(meteran.kelompokPelangganId);
+          const kelompok = await KelompokPelanggan.findById(meteran.idKelompokPelanggan);
           const pemakaian = 10; // default, karena IoT belum terintegrasi penuh
           const biaya = pemakaian <= 10
             ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
@@ -1098,8 +1144,30 @@ export const resolvers = {
       // Support both new (idKoneksiData) and old (connectionDataId) field names
       const ref = parent.idKoneksiData || parent.connectionDataId;
       if (!ref) return null;
-      if (typeof ref === 'object' && ref._id) return ref;
-      return await ConnectionData.findById(ref);
+      // If already populated object, re-fetch to ensure idPelanggan is populated
+      const id = (typeof ref === 'object' && ref._id) ? ref._id : ref;
+      return await ConnectionData.findById(id).populate('idPelanggan');
+    }
+  },
+
+  PekerjaanTeknisi: {
+    idLaporan: async (parent) => {
+      if (!parent.idLaporan) return null;
+      if (typeof parent.idLaporan === 'object' && parent.idLaporan._id) return parent.idLaporan;
+      return await Report.findById(parent.idLaporan).populate('idPengguna');
+    }
+  },
+
+  Survei: {
+    koordinat: (parent) => {
+      const k = parent.koordinat;
+      if (!k) return null;
+      // Support both new (latitude/longitude) and old (lat/long) field names
+      return {
+        _id: parent._id,
+        latitude: k.latitude ?? k.lat ?? null,
+        longitude: k.longitude ?? k.long ?? null,
+      };
     }
   },
 

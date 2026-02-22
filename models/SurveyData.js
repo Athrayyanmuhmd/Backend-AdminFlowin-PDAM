@@ -33,11 +33,11 @@ const SurveyData = new mongoose.Schema(
       required: true,
     },
     koordinat: {
-      lat: {
+      latitude: {
         type: Number,
         default: null,
       },
-      long: {
+      longitude: {
         type: Number,
         default: null,
       },

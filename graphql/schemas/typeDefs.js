@@ -226,6 +226,7 @@ export const typeDefs = gql`
     _id: ID!
     idSurvei: Survei
     rabId: RABConnection
+    idLaporan: Laporan
     idPenyelesaianLaporan: PenyelesaianLaporan
     idPemasangan: Pemasangan
     idPengawasanPemasangan: PengawasanPemasangan
@@ -516,6 +517,7 @@ export const typeDefs = gql`
 
     # Laporan mutations
     updateLaporanStatus(id: ID!, status: EnumWorkStatusPelanggan!): Laporan!
+    createWorkOrderFromLaporan(idLaporan: ID!, teknisiIds: [ID!]!, catatan: String): PekerjaanTeknisi!
 
     # Notifikasi mutations
     createNotifikasi(input: CreateNotifikasiInput!): Notifikasi!
@@ -612,6 +614,7 @@ export const typeDefs = gql`
   input CreateWorkOrderInput {
     idSurvei: ID
     rabId: ID
+    idLaporan: ID
     idPenyelesaianLaporan: ID
     idPemasangan: ID
     tim: [ID!]!
@@ -635,6 +638,7 @@ export const typeDefs = gql`
   input CreatePekerjaanTeknisiInput {
     idSurvei: ID
     rabId: ID
+    idLaporan: ID
     idPenyelesaianLaporan: ID
     idPemasangan: ID
     idPengawasanPemasangan: ID
@@ -647,6 +651,7 @@ export const typeDefs = gql`
   input UpdatePekerjaanTeknisiInput {
     idSurvei: ID
     rabId: ID
+    idLaporan: ID
     idPenyelesaianLaporan: ID
     idPemasangan: ID
     idPengawasanPemasangan: ID
