@@ -591,6 +591,27 @@ export const typeDefs = gql`
     # Notifikasi mutations
     createNotifikasi(input: CreateNotifikasiInput!): Notifikasi!
     markNotifikasiAsRead(id: ID!): Notifikasi!
+
+    # Pemasangan mutations
+    createPemasangan(input: CreatePemasanganInput!): Pemasangan!
+    updatePemasangan(id: ID!, input: UpdatePemasanganInput!): Pemasangan!
+    deletePemasangan(id: ID!): Boolean!
+    verifyPemasangan(id: ID!, statusVerifikasi: String!, catatan: String): Pemasangan!
+
+    # PengawasanPemasangan mutations
+    createPengawasanPemasangan(input: CreatePengawasanPemasanganInput!): PengawasanPemasangan!
+    updatePengawasanPemasangan(id: ID!, input: UpdatePengawasanPemasanganInput!): PengawasanPemasangan!
+    deletePengawasanPemasangan(id: ID!): Boolean!
+
+    # PengawasanSetelahPemasangan mutations
+    createPengawasanSetelahPemasangan(input: CreatePengawasanSetelahPemasanganInput!): PengawasanSetelahPemasangan!
+    updatePengawasanSetelahPemasangan(id: ID!, input: UpdatePengawasanSetelahPemasanganInput!): PengawasanSetelahPemasangan!
+    deletePengawasanSetelahPemasangan(id: ID!): Boolean!
+
+    # PenyelesaianLaporan mutations
+    createPenyelesaianLaporan(input: CreatePenyelesaianLaporanInput!): PenyelesaianLaporan!
+    updatePenyelesaianLaporan(id: ID!, input: UpdatePenyelesaianLaporanInput!): PenyelesaianLaporan!
+    deletePenyelesaianLaporan(id: ID!): Boolean!
   }
 
   # ============================================

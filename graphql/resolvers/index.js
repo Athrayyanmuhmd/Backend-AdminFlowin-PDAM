@@ -1405,7 +1405,97 @@ export const resolvers = {
         { isRead: true },
         { new: true }
       );
-    }
+    },
+
+    // ==================== PEMASANGAN MUTATIONS ====================
+    createPemasangan: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      const pemasangan = new Pemasangan(input);
+      return await pemasangan.save();
+    },
+
+    updatePemasangan: async (_, { id, input }, { token }) => {
+      verifyAdminToken(token);
+      return await Pemasangan.findByIdAndUpdate(id, input, { new: true });
+    },
+
+    deletePemasangan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      await Pemasangan.findByIdAndDelete(id);
+      return true;
+    },
+
+    verifyPemasangan: async (_, { id, statusVerifikasi, catatan }, { token }) => {
+      const admin = verifyAdminToken(token);
+      return await Pemasangan.findByIdAndUpdate(
+        id,
+        {
+          statusVerifikasi,
+          diverifikasiOleh: admin.id,
+          tanggalVerifikasi: new Date().toISOString(),
+          ...(catatan && { catatan }),
+        },
+        { new: true }
+      );
+    },
+
+    // ==================== PENGAWASAN PEMASANGAN MUTATIONS ====================
+    createPengawasanPemasangan: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      const pengawasan = new PengawasanPemasangan(input);
+      return await pengawasan.save();
+    },
+
+    updatePengawasanPemasangan: async (_, { id, input }, { token }) => {
+      verifyAdminToken(token);
+      return await PengawasanPemasangan.findByIdAndUpdate(id, input, { new: true });
+    },
+
+    deletePengawasanPemasangan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      await PengawasanPemasangan.findByIdAndDelete(id);
+      return true;
+    },
+
+    // ==================== PENGAWASAN SETELAH PEMASANGAN MUTATIONS ====================
+    createPengawasanSetelahPemasangan: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      const pengawasan = new PengawasanSetelahPemasangan(input);
+      return await pengawasan.save();
+    },
+
+    updatePengawasanSetelahPemasangan: async (_, { id, input }, { token }) => {
+      verifyAdminToken(token);
+      return await PengawasanSetelahPemasangan.findByIdAndUpdate(id, input, { new: true });
+    },
+
+    deletePengawasanSetelahPemasangan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      await PengawasanSetelahPemasangan.findByIdAndDelete(id);
+      return true;
+    },
+
+    // ==================== PENYELESAIAN LAPORAN MUTATIONS ====================
+    createPenyelesaianLaporan: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      const penyelesaian = new PenyelesaianLaporan(input);
+      const saved = await penyelesaian.save();
+      if (input.idLaporan) {
+        await Report.findByIdAndUpdate(input.idLaporan, { status: 'Selesai' });
+      }
+      return saved;
+    },
+
+    updatePenyelesaianLaporan: async (_, { id, input }, { token }) => {
+      verifyAdminToken(token);
+      return await PenyelesaianLaporan.findByIdAndUpdate(id, input, { new: true });
+    },
+
+    deletePenyelesaianLaporan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      await PenyelesaianLaporan.findByIdAndDelete(id);
+      return true;
+    },
   },
 
   // ==================== FIELD RESOLVERS (for schema/model field name mismatches) ====================
