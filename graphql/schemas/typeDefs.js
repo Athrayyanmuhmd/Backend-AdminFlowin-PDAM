@@ -367,6 +367,9 @@ export const typeDefs = gql`
     getAllAdmins: [Admin!]!
     loginAdmin(email: String!, password: String!): AuthPayload!
 
+    # Audit Log queries
+    getAuditLogs(limit: Int, offset: Int, aksi: String, resource: String, startDate: String, endDate: String): [AuditLog!]!
+
     # Pelanggan queries
     getPengguna(id: ID!): Pengguna
     getAllPengguna: [Pengguna!]!
@@ -863,6 +866,20 @@ export const typeDefs = gql`
   # ============================================
   # RESPONSE TYPES
   # ============================================
+
+  type AuditLog {
+    _id: ID!
+    idAdmin: Admin
+    namaAdmin: String!
+    aksi: String!
+    resource: String!
+    resourceId: String
+    nilaiBefore: String
+    nilaiAfter: String
+    catatan: String
+    createdAt: String!
+    updatedAt: String
+  }
 
   type AuthPayload {
     token: String!

@@ -1,4 +1,5 @@
 import AdminAccount from '../../models/AdminAccount.js';
+import AuditLog from '../../models/AuditLog.js';
 import User from '../../models/User.js';
 import Technician from '../../models/Technician.js';
 import KelompokPelanggan from '../../models/KelompokPelanggan.js';
@@ -31,6 +32,25 @@ function verifyAdminToken(token) {
   }
 }
 
+// Helper: catat audit log (fire-and-forget, tidak throw jika gagal)
+async function catatAuditLog({ token, aksi, resource, resourceId = null, nilaiBefore = null, nilaiAfter = null, catatan = null }) {
+  try {
+    let namaAdmin = 'Sistem';
+    let idAdmin = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        idAdmin = decoded.id;
+        const admin = await AdminAccount.findById(decoded.id, 'namaLengkap');
+        if (admin) namaAdmin = admin.namaLengkap;
+      } catch (_) {}
+    }
+    await AuditLog.create({ idAdmin, namaAdmin, aksi, resource, resourceId: resourceId ? String(resourceId) : null, nilaiBefore, nilaiAfter, catatan });
+  } catch (err) {
+    console.error('Gagal mencatat audit log:', err.message);
+  }
+}
+
 // Helper: kirim notifikasi ke semua admin
 async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
   try {
@@ -58,6 +78,24 @@ export const resolvers = {
 
     getAllAdmins: async () => {
       return await AdminAccount.find();
+    },
+
+    // ==================== AUDIT LOG QUERIES ====================
+    getAuditLogs: async (_, { limit = 100, offset = 0, aksi, resource, startDate, endDate }, { token }) => {
+      verifyAdminToken(token);
+      const filter = {};
+      if (aksi) filter.aksi = aksi;
+      if (resource) filter.resource = resource;
+      if (startDate || endDate) {
+        filter.createdAt = {};
+        if (startDate) filter.createdAt.$gte = new Date(startDate);
+        if (endDate) filter.createdAt.$lte = new Date(endDate);
+      }
+      return await AuditLog.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(limit)
+        .populate('idAdmin', 'namaLengkap email');
     },
 
     loginAdmin: async (_, { email, password }) => {
@@ -867,13 +905,15 @@ export const resolvers = {
 
   Mutation: {
     // ==================== ADMIN MUTATIONS ====================
-    createAdmin: async (_, { input }) => {
+    createAdmin: async (_, { input }, { token }) => {
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({
         ...input,
         password: hashedPassword
       });
-      return await admin.save();
+      const saved = await admin.save();
+      await catatAuditLog({ token, aksi: 'ADMIN_CREATE', resource: 'Admin', resourceId: saved._id, nilaiAfter: { NIP: input.NIP, namaLengkap: input.namaLengkap, email: input.email } });
+      return saved;
     },
 
     updateAdmin: async (_, { id, input }) => {
@@ -883,8 +923,10 @@ export const resolvers = {
       return await AdminAccount.findByIdAndUpdate(id, input, { new: true });
     },
 
-    deleteAdmin: async (_, { id }) => {
+    deleteAdmin: async (_, { id }, { token }) => {
+      const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
+      await catatAuditLog({ token, aksi: 'ADMIN_DELETE', resource: 'Admin', resourceId: id, nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email } : null });
       return { success: true, message: 'Admin deleted successfully' };
     },
 
@@ -978,6 +1020,7 @@ export const resolvers = {
       if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
       const teknisi = await Technician.findById(technicianId);
       if (!teknisi) throw new Error('Teknisi tidak ditemukan');
+      await catatAuditLog({ token, aksi: 'KONEKSI_ASSIGN_TEKNISI', resource: 'KoneksiData', resourceId: id, nilaiAfter: { idTeknisi: technicianId, namaTeknisi: teknisi.namaLengkap } });
       koneksi.idTeknisi = technicianId;
       koneksi.assignedAt = new Date();
       koneksi.assignedBy = adminPayload.id;
@@ -992,6 +1035,7 @@ export const resolvers = {
       verifyAdminToken(token);
       const koneksi = await ConnectionData.findById(id);
       if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
+      await catatAuditLog({ token, aksi: 'KONEKSI_UNASSIGN_TEKNISI', resource: 'KoneksiData', resourceId: id, nilaiBefore: { idTeknisi: koneksi.idTeknisi } });
       koneksi.idTeknisi = null;
       koneksi.assignedAt = null;
       koneksi.assignedBy = null;
@@ -1002,12 +1046,15 @@ export const resolvers = {
         .populate('assignedBy');
     },
 
-    verifyKoneksiData: async (_, { id, verified, catatan }) => {
-      return await ConnectionData.findByIdAndUpdate(
+    verifyKoneksiData: async (_, { id, verified, catatan }, { token }) => {
+      const before = await ConnectionData.findById(id, 'statusVerifikasi');
+      const result = await ConnectionData.findByIdAndUpdate(
         id,
         { statusVerifikasi: verified, catatan },
         { new: true }
       ).populate('idPelanggan');
+      await catatAuditLog({ token, aksi: 'KONEKSI_VERIFY', resource: 'KoneksiData', resourceId: id, nilaiBefore: { statusVerifikasi: before?.statusVerifikasi }, nilaiAfter: { statusVerifikasi: verified, catatan } });
+      return result;
     },
 
     updateKoneksiData: async (_, { id, input }) => {
@@ -1129,6 +1176,7 @@ export const resolvers = {
       if (existing) throw new Error(`Nomor akun ${nomorAkun} sudah digunakan`);
       const meteran = new Meteran({ idKelompokPelanggan, nomorMeteran, nomorAkun, idKoneksiData: idKoneksiData || null });
       await meteran.save();
+      await catatAuditLog({ token, aksi: 'METERAN_CREATE', resource: 'Meteran', resourceId: meteran._id, nilaiAfter: { nomorMeteran, nomorAkun, idKoneksiData } });
       return await Meteran.findById(meteran._id).populate('idKelompokPelanggan').populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
     },
 
@@ -1147,6 +1195,7 @@ export const resolvers = {
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const activeBilling = await Billing.findOne({ idMeteran: id, statusPembayaran: { $in: ['Pending'] } });
       if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
+      await catatAuditLog({ token, aksi: 'METERAN_DELETE', resource: 'Meteran', resourceId: id, nilaiBefore: { nomorMeteran: meteran.nomorMeteran, nomorAkun: meteran.nomorAkun } });
       await Meteran.findByIdAndDelete(id);
       return true;
     },
@@ -1422,6 +1471,11 @@ export const resolvers = {
         longitude: k.longitude ?? k.long ?? null,
       };
     }
+  },
+
+  AuditLog: {
+    nilaiBefore: (parent) => parent.nilaiBefore ? JSON.stringify(parent.nilaiBefore) : null,
+    nilaiAfter: (parent) => parent.nilaiAfter ? JSON.stringify(parent.nilaiAfter) : null,
   },
 
   KoneksiData: {
