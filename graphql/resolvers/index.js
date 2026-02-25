@@ -1399,6 +1399,17 @@ export const resolvers = {
       return await notification.save();
     },
 
+    broadcastNotifikasi: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      const pengguna = await User.find({}, '_id').lean();
+      const notifs = await Promise.all(
+        pengguna.map(p =>
+          new Notification({ ...input, idPelanggan: p._id, isRead: false }).save()
+        )
+      );
+      return notifs;
+    },
+
     markNotifikasiAsRead: async (_, { id }) => {
       return await Notification.findByIdAndUpdate(
         id,

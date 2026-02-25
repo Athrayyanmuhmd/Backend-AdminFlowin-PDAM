@@ -590,6 +590,7 @@ export const typeDefs = gql`
 
     # Notifikasi mutations
     createNotifikasi(input: CreateNotifikasiInput!): Notifikasi!
+    broadcastNotifikasi(input: CreateNotifikasiInput!): [Notifikasi!]!
     markNotifikasiAsRead(id: ID!): Notifikasi!
 
     # Pemasangan mutations
