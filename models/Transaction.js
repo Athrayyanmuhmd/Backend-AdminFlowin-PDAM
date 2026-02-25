@@ -23,7 +23,7 @@ const Transactions = mongoose.Schema(
       required: true,
     },
   },
-  { timeStamps: true }
+  { timestamps: true }
 );
 
 export default mongoose.model("Transactions", Transactions);

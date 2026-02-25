@@ -14,8 +14,6 @@ export const verifyTechnician = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    console.log("[verifyTechnician] Decoded token:", decoded);
-
     // Cek apakah user adalah teknisi
     const technician = await Technician.findById(decoded.id);
     if (!technician) {
@@ -33,13 +31,9 @@ export const verifyTechnician = async (req, res, next) => {
       });
     }
 
-    console.log("[verifyTechnician] Technician found:", technician._id);
-
     req.technician = technician;
     req.technicianId = technician._id.toString(); // Convert to string for consistency
     req.userRole = "technician"; // Add userRole for consistency with admin
-
-    console.log("[verifyTechnician] Set technicianId:", req.technicianId);
 
     next();
   } catch (error) {

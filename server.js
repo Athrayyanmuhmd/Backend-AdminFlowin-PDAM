@@ -1,7 +1,6 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import bodyParser from "body-parser";
 import { configDotenv } from "dotenv";
 // import fileUpload from 'express-fileupload';
 import userRouter from "./routes/userRouter.js";
@@ -61,7 +60,7 @@ app.use(cors({
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true); // Allow all for now in development
+      callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
@@ -69,7 +68,6 @@ app.use(cors({
 }));
 
 app.use(express.urlencoded({ extended: false }));
-app.use(bodyParser.json());
 app.use(express.json());
 
 const clientOptions = {
