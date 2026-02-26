@@ -19,7 +19,7 @@ import PengawasanPemasangan from '../../models/PengawasanPemasangan.js';
 import PengawasanSetelahPemasangan from '../../models/PengawasanSetelahPemasangan.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getCache, setCache } from '../../utils/redis.js';
+import { getCache, setCache, deleteCacheByPattern } from '../../utils/redis.js';
 
 // Helper: verifikasi token admin
 function verifyAdminToken(token) {
@@ -187,11 +187,21 @@ export const resolvers = {
 
     // ==================== KELOMPOK PELANGGAN QUERIES ====================
     getKelompokPelanggan: async (_, { id }) => {
-      return await KelompokPelanggan.findById(id);
+      const cacheKey = `kelompok:${id}`;
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+      const kelompok = await KelompokPelanggan.findById(id);
+      if (kelompok) await setCache(cacheKey, kelompok.toObject(), 3600);
+      return kelompok;
     },
 
     getAllKelompokPelanggan: async () => {
-      return await KelompokPelanggan.find();
+      const cacheKey = 'kelompok:all';
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+      const list = await KelompokPelanggan.find();
+      await setCache(cacheKey, list.map(k => k.toObject()), 3600);
+      return list;
     },
 
     // ==================== METERAN QUERIES ====================
@@ -972,15 +982,20 @@ export const resolvers = {
     // ==================== KELOMPOK PELANGGAN MUTATIONS ====================
     createKelompokPelanggan: async (_, { input }) => {
       const kelompok = new KelompokPelanggan(input);
-      return await kelompok.save();
+      await kelompok.save();
+      await deleteCacheByPattern('kelompok:*');
+      return kelompok;
     },
 
     updateKelompokPelanggan: async (_, { id, input }) => {
-      return await KelompokPelanggan.findByIdAndUpdate(id, input, { new: true });
+      const kelompok = await KelompokPelanggan.findByIdAndUpdate(id, input, { new: true });
+      await deleteCacheByPattern('kelompok:*');
+      return kelompok;
     },
 
     deleteKelompokPelanggan: async (_, { id }) => {
       await KelompokPelanggan.findByIdAndDelete(id);
+      await deleteCacheByPattern('kelompok:*');
       return { success: true, message: 'Kelompok Pelanggan deleted successfully' };
     },
 
@@ -1529,7 +1544,13 @@ export const resolvers = {
       const ref = parent.idKelompokPelanggan || parent.kelompokPelangganId;
       if (!ref) return null;
       if (typeof ref === 'object' && ref._id) return ref;
-      return await KelompokPelanggan.findById(ref);
+      const refId = ref.toString();
+      const cacheKey = `kelompok:${refId}`;
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+      const kelompok = await KelompokPelanggan.findById(refId);
+      if (kelompok) await setCache(cacheKey, kelompok.toObject(), 3600);
+      return kelompok;
     },
     idKoneksiData: async (parent) => {
       // Support both new (idKoneksiData) and old (connectionDataId) field names
