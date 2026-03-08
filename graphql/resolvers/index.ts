@@ -74,13 +74,13 @@ async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
 
 // Helper: validasi input
 function validateEmail(email) {
-  return /^[^s@]+@[^s@]+.[^s@]+$/.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 function validatePassword(password) {
   if (!password || password.length < 8) throw new Error('Kata sandi minimal 8 karakter');
 }
 function validatePhone(noHP) {
-  if (noHP && !/^(+62|62|0)[0-9]{8,13}$/.test(noHP.replace(/s/g, '')))
+  if (noHP && !/^(\+62|62|0)[0-9]{8,13}$/.test(noHP.replace(/\s/g, '')))
     throw new Error('Format nomor HP tidak valid');
 }
 
@@ -422,9 +422,12 @@ export const resolvers = {
     },
 
     getAllNotifikasiAdmin: async (_, __, { token }) => {
-      verifyAdminToken(token);
-      // Return all admin-targeted notifications (sorted newest first)
-      return await Notification.find({ idAdmin: { $ne: null } }).sort({ createdAt: -1 }).limit(50);
+      // Return [] instead of throwing when token invalid — this query is polled every 30s
+      // so throwing would flood the error log on expired sessions
+      try { verifyAdminToken(token); } catch { return []; }
+      const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+      const adminId = decoded.id || decoded.userId;
+      return await Notification.find({ idAdmin: adminId }).sort({ createdAt: -1 }).limit(50);
     },
 
     // ==================== DASHBOARD STATS ====================
