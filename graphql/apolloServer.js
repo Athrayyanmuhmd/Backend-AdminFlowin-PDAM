@@ -79,7 +79,9 @@ export async function setupApolloServer(app) {
           },
           {
             contextValue: {
-              token: req.headers.authorization || '',
+              token: req.headers.authorization
+                ? req.headers.authorization.replace(/^Bearer\s+/i, '')
+                : '',
               req,
             },
           }

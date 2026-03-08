@@ -124,7 +124,7 @@ export const typeDefs = gql`
   type KoneksiData {
     _id: ID!
     idPelanggan: Pengguna
-    statusVerifikasi: Boolean
+    statusVerifikasi: String
     NIK: String
     NIKUrl: String
     noKK: String
@@ -144,11 +144,25 @@ export const typeDefs = gql`
 
   type RiwayatPenggunaan {
     _id: ID!
-    meterId: Meteran!
+    meteranId: Meteran
+    userId: Pengguna
     penggunaanAir: Float!
-    timestamp: String!
     createdAt: String
     updatedAt: String
+  }
+
+  type RiwayatBulananData {
+    bulan: String!
+    totalPemakaian: Float!
+    jumlahRecord: Int!
+  }
+
+  type EstimashiBiaya {
+    pemakaianBelumTerbayar: Float!
+    estimasiBiaya: Float!
+    biayaBeban: Float!
+    totalEstimasi: Float!
+    namaKelompok: String
   }
 
   type Tagihan {
@@ -394,6 +408,12 @@ export const typeDefs = gql`
     getAllKoneksiData: [KoneksiData!]!
     getPendingKoneksiData: [KoneksiData!]!
     getVerifiedKoneksiData: [KoneksiData!]!
+    getDitolakKoneksiData: [KoneksiData!]!
+
+    # Riwayat Penggunaan queries
+    getRiwayatPenggunaan(meteranId: ID!, limit: Int): [RiwayatPenggunaan!]!
+    getRiwayatPenggunaanBulanan(meteranId: ID!): [RiwayatBulananData!]!
+    getEstimashiBiaya(meteranId: ID!): EstimashiBiaya
 
     # Tagihan queries
     getTagihan(id: ID!): Tagihan
@@ -520,7 +540,7 @@ export const typeDefs = gql`
       kecamatan: String
       luasBangunan: Float
     ): KoneksiData!
-    verifyKoneksiData(id: ID!, verified: Boolean!, catatan: String): KoneksiData!
+    verifyKoneksiData(id: ID!, status: String!, catatan: String): KoneksiData!
     updateKoneksiData(id: ID!, input: UpdateKoneksiDataInput!): KoneksiData!
     deleteKoneksiData(id: ID!): Boolean!
     assignTeknisiToKoneksi(id: ID!, technicianId: ID!): KoneksiData!

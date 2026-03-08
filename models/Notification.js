@@ -45,4 +45,9 @@ const NotificationSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for notification polling (polled every 30s by admin panel)
+NotificationSchema.index({ idAdmin: 1, isRead: 1, createdAt: -1 });
+NotificationSchema.index({ idTeknisi: 1, isRead: 1, createdAt: -1 });
+NotificationSchema.index({ idPelanggan: 1, isRead: 1, createdAt: -1 });
+
 export default mongoose.model("Notifikasi", NotificationSchema);

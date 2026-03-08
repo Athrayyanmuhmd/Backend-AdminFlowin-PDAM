@@ -8,8 +8,9 @@ const KoneksiDataSchema = new mongoose.Schema(
       default: null,
     },
     statusVerifikasi: {
-      type: Boolean,
-      default: false,
+      type: String,
+      enum: ['Menunggu', 'Disetujui', 'Ditolak'],
+      default: 'Menunggu',
     },
     NIK: {
       type: String,

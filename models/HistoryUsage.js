@@ -23,6 +23,10 @@ const historyUsageSchema = new mongoose.Schema(
   }
 );
 
+// Indexes for monitoring queries and IoT data retrieval
+historyUsageSchema.index({ meteranId: 1, createdAt: -1 });
+historyUsageSchema.index({ userId: 1, createdAt: -1 });
+
 const HistoryUsage = mongoose.model("RiwayatPenggunaan", historyUsageSchema);
 
 export default HistoryUsage;

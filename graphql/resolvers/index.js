@@ -235,11 +235,65 @@ export const resolvers = {
     },
 
     getPendingKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: false }).populate('idPelanggan');
+      return await ConnectionData.find({ statusVerifikasi: 'Menunggu' }).populate('idPelanggan');
     },
 
     getVerifiedKoneksiData: async () => {
-      return await ConnectionData.find({ statusVerifikasi: true }).populate('idPelanggan');
+      return await ConnectionData.find({ statusVerifikasi: 'Disetujui' }).populate('idPelanggan');
+    },
+
+    getDitolakKoneksiData: async () => {
+      return await ConnectionData.find({ statusVerifikasi: 'Ditolak' }).populate('idPelanggan');
+    },
+
+    // ==================== RIWAYAT PENGGUNAAN QUERIES ====================
+    getRiwayatPenggunaan: async (_, { meteranId, limit = 50 }) => {
+      return await HistoryUsage.find({ meteranId })
+        .sort({ createdAt: -1 })
+        .limit(limit);
+    },
+
+    getRiwayatPenggunaanBulanan: async (_, { meteranId }) => {
+      const mongoose = await import('mongoose');
+      const hasil = await HistoryUsage.aggregate([
+        { $match: { meteranId: new mongoose.default.Types.ObjectId(meteranId) } },
+        {
+          $group: {
+            _id: {
+              tahun: { $year: '$createdAt' },
+              bulan: { $month: '$createdAt' },
+            },
+            totalPemakaian: { $sum: '$penggunaanAir' },
+            jumlahRecord: { $count: {} },
+          },
+        },
+        { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
+        { $limit: 12 },
+      ]);
+      const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+      return hasil.map(item => ({
+        bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
+        totalPemakaian: item.totalPemakaian,
+        jumlahRecord: item.jumlahRecord,
+      }));
+    },
+
+    getEstimashiBiaya: async (_, { meteranId }) => {
+      const meteran = await Meteran.findById(meteranId).populate('idKelompokPelanggan');
+      if (!meteran) throw new Error('Meteran tidak ditemukan');
+      const kelompok = meteran.idKelompokPelanggan;
+      const pemakaian = meteran.pemakaianBelumTerbayar || 0;
+      const biaya = pemakaian <= 10
+        ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
+        : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
+      const biayaBeban = kelompok?.biayaBeban || 5000;
+      return {
+        pemakaianBelumTerbayar: pemakaian,
+        estimasiBiaya: biaya,
+        biayaBeban,
+        totalEstimasi: biaya + biayaBeban,
+        namaKelompok: kelompok?.namaKelompok || null,
+      };
     },
 
     // ==================== TAGIHAN QUERIES ====================
@@ -355,7 +409,8 @@ export const resolvers = {
       return await Notification.find({ idAdmin, isRead: false }).sort({ createdAt: -1 });
     },
 
-    getAllNotifikasiAdmin: async () => {
+    getAllNotifikasiAdmin: async (_, __, { token }) => {
+      verifyAdminToken(token);
       // Return all admin-targeted notifications (sorted newest first)
       return await Notification.find({ idAdmin: { $ne: null } }).sort({ createdAt: -1 }).limit(50);
     },
@@ -1061,11 +1116,13 @@ export const resolvers = {
         .populate('assignedBy');
     },
 
-    verifyKoneksiData: async (_, { id, verified, catatan }, { token }) => {
+    verifyKoneksiData: async (_, { id, status, catatan }, { token }) => {
+      const validStatus = ['Menunggu', 'Disetujui', 'Ditolak'];
+      if (!validStatus.includes(status)) throw new Error('Status tidak valid. Gunakan: Menunggu, Disetujui, atau Ditolak');
       const before = await ConnectionData.findById(id, 'statusVerifikasi');
       const result = await ConnectionData.findByIdAndUpdate(
         id,
-        { statusVerifikasi: verified, catatan },
+        { statusVerifikasi: status, catatan },
         { new: true }
       ).populate('idPelanggan');
       await catatAuditLog({ token, aksi: 'KONEKSI_VERIFY', resource: 'KoneksiData', resourceId: id, nilaiBefore: { statusVerifikasi: before?.statusVerifikasi }, nilaiAfter: { statusVerifikasi: verified, catatan } });
@@ -1406,7 +1463,8 @@ export const resolvers = {
     },
 
     // ==================== NOTIFIKASI MUTATIONS ====================
-    createNotifikasi: async (_, { input }) => {
+    createNotifikasi: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
       const notification = new Notification({
         ...input,
         isRead: false
