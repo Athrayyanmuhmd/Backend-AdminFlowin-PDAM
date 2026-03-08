@@ -71,6 +71,19 @@ async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
   }
 }
 
+
+// Helper: validasi input
+function validateEmail(email) {
+  return /^[^s@]+@[^s@]+.[^s@]+$/.test(email);
+}
+function validatePassword(password) {
+  if (!password || password.length < 8) throw new Error('Kata sandi minimal 8 karakter');
+}
+function validatePhone(noHP) {
+  if (noHP && !/^(+62|62|0)[0-9]{8,13}$/.test(noHP.replace(/s/g, '')))
+    throw new Error('Format nomor HP tidak valid');
+}
+
 export const resolvers = {
   Query: {
     // ==================== ADMIN QUERIES ====================
@@ -102,14 +115,10 @@ export const resolvers = {
 
     loginAdmin: async (_, { email, password }) => {
       const admin = await AdminAccount.findOne({ email });
-      if (!admin) {
-        throw new Error('Admin not found');
-      }
+      if (!admin) throw new Error('Email atau kata sandi salah.');
 
       const isValid = await bcrypt.compare(password, admin.password);
-      if (!isValid) {
-        throw new Error('Invalid password');
-      }
+      if (!isValid) throw new Error('Email atau kata sandi salah.');
 
       const token = jwt.sign(
         { id: admin._id, email: admin.email, role: 'admin' },
@@ -117,10 +126,11 @@ export const resolvers = {
         { expiresIn: '30d' }
       );
 
-      return {
-        token,
-        admin: { ...admin._doc, token }
-      };
+      // Save token to DB so it can be invalidated on logout
+      admin.token = token;
+      await admin.save();
+
+      return { token, admin: { ...admin.toObject(), token } };
     },
 
     // ==================== PELANGGAN QUERIES ====================
@@ -134,8 +144,8 @@ export const resolvers = {
       };
     },
 
-    getAllPengguna: async () => {
-      const users = await User.find().sort({ createdAt: -1 }).limit(500); // Sort by newest first
+    getAllPengguna: async (_, { limit = 100, offset = 0 } = {}) => {
+      const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
       return users.map(user => ({
         ...user.toObject(),
         createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
@@ -169,8 +179,8 @@ export const resolvers = {
       };
     },
 
-    getAllTeknisi: async () => {
-      const teknisis = await Technician.find().limit(500);
+    getAllTeknisi: async (_, { limit = 100, offset = 0 } = {}) => {
+      const teknisis = await Technician.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
       return teknisis.map(tek => ({
         ...tek.toObject(),
         createdAt: tek.createdAt?.toISOString(),
@@ -213,8 +223,8 @@ export const resolvers = {
         .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
 
-    getAllMeteran: async () => {
-      return await Meteran.find().limit(500)
+    getAllMeteran: async (_, { limit = 100, offset = 0 } = {}) => {
+      return await Meteran.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500))
         .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
         .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
@@ -232,8 +242,8 @@ export const resolvers = {
       return await ConnectionData.findById(id).populate('idPelanggan');
     },
 
-    getAllKoneksiData: async () => {
-      return await ConnectionData.find().limit(500).populate('idPelanggan');
+    getAllKoneksiData: async (_, { limit = 50, offset = 0 } = {}) => {
+      return await ConnectionData.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500)).populate('idPelanggan');
     },
 
     getPendingKoneksiData: async () => {
@@ -303,8 +313,8 @@ export const resolvers = {
       return await Billing.findById(id).populate('idMeteran');
     },
 
-    getAllTagihan: async () => {
-      return await Billing.find().populate('idMeteran').lean().limit(1000);
+    getAllTagihan: async (_, { limit = 100, offset = 0 } = {}) => {
+      return await Billing.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 1000)).populate('idMeteran').lean();
     },
 
     getTagihanByMeteran: async (_, { idMeteran }) => {
@@ -324,8 +334,8 @@ export const resolvers = {
       return await Report.findById(id).populate('idPengguna');
     },
 
-    getAllLaporan: async () => {
-      return await Report.find().lean().limit(500).populate('idPengguna');
+    getAllLaporan: async (_, { limit = 100, offset = 0 } = {}) => {
+      return await Report.find().sort({ createdAt: -1 }).lean().skip(offset).limit(Math.min(limit, 500)).populate('idPengguna');
     },
 
     getLaporanByStatus: async (_, { status }) => {
@@ -982,6 +992,12 @@ export const resolvers = {
   Mutation: {
     // ==================== ADMIN MUTATIONS ====================
     createAdmin: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
+      validatePassword(input.password);
+      validatePhone(input.noHP);
+      const existing = await AdminAccount.findOne({ email: input.email });
+      if (existing) throw new Error('Email sudah terdaftar');
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({
         ...input,
@@ -1011,6 +1027,11 @@ export const resolvers = {
 
     // ==================== PELANGGAN MUTATIONS ====================
     createPelanggan: async (_, { input }) => {
+      if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
+      validatePassword(input.password);
+      validatePhone(input.noHP);
+      const existing = await User.findOne({ email: input.email });
+      if (existing) throw new Error('Email sudah terdaftar');
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const user = new User({
         ...input,
@@ -1030,7 +1051,13 @@ export const resolvers = {
     },
 
     // ==================== TEKNISI MUTATIONS ====================
-    createTeknisi: async (_, { input }) => {
+    createTeknisi: async (_, { input }, { token }) => {
+      verifyAdminToken(token);
+      if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
+      validatePassword(input.password);
+      validatePhone(input.noHP);
+      const existing = await Technician.findOne({ email: input.email });
+      if (existing) throw new Error('Email sudah terdaftar');
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const technician = new Technician({
         ...input,
@@ -1506,7 +1533,29 @@ export const resolvers = {
       return true;
     },
 
-    // ==================== NOTIFIKASI MUTATIONS ====================
+    // ==================== AUTH MUTATIONS ====================
+    logoutAdmin: async (_, __, { token }) => {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+        const adminId = decoded.id || decoded.userId;
+        if (adminId) {
+          await AdminAccount.findByIdAndUpdate(adminId, { token: null });
+        }
+      } catch (_) { /* token already invalid */ }
+      return true;
+    },
+
+    logoutTechnician: async (_, __, { token }) => {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
+        if (decoded.id) {
+          await Technician.findByIdAndUpdate(decoded.id, { token: null });
+        }
+      } catch (_) { /* token already invalid */ }
+      return true;
+    },
+
+        // ==================== NOTIFIKASI MUTATIONS ====================
     createNotifikasi: async (_, { input }, { token }) => {
       verifyAdminToken(token);
       if (!input.idAdmin && !input.idTeknisi && !input.idPelanggan) {

@@ -95,10 +95,11 @@ export const loginAdminAccount = async (req, res, next) => {
 
               // Create a notification for successful login
               const loginNotification = new Notification({
-                userId: user._id,
+                idAdmin: user._id,
                 judul: "Login Berhasil",
                 pesan: "Anda telah berhasil masuk ke akun Anda.",
-                kategori: "Informasi",
+                kategori: 'Informasi',
+                isRead: false,
               });
 
               await loginNotification.save();
@@ -145,10 +146,11 @@ export const logoutAdminAccount = async (req, res) => {
 
     // Create a notification for logout
     const logoutNotification = new Notification({
-      userId,
+      idAdmin: userId,
       judul: "Logout Berhasil",
       pesan: "Anda telah berhasil keluar dari akun Anda.",
-      kategori: "Informasi",
+      kategori: 'Informasi',
+      isRead: false,
     });
 
     await logoutNotification.save();

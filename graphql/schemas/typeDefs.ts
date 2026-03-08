@@ -389,12 +389,12 @@ export const typeDefs: DocumentNode = gql`
 
     # Pelanggan queries
     getPengguna(id: ID!): Pengguna
-    getAllPengguna: [Pengguna!]!
+    getAllPengguna(limit: Int, offset: Int): [Pengguna!]!
     searchPengguna(search: String!): [Pengguna!]!
 
     # Teknisi queries
     getTeknisi(id: ID!): Teknisi
-    getAllTeknisi: [Teknisi!]!
+    getAllTeknisi(limit: Int, offset: Int): [Teknisi!]!
     getTeknisiByDivisi(divisi: EnumDivisiTeknisi!): [Teknisi!]!
 
     # Kelompok Pelanggan queries
@@ -403,12 +403,12 @@ export const typeDefs: DocumentNode = gql`
 
     # Meteran queries
     getMeteran(id: ID!): Meteran
-    getAllMeteran: [Meteran!]!
+    getAllMeteran(limit: Int, offset: Int): [Meteran!]!
     getMeteranByPelanggan(idPelanggan: ID!): [Meteran!]!
 
     # Connection Data queries
     getKoneksiData(id: ID!): KoneksiData
-    getAllKoneksiData: [KoneksiData!]!
+    getAllKoneksiData(limit: Int, offset: Int): [KoneksiData!]!
     getPendingKoneksiData: [KoneksiData!]!
     getVerifiedKoneksiData: [KoneksiData!]!
     getDitolakKoneksiData: [KoneksiData!]!
@@ -420,14 +420,14 @@ export const typeDefs: DocumentNode = gql`
 
     # Tagihan queries
     getTagihan(id: ID!): Tagihan
-    getAllTagihan: [Tagihan!]!
+    getAllTagihan(limit: Int, offset: Int): [Tagihan!]!
     getTagihanByMeteran(idMeteran: ID!): [Tagihan!]!
     getTagihanByStatus(status: EnumPaymentStatus!): [Tagihan!]!
     getTunggakan: [Tagihan!]!
 
     # Laporan queries
     getLaporan(id: ID!): Laporan
-    getAllLaporan: [Laporan!]!
+    getAllLaporan(limit: Int, offset: Int): [Laporan!]!
     getLaporanByStatus(status: EnumWorkStatusPelanggan!): [Laporan!]!
     getLaporanByPelanggan(idPelanggan: ID!): [Laporan!]!
 
@@ -639,6 +639,10 @@ export const typeDefs: DocumentNode = gql`
     createPenyelesaianLaporan(input: CreatePenyelesaianLaporanInput!): PenyelesaianLaporan!
     updatePenyelesaianLaporan(id: ID!, input: UpdatePenyelesaianLaporanInput!): PenyelesaianLaporan!
     deletePenyelesaianLaporan(id: ID!): Boolean!
+
+    # Auth mutations
+    logoutAdmin: Boolean!
+    logoutTechnician: Boolean!
   }
 
   # ============================================

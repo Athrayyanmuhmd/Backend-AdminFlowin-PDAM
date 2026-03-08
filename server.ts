@@ -1,6 +1,8 @@
 import express, { type Request, type Response } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { configDotenv } from 'dotenv';
 import userRouter from './routes/userRouter.js';
 import reportRouter from './routes/reportRouter.js';
@@ -45,6 +47,23 @@ for (const key of REQUIRED_ENV) {
     process.exit(1);
   }
 }
+
+// Security headers
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow Cloudinary images
+  contentSecurityPolicy: false, // Disabled — handled by frontend
+}));
+
+// Rate limiter untuk REST auth endpoints (5 percobaan per 15 menit)
+const restAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { status: 429, pesan: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/admin/auth/login', restAuthLimiter);
+app.use('/technician/login', restAuthLimiter);
 
 // CORS Configuration
 app.use(cors({
