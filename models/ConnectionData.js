@@ -52,6 +52,14 @@ const KoneksiDataSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    alasanPenolakan: {
+      type: String,
+      default: null,
+    },
+    tanggalVerifikasi: {
+      type: Date,
+      default: null,
+    },
     idTeknisi: {
       type: mongoose.Types.ObjectId,
       ref: "Teknisi",

@@ -3,6 +3,28 @@ import { typeDefs } from './schemas/typeDefs.js';
 import { resolvers } from './resolvers/index.js';
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+
+// Rate limiter for login operations — 10 attempts per 15 minutes per IP
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => req.ip,
+  skip: (req) => {
+    // Only apply to loginAdmin / loginTechnician operations
+    const body = req.body;
+    if (!body || !body.query) return true;
+    const op = (body.operationName || '').toLowerCase();
+    const query = body.query.toLowerCase();
+    const isLogin = op.includes('login') || query.includes('loginadmin') || query.includes('logintechnician');
+    return !isLogin;
+  },
+  handler: (_req, res) => {
+    res.status(429).json({
+      errors: [{ message: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' }],
+    });
+  },
+});
 
 export async function setupApolloServer(app) {
   // Apollo Server v5 configuration
@@ -25,6 +47,7 @@ export async function setupApolloServer(app) {
   // Manual middleware setup compatible with Apollo Server v4+
   app.use(
     '/graphql',
+    loginRateLimiter,
     cors({
       origin: (origin, callback) => {
         // Allow requests with no origin (like mobile apps, Postman, or same-origin)
