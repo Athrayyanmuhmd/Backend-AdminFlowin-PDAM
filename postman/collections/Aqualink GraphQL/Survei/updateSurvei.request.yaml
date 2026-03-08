@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: updateSurvei
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateSurvei($id: ID!, $posisiMeteran: String, $standar: Boolean, $catatan: String, $diameterPipa: Float) {
+    updateSurvei(id: $id, posisiMeteran: $posisiMeteran, standar: $standar, catatan: $catatan, diameterPipa: $diameterPipa) {
+      _id
+      posisiMeteran
+      standar
+      catatan
+      diameterPipa
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{survei_id}}",
+    "posisiMeteran": "Samping kanan pintu utama",
+    "standar": true,
+    "catatan": "Posisi diperbarui sesuai permintaan pelanggan"
+  }

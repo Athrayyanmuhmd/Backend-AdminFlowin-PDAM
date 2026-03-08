@@ -1,0 +1,18 @@
+$kind: graphql-request
+name: updateLaporanStatus
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateLaporanStatus($id: ID!, $status: EnumWorkStatusPelanggan!) {
+    updateLaporanStatus(id: $id, status: $status) {
+      _id
+      namaLaporan
+      status
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{laporan_id}}",
+    "status": "ProsesPerbaikan"
+  }

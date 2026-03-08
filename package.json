@@ -2,7 +2,7 @@
   "name": "aqualink-backend",
   "version": "1.0.0",
   "type": "module",
-  "main": "server.js",
+  "main": "server.ts",
   "repository": "https://github.com/rafliafriza12/aqualink-backend.git",
   "author": "rafliafriza12 <rafliafriza90@gmail.com>",
   "license": "MIT",
@@ -35,7 +35,8 @@
     "uuid": "^11.0.5"
   },
   "scripts": {
-    "start": "nodemon server.js",
+    "start": "nodemon --exec tsx server.ts",
+    "build": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --coverage --watchAll=false",
     "test:unit": "node --experimental-vm-modules node_modules/jest/bin/jest.js __tests__/unit",
@@ -43,8 +44,16 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.2.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.3.5",
     "jest": "^29.7.0",
     "mongodb-memory-server": "^11.0.1",
-    "supertest": "^7.2.2"
+    "supertest": "^7.2.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,0 +1,17 @@
+$kind: graphql-request
+name: getKpiOperasional
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getKpiOperasional {
+      totalMeteranTerpasang
+      totalPelanggan
+      totalLaporanMasuk
+      totalLaporanSelesai
+      totalWorkOrderAktif
+      totalWorkOrderSelesai
+      totalTeknisi
+      tingkatPenyelesaianLaporan
+    }
+  }

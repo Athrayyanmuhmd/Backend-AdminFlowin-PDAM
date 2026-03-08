@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: createMeteran
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateMeteran($idKelompokPelanggan: ID!, $nomorMeteran: String!, $nomorAkun: String!, $idKoneksiData: ID) {
+    createMeteran(idKelompokPelanggan: $idKelompokPelanggan, nomorMeteran: $nomorMeteran, nomorAkun: $nomorAkun, idKoneksiData: $idKoneksiData) {
+      _id
+      nomorMeteran
+      nomorAkun
+      statusAktif
+      createdAt
+      idKelompokPelanggan {
+        _id
+        namaKelompok
+      }
+    }
+  }
+variables: |-
+  {
+    "idKelompokPelanggan": "{{kelompok_id}}",
+    "nomorMeteran": "MTR-20250001",
+    "nomorAkun": "AKN-20250001",
+    "idKoneksiData": "{{koneksidata_id}}"
+  }

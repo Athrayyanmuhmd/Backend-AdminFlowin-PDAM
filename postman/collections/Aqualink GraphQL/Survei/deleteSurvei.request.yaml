@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: deleteSurvei
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeleteSurvei($id: ID!) {
+    deleteSurvei(id: $id)
+  }
+variables: |-
+  {
+    "id": "{{survei_id}}"
+  }

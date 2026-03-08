@@ -1,0 +1,17 @@
+$kind: graphql-request
+name: getDashboardStats
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getDashboardStats {
+      totalPelanggan
+      totalTeknisi
+      totalMeteran
+      pendingKoneksi
+      activeWorkOrders
+      totalTagihanBulanIni
+      tunggakanAktif
+      laporanTerbuka
+    }
+  }

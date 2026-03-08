@@ -1,0 +1,26 @@
+$kind: graphql-request
+name: getPelanggan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetPelanggan($id: ID!) {
+    getPengguna(id: $id) {
+      _id
+      namaLengkap
+      email
+      noHP
+      isVerified
+      nik
+      address
+      gender
+      birthDate
+      occupation
+      customerType
+      accountStatus
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{pelanggan_id}}"
+  }

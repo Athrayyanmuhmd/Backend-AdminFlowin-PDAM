@@ -1,0 +1,18 @@
+$kind: graphql-request
+name: getPekerjaanTeknisiPendingApproval
+order: 14000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getPekerjaanTeknisiPendingApproval {
+      _id
+      status
+      disetujui
+      catatan
+      createdAt
+      tim {
+        _id
+        namaLengkap
+      }
+    }
+  }

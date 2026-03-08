@@ -1,0 +1,24 @@
+$kind: graphql-request
+name: getAllNotifikasiAdmin
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllNotifikasiAdmin {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+      idAdmin {
+        _id
+        namaLengkap
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }

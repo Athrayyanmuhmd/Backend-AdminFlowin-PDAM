@@ -1,0 +1,41 @@
+$kind: graphql-request
+name: createPengawasanPemasangan
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreatePengawasanPemasangan($input: CreatePengawasanPemasanganInput!) {
+    createPengawasanPemasangan(input: $input) {
+      _id
+      hasilPengawasan
+      tanggalPengawasan
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "idPemasangan": "{{pemasangan_id}}",
+      "supervisorId": "{{teknisi_id}}",
+      "urlGambar": ["https://res.cloudinary.com/example/pengawasan/foto1.jpg"],
+      "catatan": "Pemasangan sesuai standar operasional",
+      "hasilPengawasan": "Baik",
+      "temuan": [],
+      "rekomendasi": "Tidak ada tindakan lanjut",
+      "perluTindakLanjut": false,
+      "checklist": {
+        "kualitasSambunganPipa": "Baik",
+        "posisiMeteran": "Sesuai",
+        "kebersihanPemasangan": "Bersih",
+        "kepatuhanK3": "Patuh"
+      }
+    }
+  }

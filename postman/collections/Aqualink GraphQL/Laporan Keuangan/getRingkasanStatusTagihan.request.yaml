@@ -1,0 +1,16 @@
+$kind: graphql-request
+name: getRingkasanStatusTagihan
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getRingkasanStatusTagihan {
+      totalTagihan
+      totalLunas
+      totalTunggakan
+      totalPending
+      nilaiTotal
+      nilaiLunas
+      nilaiTunggakan
+    }
+  }

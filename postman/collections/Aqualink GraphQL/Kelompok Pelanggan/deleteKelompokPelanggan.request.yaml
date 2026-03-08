@@ -1,0 +1,15 @@
+$kind: graphql-request
+name: deleteKelompokPelanggan
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeleteKelompokPelanggan($id: ID!) {
+    deleteKelompokPelanggan(id: $id) {
+      success
+      message
+    }
+  }
+variables: |-
+  {
+    "id": "{{kelompok_id}}"
+  }

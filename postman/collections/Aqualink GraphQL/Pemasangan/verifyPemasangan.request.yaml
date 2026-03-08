@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: verifyPemasangan
+order: 8000
+url: '{{baseUrl}}'
+query: |-
+  mutation VerifyPemasangan($id: ID!, $statusVerifikasi: String!, $catatan: String) {
+    verifyPemasangan(id: $id, statusVerifikasi: $statusVerifikasi, catatan: $catatan) {
+      _id
+      seriMeteran
+      statusVerifikasi
+      tanggalVerifikasi
+      catatan
+      updatedAt
+      diverifikasiOleh {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{pemasangan_id}}",
+    "statusVerifikasi": "Disetujui",
+    "catatan": "Pemasangan sesuai standar, disetujui"
+  }

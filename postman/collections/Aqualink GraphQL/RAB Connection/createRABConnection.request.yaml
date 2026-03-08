@@ -1,0 +1,26 @@
+$kind: graphql-request
+name: createRABConnection
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateRABConnection($idKoneksiData: ID!, $totalBiaya: Float!, $urlRab: String!, $catatan: String) {
+    createRABConnection(idKoneksiData: $idKoneksiData, totalBiaya: $totalBiaya, urlRab: $urlRab, catatan: $catatan) {
+      _id
+      totalBiaya
+      statusPembayaran
+      urlRab
+      catatan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+      }
+    }
+  }
+variables: |-
+  {
+    "idKoneksiData": "{{koneksidata_id}}",
+    "totalBiaya": 2500000,
+    "urlRab": "https://res.cloudinary.com/example/rab/sample.pdf",
+    "catatan": "RAB pemasangan sambungan baru"
+  }

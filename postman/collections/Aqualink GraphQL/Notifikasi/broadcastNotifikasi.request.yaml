@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: broadcastNotifikasi
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation BroadcastNotifikasi($input: CreateNotifikasiInput!) {
+    broadcastNotifikasi(input: $input) {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "judul": "Pengumuman Penting",
+      "pesan": "Tagihan bulan Maret 2025 telah tersedia. Segera lakukan pembayaran sebelum jatuh tempo.",
+      "kategori": "Informasi",
+      "link": "/billing"
+    }
+  }

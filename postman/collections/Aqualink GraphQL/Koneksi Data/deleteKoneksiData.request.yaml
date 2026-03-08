@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: deleteKoneksiData
+order: 10000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeleteKoneksiData($id: ID!) {
+    deleteKoneksiData(id: $id)
+  }
+variables: |-
+  {
+    "id": "{{koneksidata_id}}"
+  }

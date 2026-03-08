@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: getPengawasanSetelahPemasanganProblematic
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getPengawasanSetelahPemasanganProblematic {
+      _id
+      hasilPengawasan
+      statusMeteran
+      masalahDitemukan
+      tindakan
+      rekomendasi
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }

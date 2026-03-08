@@ -1,0 +1,36 @@
+$kind: graphql-request
+name: createPenyelesaianLaporan
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreatePenyelesaianLaporan($input: CreatePenyelesaianLaporanInput!) {
+    createPenyelesaianLaporan(input: $input) {
+      _id
+      catatan
+      tanggalSelesai
+      createdAt
+      idLaporan {
+        _id
+        namaLaporan
+        status
+      }
+      teknisiId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "idLaporan": "{{laporan_id}}",
+      "urlGambar": ["https://res.cloudinary.com/example/penyelesaian/foto1.jpg"],
+      "catatan": "Kebocoran pipa telah diperbaiki",
+      "teknisiId": "{{teknisi_id}}",
+      "metadata": {
+        "durasiPengerjaan": 2.5,
+        "materialDigunakan": ["Pipa PVC 0.5 inch", "Lem pipa"],
+        "biaya": 150000
+      }
+    }
+  }

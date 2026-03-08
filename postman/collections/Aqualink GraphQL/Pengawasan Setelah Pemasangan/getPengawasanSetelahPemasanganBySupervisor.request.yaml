@@ -1,0 +1,23 @@
+$kind: graphql-request
+name: getPengawasanSetelahPemasanganBySupervisor
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetPengawasanSetelahPemasanganBySupervisor($supervisorId: ID!) {
+    getPengawasanSetelahPemasanganBySupervisor(supervisorId: $supervisorId) {
+      _id
+      hasilPengawasan
+      statusMeteran
+      tanggalPengawasan
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+    }
+  }
+variables: |-
+  {
+    "supervisorId": "{{teknisi_id}}"
+  }

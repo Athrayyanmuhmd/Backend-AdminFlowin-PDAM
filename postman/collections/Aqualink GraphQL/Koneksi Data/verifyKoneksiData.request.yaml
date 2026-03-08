@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: verifyKoneksiData
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation VerifyKoneksiData($id: ID!, $verified: Boolean!, $catatan: String) {
+    verifyKoneksiData(id: $id, verified: $verified, catatan: $catatan) {
+      _id
+      statusVerifikasi
+      updatedAt
+      idPelanggan {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{koneksidata_id}}",
+    "verified": true,
+    "catatan": "Dokumen lengkap dan valid"
+  }

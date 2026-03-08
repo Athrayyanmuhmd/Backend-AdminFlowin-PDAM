@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: getTeknisiByDivisi
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetTeknisiByDivisi($divisi: EnumDivisiTeknisi!) {
+    getTeknisiByDivisi(divisi: $divisi) {
+      _id
+      NIP
+      namaLengkap
+      email
+      noHP
+      divisi
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "divisi": "TeknikCabang"
+  }

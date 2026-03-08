@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: deletePengawasanPemasangan
+order: 8000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeletePengawasanPemasangan($id: ID!) {
+    deletePengawasanPemasangan(id: $id)
+  }
+variables: |-
+  {
+    "id": "{{pengawasan_id}}"
+  }

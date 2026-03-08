@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: updateKoneksiData
+order: 7000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateKoneksiData($id: ID!, $input: UpdateKoneksiDataInput!) {
+    updateKoneksiData(id: $id, input: $input) {
+      _id
+      alamat
+      kelurahan
+      kecamatan
+      luasBangunan
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{koneksidata_id}}",
+    "input": {
+      "alamat": "Jl. Baru No. 5",
+      "kelurahan": "Lambhuk",
+      "kecamatan": "Ulee Kareng",
+      "luasBangunan": 90
+    }
+  }

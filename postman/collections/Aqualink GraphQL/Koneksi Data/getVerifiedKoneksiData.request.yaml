@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: getVerifiedKoneksiData
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getVerifiedKoneksiData {
+      _id
+      NIK
+      alamat
+      kelurahan
+      kecamatan
+      statusVerifikasi
+      createdAt
+      idPelanggan {
+        _id
+        namaLengkap
+        email
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }

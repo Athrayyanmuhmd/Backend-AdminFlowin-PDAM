@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: getAllTagihan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllTagihan {
+      _id
+      periode
+      totalPemakaian
+      biaya
+      biayaBeban
+      totalBiaya
+      statusPembayaran
+      menunggak
+      tenggatWaktu
+      tanggalPembayaran
+      createdAt
+      idMeteran {
+        _id
+        nomorMeteran
+        nomorAkun
+      }
+    }
+  }

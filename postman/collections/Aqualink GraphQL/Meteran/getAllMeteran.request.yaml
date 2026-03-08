@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: getAllMeteran
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllMeteran {
+      _id
+      nomorMeteran
+      nomorAkun
+      totalPemakaian
+      pemakaianBelumTerbayar
+      statusAktif
+      createdAt
+      idKelompokPelanggan {
+        _id
+        namaKelompok
+      }
+    }
+  }

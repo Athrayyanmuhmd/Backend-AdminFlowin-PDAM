@@ -1,0 +1,72 @@
+$kind: collection
+name: Aqualink GraphQL
+variables:
+  - key: baseUrl
+    value: 'http://localhost:5000/graphql'
+    type: default
+    enabled: true
+  - key: token
+    value: ''
+    type: default
+    enabled: true
+  - key: pelanggan_id
+    value: 'REPLACE_WITH_PELANGGAN_ID'
+    type: default
+    enabled: true
+  - key: meteran_id
+    value: 'REPLACE_WITH_METERAN_ID'
+    type: default
+    enabled: true
+  - key: teknisi_id
+    value: 'REPLACE_WITH_TEKNISI_ID'
+    type: default
+    enabled: true
+  - key: workorder_id
+    value: 'REPLACE_WITH_WORKORDER_ID'
+    type: default
+    enabled: true
+  - key: admin_id
+    value: 'REPLACE_WITH_ADMIN_ID'
+    type: default
+    enabled: true
+  - key: kelompok_id
+    value: 'REPLACE_WITH_KELOMPOK_ID'
+    type: default
+    enabled: true
+  - key: koneksidata_id
+    value: 'REPLACE_WITH_KONEKSIDATA_ID'
+    type: default
+    enabled: true
+  - key: laporan_id
+    value: 'REPLACE_WITH_LAPORAN_ID'
+    type: default
+    enabled: true
+  - key: survei_id
+    value: 'REPLACE_WITH_SURVEI_ID'
+    type: default
+    enabled: true
+  - key: rab_id
+    value: 'REPLACE_WITH_RAB_ID'
+    type: default
+    enabled: true
+  - key: pemasangan_id
+    value: 'REPLACE_WITH_PEMASANGAN_ID'
+    type: default
+    enabled: true
+  - key: pengawasan_id
+    value: 'REPLACE_WITH_PENGAWASAN_ID'
+    type: default
+    enabled: true
+  - key: notifikasi_id
+    value: 'REPLACE_WITH_NOTIFIKASI_ID'
+    type: default
+    enabled: true
+  - key: penyelesaian_id
+    value: 'REPLACE_WITH_PENYELESAIAN_ID'
+    type: default
+    enabled: true
+auth:
+  type: bearer
+  credentials:
+    - key: token
+      value: '{{token}}'

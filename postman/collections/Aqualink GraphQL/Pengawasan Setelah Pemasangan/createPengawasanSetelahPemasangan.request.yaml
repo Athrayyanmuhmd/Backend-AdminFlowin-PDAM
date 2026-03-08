@@ -1,0 +1,52 @@
+$kind: graphql-request
+name: createPengawasanSetelahPemasangan
+order: 7000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreatePengawasanSetelahPemasangan($input: CreatePengawasanSetelahPemasanganInput!) {
+    createPengawasanSetelahPemasangan(input: $input) {
+      _id
+      hasilPengawasan
+      statusMeteran
+      tanggalPengawasan
+      hariSetelahPemasangan
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "idPemasangan": "{{pemasangan_id}}",
+      "supervisorId": "{{teknisi_id}}",
+      "urlGambar": ["https://res.cloudinary.com/example/pengawasan-setelah/foto1.jpg"],
+      "catatan": "Meteran berfungsi normal setelah 7 hari pemasangan",
+      "hasilPengawasan": "Baik",
+      "statusMeteran": "Normal",
+      "bacaanAwal": 0,
+      "masalahDitemukan": [],
+      "tindakan": "Tidak ada tindakan",
+      "rekomendasi": "Tidak ada rekomendasi khusus",
+      "perluTindakLanjut": false,
+      "checklist": {
+        "meteranBacaCorrect": true,
+        "tidakAdaKebocoran": true,
+        "sambunganAman": true,
+        "mudahDibaca": true,
+        "pelangganPuas": true,
+        "dokumentasiLengkap": true
+      },
+      "feedbackPelanggan": {
+        "rating": 5,
+        "komentar": "Pemasangan rapi dan cepat"
+      }
+    }
+  }

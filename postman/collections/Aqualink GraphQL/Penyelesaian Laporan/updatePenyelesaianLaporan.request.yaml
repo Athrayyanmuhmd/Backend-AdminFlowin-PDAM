@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: updatePenyelesaianLaporan
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdatePenyelesaianLaporan($id: ID!, $input: UpdatePenyelesaianLaporanInput!) {
+    updatePenyelesaianLaporan(id: $id, input: $input) {
+      _id
+      catatan
+      tanggalSelesai
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{penyelesaian_id}}",
+    "input": {
+      "catatan": "Catatan diperbarui setelah verifikasi lapangan"
+    }
+  }

@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: deletePenyelesaianLaporan
+order: 7000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeletePenyelesaianLaporan($id: ID!) {
+    deletePenyelesaianLaporan(id: $id)
+  }
+variables: |-
+  {
+    "id": "{{penyelesaian_id}}"
+  }

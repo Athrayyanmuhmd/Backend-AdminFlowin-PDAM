@@ -1,0 +1,40 @@
+$kind: graphql-request
+name: getSurvei
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetSurvei($id: ID!) {
+    getSurvei(id: $id) {
+      _id
+      urlJaringan
+      diameterPipa
+      urlPosisiBak
+      posisiMeteran
+      jumlahPenghuni
+      standar
+      catatan
+      createdAt
+      koordinat {
+        longitude
+        latitude
+      }
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+          email
+        }
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+        noHP
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{survei_id}}"
+  }

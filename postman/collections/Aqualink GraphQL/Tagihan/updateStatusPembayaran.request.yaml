@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: updateStatusPembayaran
+order: 9000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateStatusPembayaran($id: ID!, $status: EnumPaymentStatus!) {
+    updateStatusPembayaran(id: $id, status: $status) {
+      _id
+      periode
+      totalBiaya
+      statusPembayaran
+      tanggalPembayaran
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "REPLACE_WITH_TAGIHAN_ID",
+    "status": "Settlement"
+  }

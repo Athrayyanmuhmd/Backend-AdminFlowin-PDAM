@@ -1,0 +1,30 @@
+$kind: graphql-request
+name: getPemasanganByStatus
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  query GetPemasanganByStatus($statusVerifikasi: String!) {
+    getPemasanganByStatus(statusVerifikasi: $statusVerifikasi) {
+      _id
+      seriMeteran
+      statusVerifikasi
+      tanggalPemasangan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+        }
+      }
+      teknisiId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "statusVerifikasi": "Pending"
+  }

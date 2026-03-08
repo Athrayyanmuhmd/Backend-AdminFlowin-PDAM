@@ -1,0 +1,11 @@
+$kind: graphql-request
+name: getRingkasanWorkOrder
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getRingkasanWorkOrder {
+      status
+      jumlah
+    }
+  }

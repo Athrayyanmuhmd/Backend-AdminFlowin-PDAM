@@ -1,0 +1,27 @@
+$kind: graphql-request
+name: createTeknisi
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateTeknisi($input: CreateTeknisiInput!) {
+    createTeknisi(input: $input) {
+      _id
+      namaLengkap
+      NIP
+      email
+      noHP
+      divisi
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "namaLengkap": "Ahmad Teknisi",
+      "NIP": "19870101001",
+      "email": "teknisi@example.com",
+      "noHP": "081234567891",
+      "password": "password123",
+      "divisi": "TeknikCabang"
+    }
+  }

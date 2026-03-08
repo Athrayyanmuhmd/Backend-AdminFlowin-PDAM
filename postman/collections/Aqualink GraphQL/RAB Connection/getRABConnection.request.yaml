@@ -1,0 +1,28 @@
+$kind: graphql-request
+name: getRABConnection
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetRABConnection($id: ID!) {
+    getRABConnection(id: $id) {
+      _id
+      totalBiaya
+      statusPembayaran
+      urlRab
+      catatan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+          email
+        }
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{rab_id}}"
+  }

@@ -1,0 +1,26 @@
+$kind: graphql-request
+name: createNotifikasi
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateNotifikasi($input: CreateNotifikasiInput!) {
+    createNotifikasi(input: $input) {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "idAdmin": "{{admin_id}}",
+      "judul": "Informasi Sistem",
+      "pesan": "Pemeliharaan sistem akan dilakukan pada 10 Maret 2025",
+      "kategori": "Informasi",
+      "link": "/dashboard"
+    }
+  }

@@ -1,0 +1,23 @@
+$kind: graphql-request
+name: updateAdmin
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateAdmin($id: ID!, $input: UpdateAdminInput!) {
+    updateAdmin(id: $id, input: $input) {
+      _id
+      NIP
+      namaLengkap
+      email
+      noHP
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{admin_id}}",
+    "input": {
+      "namaLengkap": "Admin Updated",
+      "noHP": "089876540001"
+    }
+  }

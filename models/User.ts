@@ -1,0 +1,117 @@
+import { Schema, model, Types, Document } from 'mongoose';
+
+export interface IUser {
+  email: string;
+  namaLengkap: string;
+  noHP?: string | null;
+  nik?: string | null;
+  address?: string | null;
+  gender?: 'L' | 'P' | null;
+  birthDate?: string | null;
+  occupation?: string | null;
+  location?: any;
+  customerType?: 'rumah_tangga' | 'komersial' | 'industri' | 'sosial';
+  accountStatus?: 'active' | 'inactive' | 'suspended';
+  password?: string | null;
+  token?: string | null;
+  // Legacy IoT fields — do NOT remove
+  SambunganDataId?: Types.ObjectId | null;
+  meteranId?: Types.ObjectId | null;
+  iotConnectionId?: Types.ObjectId | null;
+  isIoTConnected?: boolean;
+  isVerified?: boolean;
+}
+
+export interface IUserDocument extends IUser, Document {}
+
+const UsersSchema = new Schema<IUser>(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    namaLengkap: {
+      type: String,
+      required: true,
+    },
+    noHP: {
+      type: String,
+      default: null,
+    },
+    nik: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+    },
+    address: {
+      type: String,
+      default: null,
+    },
+    gender: {
+      type: String,
+      enum: ['L', 'P', null],
+      default: null,
+    },
+    birthDate: {
+      type: String,
+      default: null,
+    },
+    occupation: {
+      type: String,
+      default: null,
+    },
+    location: {
+      type: Schema.Types.Mixed,
+      default: null,
+    },
+    customerType: {
+      type: String,
+      enum: ['rumah_tangga', 'komersial', 'industri', 'sosial'],
+      default: 'rumah_tangga',
+    },
+    accountStatus: {
+      type: String,
+      enum: ['active', 'inactive', 'suspended'],
+      default: 'active',
+    },
+    password: {
+      type: String,
+      default: null,
+    },
+    token: {
+      type: String,
+      default: null,
+    },
+    SambunganDataId: {
+      type: Schema.Types.ObjectId,
+      ref: 'ConnectionData',
+      default: null,
+    },
+    meteranId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Meteran',
+      default: null,
+    },
+    iotConnectionId: {
+      type: Schema.Types.ObjectId,
+      ref: 'IoTConnection',
+      default: null,
+    },
+    isIoTConnected: {
+      type: Boolean,
+      default: false,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    timestamps: true,
+    collection: 'penggunas',
+  }
+);
+
+export default model<IUser>('Pengguna', UsersSchema);

@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getPengawasanPemasanganByPemasangan
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query GetPengawasanPemasanganByPemasangan($idPemasangan: ID!) {
+    getPengawasanPemasanganByPemasangan(idPemasangan: $idPemasangan) {
+      _id
+      hasilPengawasan
+      tanggalPengawasan
+      perluTindakLanjut
+      createdAt
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "idPemasangan": "{{pemasangan_id}}"
+  }

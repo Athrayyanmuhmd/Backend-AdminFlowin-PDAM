@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: getChartKonsumsiPerBulan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getChartKonsumsiPerBulan {
+      bulan
+      totalTagihan
+      jumlahTagihan
+    }
+  }

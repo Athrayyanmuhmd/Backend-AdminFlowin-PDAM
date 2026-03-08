@@ -1,0 +1,40 @@
+$kind: graphql-request
+name: createSurvei
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateSurvei($idKoneksiData: ID!, $idTeknisi: ID!, $urlJaringan: String!, $diameterPipa: Float!, $urlPosisiBak: String!, $posisiMeteran: String!, $jumlahPenghuni: String!, $standar: Boolean!, $catatan: String, $koordinat: GeolocationInput) {
+    createSurvei(idKoneksiData: $idKoneksiData, idTeknisi: $idTeknisi, urlJaringan: $urlJaringan, diameterPipa: $diameterPipa, urlPosisiBak: $urlPosisiBak, posisiMeteran: $posisiMeteran, jumlahPenghuni: $jumlahPenghuni, standar: $standar, catatan: $catatan, koordinat: $koordinat) {
+      _id
+      urlJaringan
+      diameterPipa
+      posisiMeteran
+      standar
+      catatan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "idKoneksiData": "{{koneksidata_id}}",
+    "idTeknisi": "{{teknisi_id}}",
+    "urlJaringan": "https://res.cloudinary.com/example/survey/jaringan.pdf",
+    "diameterPipa": 0.5,
+    "urlPosisiBak": "https://res.cloudinary.com/example/survey/bak.pdf",
+    "posisiMeteran": "Depan rumah sebelah kiri pintu",
+    "jumlahPenghuni": "4",
+    "standar": true,
+    "catatan": "Lokasi mudah dijangkau",
+    "koordinat": {
+      "longitude": 95.3238,
+      "latitude": 5.5483
+    }
+  }

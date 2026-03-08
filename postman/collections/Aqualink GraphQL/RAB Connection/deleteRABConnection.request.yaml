@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: deleteRABConnection
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeleteRABConnection($id: ID!) {
+    deleteRABConnection(id: $id)
+  }
+variables: |-
+  {
+    "id": "{{rab_id}}"
+  }

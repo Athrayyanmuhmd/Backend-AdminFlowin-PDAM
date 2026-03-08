@@ -1,0 +1,34 @@
+$kind: graphql-request
+name: getTagihan
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetTagihan($id: ID!) {
+    getTagihan(id: $id) {
+      _id
+      periode
+      penggunaanSebelum
+      penggunaanSekarang
+      totalPemakaian
+      biaya
+      biayaBeban
+      totalBiaya
+      statusPembayaran
+      menunggak
+      denda
+      tenggatWaktu
+      tanggalPembayaran
+      metodePembayaran
+      catatan
+      createdAt
+      idMeteran {
+        _id
+        nomorMeteran
+        nomorAkun
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "REPLACE_WITH_TAGIHAN_ID"
+  }

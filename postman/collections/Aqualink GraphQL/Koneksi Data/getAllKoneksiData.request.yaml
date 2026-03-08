@@ -1,0 +1,28 @@
+$kind: graphql-request
+name: getAllKoneksiData
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllKoneksiData {
+      _id
+      NIK
+      noKK
+      alamat
+      kelurahan
+      kecamatan
+      luasBangunan
+      statusVerifikasi
+      assignedAt
+      createdAt
+      idPelanggan {
+        _id
+        namaLengkap
+        email
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }

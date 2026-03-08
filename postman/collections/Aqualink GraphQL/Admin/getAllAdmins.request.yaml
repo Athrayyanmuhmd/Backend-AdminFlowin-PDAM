@@ -1,0 +1,15 @@
+$kind: graphql-request
+name: getAllAdmins
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllAdmins {
+      _id
+      NIP
+      namaLengkap
+      email
+      noHP
+      createdAt
+    }
+  }

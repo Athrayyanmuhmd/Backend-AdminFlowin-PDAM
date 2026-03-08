@@ -1,0 +1,24 @@
+$kind: graphql-request
+name: updateKelompokPelanggan
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateKelompokPelanggan($id: ID!, $input: UpdateKelompokPelangganInput!) {
+    updateKelompokPelanggan(id: $id, input: $input) {
+      _id
+      namaKelompok
+      hargaDiBawah10mKubik
+      hargaDiAtas10mKubik
+      biayaBeban
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{kelompok_id}}",
+    "input": {
+      "hargaDiBawah10mKubik": 1800,
+      "hargaDiAtas10mKubik": 2800,
+      "biayaBeban": 6000
+    }
+  }

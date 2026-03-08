@@ -1,0 +1,14 @@
+$kind: graphql-request
+name: getLaporanKeuanganBulanan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getLaporanKeuanganBulanan {
+      bulan
+      totalTagihan
+      totalLunas
+      jumlahTagihan
+      jumlahLunas
+    }
+  }

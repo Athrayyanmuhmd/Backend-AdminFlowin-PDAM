@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: createAdmin
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateAdmin($input: CreateAdminInput!) {
+    createAdmin(input: $input) {
+      _id
+      NIP
+      namaLengkap
+      email
+      noHP
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "NIP": "19900101001",
+      "namaLengkap": "Admin Baru",
+      "email": "adminbaru@example.com",
+      "noHP": "081234560001",
+      "password": "password123"
+    }
+  }

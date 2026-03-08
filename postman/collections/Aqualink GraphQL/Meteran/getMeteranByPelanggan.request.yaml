@@ -1,0 +1,24 @@
+$kind: graphql-request
+name: getMeteranByPelanggan
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query GetMeteranByPelanggan($idPelanggan: ID!) {
+    getMeteranByPelanggan(idPelanggan: $idPelanggan) {
+      _id
+      nomorMeteran
+      nomorAkun
+      totalPemakaian
+      pemakaianBelumTerbayar
+      statusAktif
+      createdAt
+      idKelompokPelanggan {
+        _id
+        namaKelompok
+      }
+    }
+  }
+variables: |-
+  {
+    "idPelanggan": "{{pelanggan_id}}"
+  }

@@ -1,0 +1,46 @@
+$kind: graphql-request
+name: getPengawasanSetelahPemasangan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetPengawasanSetelahPemasangan($id: ID!) {
+    getPengawasanSetelahPemasangan(id: $id) {
+      _id
+      urlGambar
+      catatan
+      hasilPengawasan
+      statusMeteran
+      tanggalPengawasan
+      hariSetelahPemasangan
+      bacaanAwal
+      masalahDitemukan
+      tindakan
+      rekomendasi
+      perluTindakLanjut
+      createdAt
+      checklist {
+        meteranBacaCorrect
+        tidakAdaKebocoran
+        sambunganAman
+        mudahDibaca
+        pelangganPuas
+        dokumentasiLengkap
+      }
+      feedbackPelanggan {
+        rating
+        komentar
+      }
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{pengawasan_id}}"
+  }

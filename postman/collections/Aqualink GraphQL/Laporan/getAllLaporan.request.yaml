@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getAllLaporan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllLaporan {
+      _id
+      namaLaporan
+      masalah
+      alamat
+      jenisLaporan
+      status
+      catatan
+      createdAt
+      idPengguna {
+        _id
+        namaLengkap
+        email
+      }
+    }
+  }

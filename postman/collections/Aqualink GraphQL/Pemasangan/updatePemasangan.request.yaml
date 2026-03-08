@@ -1,0 +1,21 @@
+$kind: graphql-request
+name: updatePemasangan
+order: 7000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdatePemasangan($id: ID!, $input: UpdatePemasanganInput!) {
+    updatePemasangan(id: $id, input: $input) {
+      _id
+      seriMeteran
+      statusVerifikasi
+      catatan
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{pemasangan_id}}",
+    "input": {
+      "catatan": "Catatan diperbarui setelah pengecekan ulang"
+    }
+  }

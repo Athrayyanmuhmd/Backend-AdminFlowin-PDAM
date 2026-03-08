@@ -1,0 +1,37 @@
+$kind: graphql-request
+name: getPengawasanPemasangan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetPengawasanPemasangan($id: ID!) {
+    getPengawasanPemasangan(id: $id) {
+      _id
+      urlGambar
+      catatan
+      hasilPengawasan
+      tanggalPengawasan
+      temuan
+      rekomendasi
+      perluTindakLanjut
+      createdAt
+      checklist {
+        kualitasSambunganPipa
+        posisiMeteran
+        kebersihanPemasangan
+        kepatuhanK3
+      }
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+        noHP
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{pengawasan_id}}"
+  }

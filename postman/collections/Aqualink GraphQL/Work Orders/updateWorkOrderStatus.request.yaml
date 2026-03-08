@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: updateWorkOrderStatus
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateWorkOrderStatus($id: ID!, $status: EnumWorkStatus!, $catatan: String) {
+    updateWorkOrderStatus(id: $id, status: $status, catatan: $catatan) {
+      _id
+      status
+      disetujui
+      catatan
+      tim {
+        _id
+        namaLengkap
+      }
+      createdAt
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{workorder_id}}",
+    "status": "Selesai",
+    "catatan": "Pekerjaan telah selesai dikerjakan"
+  }

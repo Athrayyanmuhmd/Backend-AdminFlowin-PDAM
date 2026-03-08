@@ -1,0 +1,11 @@
+$kind: graphql-request
+name: getDistribusiKelompokPelanggan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getDistribusiKelompokPelanggan {
+      namaKelompok
+      jumlahMeteran
+    }
+  }

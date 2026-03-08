@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getAllPelanggan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllPengguna {
+      _id
+      namaLengkap
+      email
+      noHP
+      isVerified
+      nik
+      address
+      gender
+      birthDate
+      occupation
+      customerType
+      accountStatus
+      createdAt
+    }
+  }

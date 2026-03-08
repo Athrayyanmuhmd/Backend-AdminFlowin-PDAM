@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: getNotifikasiByAdmin
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query GetNotifikasiByAdmin($idAdmin: ID!) {
+    getNotifikasiByAdmin(idAdmin: $idAdmin) {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "idAdmin": "{{admin_id}}"
+  }

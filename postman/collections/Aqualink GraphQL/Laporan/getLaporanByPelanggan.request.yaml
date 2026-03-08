@@ -1,0 +1,24 @@
+$kind: graphql-request
+name: getLaporanByPelanggan
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetLaporanByPelanggan($idPelanggan: ID!) {
+    getLaporanByPelanggan(idPelanggan: $idPelanggan) {
+      _id
+      namaLaporan
+      masalah
+      alamat
+      jenisLaporan
+      status
+      createdAt
+      idPengguna {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "idPelanggan": "{{pelanggan_id}}"
+  }

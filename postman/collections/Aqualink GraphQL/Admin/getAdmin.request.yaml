@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: getAdmin
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetAdmin($id: ID!) {
+    getAdmin(id: $id) {
+      _id
+      NIP
+      namaLengkap
+      email
+      noHP
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{admin_id}}"
+  }

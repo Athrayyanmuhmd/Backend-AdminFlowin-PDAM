@@ -1,0 +1,41 @@
+$kind: graphql-request
+name: getKoneksiData
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetKoneksiData($id: ID!) {
+    getKoneksiData(id: $id) {
+      _id
+      NIK
+      NIKUrl
+      noKK
+      KKUrl
+      IMB
+      IMBUrl
+      alamat
+      kelurahan
+      kecamatan
+      luasBangunan
+      statusVerifikasi
+      assignedAt
+      createdAt
+      idPelanggan {
+        _id
+        namaLengkap
+        email
+        noHP
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+      assignedBy {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{koneksidata_id}}"
+  }

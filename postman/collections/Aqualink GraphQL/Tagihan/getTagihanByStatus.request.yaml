@@ -1,0 +1,25 @@
+$kind: graphql-request
+name: getTagihanByStatus
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  query GetTagihanByStatus($status: EnumPaymentStatus!) {
+    getTagihanByStatus(status: $status) {
+      _id
+      periode
+      totalBiaya
+      statusPembayaran
+      menunggak
+      tenggatWaktu
+      createdAt
+      idMeteran {
+        _id
+        nomorMeteran
+        nomorAkun
+      }
+    }
+  }
+variables: |-
+  {
+    "status": "Pending"
+  }

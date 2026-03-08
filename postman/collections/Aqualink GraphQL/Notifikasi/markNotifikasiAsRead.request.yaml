@@ -1,0 +1,17 @@
+$kind: graphql-request
+name: markNotifikasiAsRead
+order: 7000
+url: '{{baseUrl}}'
+query: |-
+  mutation MarkNotifikasiAsRead($id: ID!) {
+    markNotifikasiAsRead(id: $id) {
+      _id
+      judul
+      isRead
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{notifikasi_id}}"
+  }

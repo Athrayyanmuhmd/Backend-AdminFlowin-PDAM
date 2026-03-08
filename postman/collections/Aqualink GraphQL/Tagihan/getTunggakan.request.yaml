@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getTunggakan
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getTunggakan {
+      _id
+      periode
+      totalBiaya
+      denda
+      statusPembayaran
+      menunggak
+      tenggatWaktu
+      createdAt
+      idMeteran {
+        _id
+        nomorMeteran
+        nomorAkun
+      }
+    }
+  }

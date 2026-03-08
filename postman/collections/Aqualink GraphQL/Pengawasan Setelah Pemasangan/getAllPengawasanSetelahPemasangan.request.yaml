@@ -1,0 +1,24 @@
+$kind: graphql-request
+name: getAllPengawasanSetelahPemasangan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllPengawasanSetelahPemasangan {
+      _id
+      hasilPengawasan
+      statusMeteran
+      tanggalPengawasan
+      hariSetelahPemasangan
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }

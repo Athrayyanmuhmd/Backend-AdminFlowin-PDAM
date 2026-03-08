@@ -1,0 +1,33 @@
+$kind: graphql-request
+name: loginAdmin
+order: 1000
+url: '{{baseUrl}}'
+auth:
+  type: noauth
+query: |-
+  query LoginAdmin($email: String!, $password: String!) {
+    loginAdmin(email: $email, password: $password) {
+      token
+      admin {
+        _id
+        namaLengkap
+        email
+      }
+    }
+  }
+variables: |-
+  {
+    "email": "admin@example.com",
+    "password": "admin123"
+  }
+scripts:
+  - type: afterResponse
+    language: text/javascript
+    code: |-
+      if (pm.response.code === 200) {
+        const data = pm.response.json();
+        if (data.data && data.data.loginAdmin && data.data.loginAdmin.token) {
+          pm.collectionVariables.set("token", data.data.loginAdmin.token);
+          console.log("Token saved successfully:", data.data.loginAdmin.token.substring(0, 20) + "...");
+        }
+      }

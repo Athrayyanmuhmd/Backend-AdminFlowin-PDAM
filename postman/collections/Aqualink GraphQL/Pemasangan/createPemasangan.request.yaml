@@ -1,0 +1,39 @@
+$kind: graphql-request
+name: createPemasangan
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreatePemasangan($input: CreatePemasanganInput!) {
+    createPemasangan(input: $input) {
+      _id
+      seriMeteran
+      statusVerifikasi
+      tanggalPemasangan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+      }
+      teknisiId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "idKoneksiData": "{{koneksidata_id}}",
+      "seriMeteran": "SN-20250001",
+      "fotoRumah": "https://res.cloudinary.com/example/pemasangan/rumah.jpg",
+      "fotoMeteran": "https://res.cloudinary.com/example/pemasangan/meteran.jpg",
+      "fotoMeteranDanRumah": "https://res.cloudinary.com/example/pemasangan/meteran-rumah.jpg",
+      "teknisiId": "{{teknisi_id}}",
+      "catatan": "Pemasangan selesai tanpa kendala",
+      "detailPemasangan": {
+        "diameterPipa": 0.5,
+        "lokasiPemasangan": "Depan rumah sisi kiri",
+        "materialDigunakan": ["Pipa PVC 0.5 inch", "Klem besi"]
+      }
+    }
+  }

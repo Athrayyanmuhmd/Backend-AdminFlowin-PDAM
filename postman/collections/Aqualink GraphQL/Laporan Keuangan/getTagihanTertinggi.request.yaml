@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: getTagihanTertinggi
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query GetTagihanTertinggi($limit: Int) {
+    getTagihanTertinggi(limit: $limit) {
+      nomorMeteran
+      nomorAkun
+      namaKelompok
+      totalBiaya
+      periode
+      statusPembayaran
+    }
+  }
+variables: |-
+  {
+    "limit": 10
+  }

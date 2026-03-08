@@ -1,0 +1,32 @@
+$kind: graphql-request
+name: createKoneksiData
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateKoneksiData($idPelanggan: ID, $NIK: String, $noKK: String, $alamat: String, $kelurahan: String, $kecamatan: String, $luasBangunan: Float) {
+    createKoneksiData(idPelanggan: $idPelanggan, NIK: $NIK, noKK: $noKK, alamat: $alamat, kelurahan: $kelurahan, kecamatan: $kecamatan, luasBangunan: $luasBangunan) {
+      _id
+      NIK
+      noKK
+      alamat
+      kelurahan
+      kecamatan
+      luasBangunan
+      statusVerifikasi
+      createdAt
+      idPelanggan {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "idPelanggan": "{{pelanggan_id}}",
+    "NIK": "3201234567890001",
+    "noKK": "3201234567890000",
+    "alamat": "Jl. Contoh No. 1",
+    "kelurahan": "Batoh",
+    "kecamatan": "Lueng Bata",
+    "luasBangunan": 72
+  }

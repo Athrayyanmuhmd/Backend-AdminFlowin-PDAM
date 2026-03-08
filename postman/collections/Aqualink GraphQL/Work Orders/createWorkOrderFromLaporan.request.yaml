@@ -1,0 +1,28 @@
+$kind: graphql-request
+name: createWorkOrderFromLaporan
+order: 10000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateWorkOrderFromLaporan($idLaporan: ID!, $teknisiIds: [ID!]!, $catatan: String) {
+    createWorkOrderFromLaporan(idLaporan: $idLaporan, teknisiIds: $teknisiIds, catatan: $catatan) {
+      _id
+      status
+      catatan
+      createdAt
+      tim {
+        _id
+        namaLengkap
+      }
+      idLaporan {
+        _id
+        namaLaporan
+        status
+      }
+    }
+  }
+variables: |-
+  {
+    "idLaporan": "{{laporan_id}}",
+    "teknisiIds": ["{{teknisi_id}}"],
+    "catatan": "Work order dibuat dari laporan pelanggan"
+  }

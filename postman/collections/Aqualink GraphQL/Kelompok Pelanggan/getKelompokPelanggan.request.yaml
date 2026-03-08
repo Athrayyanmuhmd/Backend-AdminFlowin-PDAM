@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: getKelompokPelanggan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetKelompokPelanggan($id: ID!) {
+    getKelompokPelanggan(id: $id) {
+      _id
+      namaKelompok
+      hargaDiBawah10mKubik
+      hargaDiAtas10mKubik
+      biayaBeban
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{kelompok_id}}"
+  }

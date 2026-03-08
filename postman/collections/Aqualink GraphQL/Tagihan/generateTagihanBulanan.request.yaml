@@ -1,0 +1,17 @@
+$kind: graphql-request
+name: generateTagihanBulanan
+order: 8000
+url: '{{baseUrl}}'
+query: |-
+  mutation GenerateTagihanBulanan($periode: String!, $idMeteranList: [ID!]!) {
+    generateTagihanBulanan(periode: $periode, idMeteranList: $idMeteranList) {
+      berhasil
+      gagal
+      pesan
+    }
+  }
+variables: |-
+  {
+    "periode": "2025-03",
+    "idMeteranList": ["{{meteran_id}}"]
+  }

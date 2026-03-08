@@ -1,0 +1,32 @@
+$kind: graphql-request
+name: getLaporan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetLaporan($id: ID!) {
+    getLaporan(id: $id) {
+      _id
+      namaLaporan
+      masalah
+      alamat
+      jenisLaporan
+      imageUrl
+      status
+      catatan
+      createdAt
+      koordinat {
+        longitude
+        latitude
+      }
+      idPengguna {
+        _id
+        namaLengkap
+        email
+        noHP
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{laporan_id}}"
+  }

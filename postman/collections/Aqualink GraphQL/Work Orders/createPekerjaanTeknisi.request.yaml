@@ -1,0 +1,27 @@
+$kind: graphql-request
+name: createPekerjaanTeknisi
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreateWorkOrder($input: CreateWorkOrderInput!) {
+    createWorkOrder(input: $input) {
+      _id
+      status
+      disetujui
+      catatan
+      tim {
+        _id
+        namaLengkap
+      }
+      createdAt
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "tim": ["{{teknisi_id}}"],
+      "idLaporan": "REPLACE_WITH_LAPORAN_ID",
+      "catatan": "Pekerjaan tindak lanjut laporan pelanggan"
+    }
+  }

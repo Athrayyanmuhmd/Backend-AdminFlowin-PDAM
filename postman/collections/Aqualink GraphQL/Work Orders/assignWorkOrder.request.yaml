@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: assignWorkOrder
+order: 8000
+url: '{{baseUrl}}'
+query: |-
+  mutation AssignWorkOrder($id: ID!, $teknisiIds: [ID!]!) {
+    assignWorkOrder(id: $id, teknisiIds: $teknisiIds) {
+      _id
+      status
+      catatan
+      updatedAt
+      tim {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{workorder_id}}",
+    "teknisiIds": ["{{teknisi_id}}"]
+  }

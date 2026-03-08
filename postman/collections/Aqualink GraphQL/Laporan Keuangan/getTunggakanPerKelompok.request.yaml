@@ -1,0 +1,12 @@
+$kind: graphql-request
+name: getTunggakanPerKelompok
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getTunggakanPerKelompok {
+      namaKelompok
+      totalTunggakan
+      jumlahTunggakan
+    }
+  }

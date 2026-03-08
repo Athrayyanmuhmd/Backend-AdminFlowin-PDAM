@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: approveWorkOrder
+order: 9000
+url: '{{baseUrl}}'
+query: |-
+  mutation ApproveWorkOrder($id: ID!, $disetujui: Boolean!, $catatan: String) {
+    approveWorkOrder(id: $id, disetujui: $disetujui, catatan: $catatan) {
+      _id
+      status
+      disetujui
+      catatan
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{workorder_id}}",
+    "disetujui": true,
+    "catatan": "Pekerjaan disetujui oleh admin"
+  }

@@ -1,0 +1,23 @@
+$kind: graphql-request
+name: updatePengawasanSetelahPemasangan
+order: 8000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdatePengawasanSetelahPemasangan($id: ID!, $input: UpdatePengawasanSetelahPemasanganInput!) {
+    updatePengawasanSetelahPemasangan(id: $id, input: $input) {
+      _id
+      hasilPengawasan
+      statusMeteran
+      catatan
+      rekomendasi
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{pengawasan_id}}",
+    "input": {
+      "catatan": "Catatan diperbarui",
+      "rekomendasi": "Pantau konsumsi air bulan pertama"
+    }
+  }

@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: unassignTeknisiFromKoneksi
+order: 9000
+url: '{{baseUrl}}'
+query: |-
+  mutation UnassignTeknisiFromKoneksi($id: ID!) {
+    unassignTeknisiFromKoneksi(id: $id) {
+      _id
+      statusVerifikasi
+      updatedAt
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{koneksidata_id}}"
+  }

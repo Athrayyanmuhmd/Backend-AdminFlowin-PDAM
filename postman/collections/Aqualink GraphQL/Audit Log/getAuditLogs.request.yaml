@@ -1,0 +1,27 @@
+$kind: graphql-request
+name: getAuditLogs
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query GetAuditLogs($limit: Int, $offset: Int, $aksi: String, $resource: String, $startDate: String, $endDate: String) {
+    getAuditLogs(limit: $limit, offset: $offset, aksi: $aksi, resource: $resource, startDate: $startDate, endDate: $endDate) {
+      _id
+      namaAdmin
+      aksi
+      resource
+      resourceId
+      nilaiBefore
+      nilaiAfter
+      catatan
+      createdAt
+      idAdmin {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "limit": 20,
+    "offset": 0
+  }

@@ -1,0 +1,21 @@
+$kind: graphql-request
+name: updateRABConnection
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateRABConnection($id: ID!, $totalBiaya: Float, $urlRab: String, $catatan: String, $statusPembayaran: EnumPaymentStatus) {
+    updateRABConnection(id: $id, totalBiaya: $totalBiaya, urlRab: $urlRab, catatan: $catatan, statusPembayaran: $statusPembayaran) {
+      _id
+      totalBiaya
+      statusPembayaran
+      urlRab
+      catatan
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{rab_id}}",
+    "totalBiaya": 3000000,
+    "catatan": "RAB direvisi sesuai hasil survei lapangan"
+  }

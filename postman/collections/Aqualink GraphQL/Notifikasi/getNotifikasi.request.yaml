@@ -1,0 +1,32 @@
+$kind: graphql-request
+name: getNotifikasi
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetNotifikasi($id: ID!) {
+    getNotifikasi(id: $id) {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+      idAdmin {
+        _id
+        namaLengkap
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+      idPelanggan {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{notifikasi_id}}"
+  }

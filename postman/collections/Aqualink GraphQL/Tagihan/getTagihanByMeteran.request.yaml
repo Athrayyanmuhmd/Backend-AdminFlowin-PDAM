@@ -1,0 +1,29 @@
+$kind: graphql-request
+name: getTagihanByMeteran
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetTagihanByMeteran($idMeteran: ID!) {
+    getTagihanByMeteran(idMeteran: $idMeteran) {
+      _id
+      periode
+      totalPemakaian
+      biaya
+      biayaBeban
+      totalBiaya
+      statusPembayaran
+      menunggak
+      tenggatWaktu
+      tanggalPembayaran
+      createdAt
+      idMeteran {
+        _id
+        nomorMeteran
+        nomorAkun
+      }
+    }
+  }
+variables: |-
+  {
+    "idMeteran": "{{meteran_id}}"
+  }

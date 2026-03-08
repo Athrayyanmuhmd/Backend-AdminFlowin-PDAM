@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: searchPengguna
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  query SearchPengguna($search: String!) {
+    searchPengguna(search: $search) {
+      _id
+      namaLengkap
+      email
+      noHP
+      accountStatus
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "search": "Budi"
+  }

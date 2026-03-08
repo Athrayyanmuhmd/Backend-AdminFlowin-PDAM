@@ -1,0 +1,15 @@
+$kind: graphql-request
+name: getAllKelompokPelanggan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllKelompokPelanggan {
+      _id
+      namaKelompok
+      hargaDiBawah10mKubik
+      hargaDiAtas10mKubik
+      biayaBeban
+      createdAt
+    }
+  }

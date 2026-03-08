@@ -1,0 +1,20 @@
+$kind: graphql-request
+name: getUnreadNotifikasi
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetUnreadNotifikasi($idAdmin: ID!) {
+    getUnreadNotifikasi(idAdmin: $idAdmin) {
+      _id
+      judul
+      pesan
+      kategori
+      link
+      isRead
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "idAdmin": "{{admin_id}}"
+  }

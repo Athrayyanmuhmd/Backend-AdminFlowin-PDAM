@@ -1,0 +1,21 @@
+$kind: graphql-request
+name: getPendingKoneksiData
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getPendingKoneksiData {
+      _id
+      NIK
+      alamat
+      kelurahan
+      kecamatan
+      statusVerifikasi
+      createdAt
+      idPelanggan {
+        _id
+        namaLengkap
+        email
+      }
+    }
+  }

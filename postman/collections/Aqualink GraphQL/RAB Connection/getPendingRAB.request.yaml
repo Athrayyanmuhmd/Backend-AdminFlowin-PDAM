@@ -1,0 +1,23 @@
+$kind: graphql-request
+name: getPendingRAB
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getPendingRAB {
+      _id
+      totalBiaya
+      statusPembayaran
+      urlRab
+      catatan
+      createdAt
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+        }
+      }
+    }
+  }

@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: getAllWorkOrders
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllWorkOrders {
+      _id
+      status
+      disetujui
+      catatan
+      createdAt
+      updatedAt
+      tim {
+        _id
+        namaLengkap
+      }
+    }
+  }

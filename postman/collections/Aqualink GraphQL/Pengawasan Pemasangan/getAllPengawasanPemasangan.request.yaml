@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getAllPengawasanPemasangan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllPengawasanPemasangan {
+      _id
+      hasilPengawasan
+      tanggalPengawasan
+      perluTindakLanjut
+      createdAt
+      idPemasangan {
+        _id
+        seriMeteran
+      }
+      supervisorId {
+        _id
+        namaLengkap
+      }
+    }
+  }

@@ -1,0 +1,31 @@
+$kind: graphql-request
+name: createPelanggan
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  mutation CreatePelanggan($input: CreatePelangganInput!) {
+    createPelanggan(input: $input) {
+      _id
+      namaLengkap
+      email
+      noHP
+      isVerified
+      createdAt
+    }
+  }
+variables: |-
+  {
+    "input": {
+      "email": "pelanggan@example.com",
+      "noHP": "081234567890",
+      "namaLengkap": "Budi Santoso",
+      "password": "password123",
+      "nik": "3201234567890001",
+      "address": "Jl. Contoh No. 1, Kota",
+      "gender": "Laki-laki",
+      "birthDate": "1990-01-01",
+      "occupation": "Karyawan",
+      "customerType": "Rumah Tangga",
+      "accountStatus": "Aktif"
+    }
+  }

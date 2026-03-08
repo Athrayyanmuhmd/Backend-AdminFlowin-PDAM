@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getPekerjaanTeknisiByStatus
+order: 12000
+url: '{{baseUrl}}'
+query: |-
+  query GetPekerjaanTeknisiByStatus($status: EnumWorkStatus!) {
+    getPekerjaanTeknisiByStatus(status: $status) {
+      _id
+      status
+      disetujui
+      catatan
+      createdAt
+      tim {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "status": "SedangDikerjakan"
+  }

@@ -1,0 +1,11 @@
+$kind: graphql-request
+name: getAverageCustomerRating
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAverageCustomerRating {
+      avgRating
+      count
+    }
+  }

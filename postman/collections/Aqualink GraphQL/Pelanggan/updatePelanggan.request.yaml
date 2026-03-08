@@ -1,0 +1,27 @@
+$kind: graphql-request
+name: updatePelanggan
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdatePelanggan($id: ID!, $input: UpdatePelangganInput!) {
+    updatePelanggan(id: $id, input: $input) {
+      _id
+      namaLengkap
+      email
+      noHP
+      isVerified
+      address
+      accountStatus
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{pelanggan_id}}",
+    "input": {
+      "namaLengkap": "Budi Santoso Updated",
+      "noHP": "089876543210",
+      "address": "Jl. Baru No. 2, Kota",
+      "accountStatus": "Aktif"
+    }
+  }

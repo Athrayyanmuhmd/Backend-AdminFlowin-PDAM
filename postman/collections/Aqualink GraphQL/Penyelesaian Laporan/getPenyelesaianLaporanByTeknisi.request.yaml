@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getPenyelesaianLaporanByTeknisi
+order: 4000
+url: '{{baseUrl}}'
+query: |-
+  query GetPenyelesaianLaporanByTeknisi($teknisiId: ID!) {
+    getPenyelesaianLaporanByTeknisi(teknisiId: $teknisiId) {
+      _id
+      catatan
+      tanggalSelesai
+      createdAt
+      idLaporan {
+        _id
+        namaLaporan
+        status
+      }
+    }
+  }
+variables: |-
+  {
+    "teknisiId": "{{teknisi_id}}"
+  }

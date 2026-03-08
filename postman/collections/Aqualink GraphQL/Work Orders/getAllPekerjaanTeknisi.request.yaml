@@ -1,0 +1,26 @@
+$kind: graphql-request
+name: getAllPekerjaanTeknisi
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllPekerjaanTeknisi {
+      _id
+      status
+      disetujui
+      catatan
+      tim {
+        _id
+        namaLengkap
+        noHP
+      }
+      idSurvei {
+        _id
+      }
+      idLaporan {
+        _id
+      }
+      createdAt
+      updatedAt
+    }
+  }

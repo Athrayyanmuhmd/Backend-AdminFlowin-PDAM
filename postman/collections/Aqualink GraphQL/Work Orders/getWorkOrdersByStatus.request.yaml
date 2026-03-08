@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getWorkOrdersByStatus
+order: 6000
+url: '{{baseUrl}}'
+query: |-
+  query GetWorkOrdersByStatus($status: EnumWorkStatus!) {
+    getWorkOrdersByStatus(status: $status) {
+      _id
+      status
+      disetujui
+      catatan
+      createdAt
+      tim {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "status": "Ditugaskan"
+  }

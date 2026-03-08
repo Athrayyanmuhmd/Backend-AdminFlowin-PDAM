@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getAllPenyelesaianLaporan
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllPenyelesaianLaporan {
+      _id
+      catatan
+      tanggalSelesai
+      createdAt
+      idLaporan {
+        _id
+        namaLaporan
+        status
+      }
+      teknisiId {
+        _id
+        namaLengkap
+      }
+    }
+  }

@@ -1,0 +1,50 @@
+$kind: graphql-request
+name: getPemasangan
+order: 2000
+url: '{{baseUrl}}'
+query: |-
+  query GetPemasangan($id: ID!) {
+    getPemasangan(id: $id) {
+      _id
+      seriMeteran
+      fotoRumah
+      fotoMeteran
+      fotoMeteranDanRumah
+      statusVerifikasi
+      tanggalPemasangan
+      tanggalVerifikasi
+      catatan
+      createdAt
+      detailPemasangan {
+        diameterPipa
+        lokasiPemasangan
+        materialDigunakan
+        koordinat {
+          longitude
+          latitude
+        }
+      }
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+          email
+        }
+      }
+      teknisiId {
+        _id
+        namaLengkap
+        noHP
+      }
+      diverifikasiOleh {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{pemasangan_id}}"
+  }

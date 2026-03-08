@@ -1,0 +1,19 @@
+$kind: graphql-request
+name: updateMeteran
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation UpdateMeteran($id: ID!, $nomorMeteran: String, $nomorAkun: String, $idKelompokPelanggan: ID, $idKoneksiData: ID, $statusAktif: Boolean) {
+    updateMeteran(id: $id, nomorMeteran: $nomorMeteran, nomorAkun: $nomorAkun, idKelompokPelanggan: $idKelompokPelanggan, idKoneksiData: $idKoneksiData, statusAktif: $statusAktif) {
+      _id
+      nomorMeteran
+      nomorAkun
+      statusAktif
+      updatedAt
+    }
+  }
+variables: |-
+  {
+    "id": "{{meteran_id}}",
+    "statusAktif": true
+  }

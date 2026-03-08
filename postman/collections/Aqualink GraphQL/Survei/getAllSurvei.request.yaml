@@ -1,0 +1,34 @@
+$kind: graphql-request
+name: getAllSurvei
+order: 1000
+url: '{{baseUrl}}'
+query: |-
+  query {
+    getAllSurvei {
+      _id
+      urlJaringan
+      diameterPipa
+      urlPosisiBak
+      posisiMeteran
+      jumlahPenghuni
+      standar
+      catatan
+      createdAt
+      koordinat {
+        longitude
+        latitude
+      }
+      idKoneksiData {
+        _id
+        alamat
+        idPelanggan {
+          _id
+          namaLengkap
+        }
+      }
+      idTeknisi {
+        _id
+        namaLengkap
+      }
+    }
+  }

@@ -1,0 +1,15 @@
+$kind: graphql-request
+name: deleteAdmin
+order: 5000
+url: '{{baseUrl}}'
+query: |-
+  mutation DeleteAdmin($id: ID!) {
+    deleteAdmin(id: $id) {
+      success
+      message
+    }
+  }
+variables: |-
+  {
+    "id": "{{admin_id}}"
+  }

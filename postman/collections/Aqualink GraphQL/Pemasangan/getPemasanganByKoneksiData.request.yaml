@@ -1,0 +1,22 @@
+$kind: graphql-request
+name: getPemasanganByKoneksiData
+order: 3000
+url: '{{baseUrl}}'
+query: |-
+  query GetPemasanganByKoneksiData($idKoneksiData: ID!) {
+    getPemasanganByKoneksiData(idKoneksiData: $idKoneksiData) {
+      _id
+      seriMeteran
+      statusVerifikasi
+      tanggalPemasangan
+      createdAt
+      teknisiId {
+        _id
+        namaLengkap
+      }
+    }
+  }
+variables: |-
+  {
+    "idKoneksiData": "{{koneksidata_id}}"
+  }

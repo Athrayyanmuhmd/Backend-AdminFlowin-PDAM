@@ -1,0 +1,34 @@
+$kind: graphql-request
+name: getPekerjaanTeknisi
+order: 11000
+url: '{{baseUrl}}'
+query: |-
+  query GetPekerjaanTeknisi($id: ID!) {
+    getPekerjaanTeknisi(id: $id) {
+      _id
+      status
+      disetujui
+      catatan
+      createdAt
+      updatedAt
+      tim {
+        _id
+        namaLengkap
+        noHP
+      }
+      idSurvei {
+        _id
+      }
+      idLaporan {
+        _id
+        namaLaporan
+      }
+      idPemasangan {
+        _id
+      }
+    }
+  }
+variables: |-
+  {
+    "id": "{{workorder_id}}"
+  }
