@@ -34,7 +34,7 @@ const billingSchema = new Schema<IBilling>(
   {
     userId: {
       type: Schema.Types.ObjectId,
-      ref: 'Users',
+      ref: 'Pengguna',
       required: true,
     },
     idMeteran: {

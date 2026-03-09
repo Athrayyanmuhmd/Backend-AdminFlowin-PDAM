@@ -87,11 +87,13 @@ function validatePhone(noHP) {
 export const resolvers = {
   Query: {
     // ==================== ADMIN QUERIES ====================
-    getAdmin: async (_, { id }) => {
+    getAdmin: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await AdminAccount.findById(id);
     },
 
-    getAllAdmins: async () => {
+    getAllAdmins: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await AdminAccount.find().limit(500);
     },
 
@@ -135,7 +137,8 @@ export const resolvers = {
     },
 
     // ==================== PELANGGAN QUERIES ====================
-    getPengguna: async (_, { id }) => {
+    getPengguna: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const user = await User.findById(id);
       if (!user) return null;
       return {
@@ -145,7 +148,8 @@ export const resolvers = {
       };
     },
 
-    getAllPengguna: async (_, { limit = 100, offset = 0 } = {}) => {
+    getAllPengguna: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
       return users.map(user => ({
         ...user.toObject(),
@@ -154,7 +158,8 @@ export const resolvers = {
       }));
     },
 
-    searchPengguna: async (_, { search }) => {
+    searchPengguna: async (_, { search }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const users = await User.find({
         $or: [
           { namaLengkap: { $regex: search, $options: 'i' } },
@@ -170,7 +175,8 @@ export const resolvers = {
     },
 
     // ==================== TEKNISI QUERIES ====================
-    getTeknisi: async (_, { id }) => {
+    getTeknisi: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const teknisi = await Technician.findById(id);
       if (!teknisi) return null;
       return {
@@ -180,7 +186,8 @@ export const resolvers = {
       };
     },
 
-    getAllTeknisi: async (_, { limit = 100, offset = 0 } = {}) => {
+    getAllTeknisi: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const teknisis = await Technician.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
       return teknisis.map(tek => ({
         ...tek.toObject(),
@@ -189,7 +196,8 @@ export const resolvers = {
       }));
     },
 
-    getTeknisiByDivisi: async (_, { divisi }) => {
+    getTeknisiByDivisi: async (_, { divisi }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const teknisis = await Technician.find({ divisi });
       return teknisis.map(tek => ({
         ...tek.toObject(),
@@ -218,19 +226,22 @@ export const resolvers = {
     },
 
     // ==================== METERAN QUERIES ====================
-    getMeteran: async (_, { id }) => {
+    getMeteran: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Meteran.findById(id)
         .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
         .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
 
-    getAllMeteran: async (_, { limit = 100, offset = 0 } = {}) => {
+    getAllMeteran: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Meteran.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500))
         .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
         .populate({ path: 'idKoneksiData', strictPopulate: false });
     },
 
-    getMeteranByPelanggan: async (_, { idPelanggan }) => {
+    getMeteranByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const connections = await ConnectionData.find({ idPelanggan });
       const connectionIds = connections.map(c => c._id);
       return await Meteran.find({ idKoneksiData: { $in: connectionIds } })
@@ -239,34 +250,41 @@ export const resolvers = {
     },
 
     // ==================== CONNECTION DATA QUERIES ====================
-    getKoneksiData: async (_, { id }) => {
+    getKoneksiData: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await ConnectionData.findById(id).populate('idPelanggan');
     },
 
-    getAllKoneksiData: async (_, { limit = 50, offset = 0 } = {}) => {
+    getAllKoneksiData: async (_, { limit = 50, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await ConnectionData.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500)).populate('idPelanggan');
     },
 
-    getPendingKoneksiData: async () => {
+    getPendingKoneksiData: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await ConnectionData.find({ statusVerifikasi: 'Menunggu' }).populate('idPelanggan');
     },
 
-    getVerifiedKoneksiData: async () => {
+    getVerifiedKoneksiData: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await ConnectionData.find({ statusVerifikasi: 'Disetujui' }).populate('idPelanggan');
     },
 
-    getDitolakKoneksiData: async () => {
+    getDitolakKoneksiData: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await ConnectionData.find({ statusVerifikasi: 'Ditolak' }).populate('idPelanggan');
     },
 
     // ==================== RIWAYAT PENGGUNAAN QUERIES ====================
-    getRiwayatPenggunaan: async (_, { meteranId, limit = 50 }) => {
+    getRiwayatPenggunaan: async (_, { meteranId, limit = 50 }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await HistoryUsage.find({ meteranId })
         .sort({ createdAt: -1 })
         .limit(limit);
     },
 
-    getRiwayatPenggunaanBulanan: async (_, { meteranId }) => {
+    getRiwayatPenggunaanBulanan: async (_, { meteranId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const mongoose = await import('mongoose');
       const hasil = await HistoryUsage.aggregate([
         { $match: { meteranId: new mongoose.default.Types.ObjectId(meteranId) } },
@@ -291,7 +309,8 @@ export const resolvers = {
       }));
     },
 
-    getEstimashiBiaya: async (_, { meteranId }) => {
+    getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const meteran = await Meteran.findById(meteranId).populate('idKelompokPelanggan');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const kelompok = meteran.idKelompokPelanggan as any;
@@ -310,45 +329,55 @@ export const resolvers = {
     },
 
     // ==================== TAGIHAN QUERIES ====================
-    getTagihan: async (_, { id }) => {
+    getTagihan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Billing.findById(id).populate('idMeteran');
     },
 
-    getAllTagihan: async (_, { limit = 100, offset = 0 } = {}) => {
+    getAllTagihan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Billing.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 1000)).populate('idMeteran').lean();
     },
 
-    getTagihanByMeteran: async (_, { idMeteran }) => {
+    getTagihanByMeteran: async (_, { idMeteran }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Billing.find({ idMeteran }).populate('idMeteran');
     },
 
-    getTagihanByStatus: async (_, { status }) => {
+    getTagihanByStatus: async (_, { status }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Billing.find({ statusPembayaran: status }).populate('idMeteran');
     },
 
-    getTunggakan: async () => {
+    getTunggakan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Billing.find({ menunggak: true }).populate('idMeteran');
     },
 
     // ==================== LAPORAN QUERIES ====================
-    getLaporan: async (_, { id }) => {
+    getLaporan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Report.findById(id).populate('idPengguna');
     },
 
-    getAllLaporan: async (_, { limit = 100, offset = 0 } = {}) => {
+    getAllLaporan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Report.find().sort({ createdAt: -1 }).lean().skip(offset).limit(Math.min(limit, 500)).populate('idPengguna');
     },
 
-    getLaporanByStatus: async (_, { status }) => {
+    getLaporanByStatus: async (_, { status }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Report.find({ status }).populate('idPengguna');
     },
 
-    getLaporanByPelanggan: async (_, { idPelanggan }) => {
+    getLaporanByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Report.find({ idPengguna: idPelanggan }).populate('idPengguna');
     },
 
     // ==================== WORK ORDER QUERIES ====================
-    getWorkOrder: async (_, { id }) => {
+    getWorkOrder: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.findById(id)
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
@@ -356,7 +385,8 @@ export const resolvers = {
         .populate('tim');
     },
 
-    getAllWorkOrders: async () => {
+    getAllWorkOrders: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find().limit(500)
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
@@ -365,7 +395,8 @@ export const resolvers = {
         .sort({ createdAt: -1 });
     },
 
-    getWorkOrdersByStatus: async (_, { status }) => {
+    getWorkOrdersByStatus: async (_, { status }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find({ status })
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
@@ -374,7 +405,8 @@ export const resolvers = {
         .sort({ createdAt: -1 });
     },
 
-    getWorkOrdersByTeknisi: async (_, { idTeknisi }) => {
+    getWorkOrdersByTeknisi: async (_, { idTeknisi }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find({ tim: idTeknisi })
         .populate({ path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
         .populate('rabId')
@@ -384,41 +416,49 @@ export const resolvers = {
     },
 
     // ==================== RAB CONNECTION QUERIES ====================
-    getRABConnection: async (_, { id }) => {
+    getRABConnection: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await RabConnection.findById(id).populate('idKoneksiData');
     },
 
-    getAllRABConnections: async () => {
+    getAllRABConnections: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await RabConnection.find().populate('idKoneksiData');
     },
 
-    getPendingRAB: async () => {
+    getPendingRAB: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await RabConnection.find({ statusPembayaran: 'Pending' }).populate('idKoneksiData');
     },
 
     // ==================== SURVEI QUERIES ====================
-    getSurvei: async (_, { id }) => {
+    getSurvei: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await SurveyData.findById(id)
         .populate('idKoneksiData')
         .populate('idTeknisi');
     },
 
-    getAllSurvei: async () => {
+    getAllSurvei: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await SurveyData.find()
         .populate('idKoneksiData')
         .populate('idTeknisi');
     },
 
     // ==================== NOTIFIKASI QUERIES ====================
-    getNotifikasi: async (_, { id }) => {
+    getNotifikasi: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Notification.findById(id);
     },
 
-    getNotifikasiByAdmin: async (_, { idAdmin }) => {
+    getNotifikasiByAdmin: async (_, { idAdmin }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Notification.find({ idAdmin }).sort({ createdAt: -1 });
     },
 
-    getUnreadNotifikasi: async (_, { idAdmin }) => {
+    getUnreadNotifikasi: async (_, { idAdmin }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Notification.find({ idAdmin, isRead: false }).sort({ createdAt: -1 });
     },
 
@@ -432,7 +472,8 @@ export const resolvers = {
     },
 
     // ==================== DASHBOARD STATS ====================
-    getDashboardStats: async () => {
+    getDashboardStats: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       // Try to get from cache first (5 minutes TTL)
       const cacheKey = 'dashboard:stats';
       const cached = await getCache(cacheKey);
@@ -505,7 +546,8 @@ export const resolvers = {
     },
 
     // ==================== DASHBOARD CHART QUERIES ====================
-    getChartKonsumsiPerBulan: async () => {
+    getChartKonsumsiPerBulan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       // Ambil data tagihan 6 bulan terakhir, group by bulan
       const enamBulanLalu = new Date();
       enamBulanLalu.setMonth(enamBulanLalu.getMonth() - 5);
@@ -542,7 +584,8 @@ export const resolvers = {
       }));
     },
 
-    getDistribusiKelompokPelanggan: async () => {
+    getDistribusiKelompokPelanggan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       // Ambil semua meteran dengan kelompok pelanggan, hitung distribusi
       const hasilAgregasi = await Meteran.aggregate([
         {
@@ -574,7 +617,8 @@ export const resolvers = {
     },
 
     // ==================== LAPORAN KEUANGAN QUERIES ====================
-    getLaporanKeuanganBulanan: async () => {
+    getLaporanKeuanganBulanan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:keuangan_bulanan';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -614,7 +658,8 @@ export const resolvers = {
       return result;
     },
 
-    getTunggakanPerKelompok: async () => {
+    getTunggakanPerKelompok: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:tunggakan_kelompok';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -658,7 +703,8 @@ export const resolvers = {
       return result;
     },
 
-    getTagihanTertinggi: async (_, { limit = 10 }) => {
+    getTagihanTertinggi: async (_, { limit = 10 }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const hasil = await Billing.aggregate([
         {
           $lookup: {
@@ -702,7 +748,8 @@ export const resolvers = {
       }));
     },
 
-    getRingkasanStatusTagihan: async () => {
+    getRingkasanStatusTagihan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:ringkasan_tagihan';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -739,7 +786,8 @@ export const resolvers = {
     },
 
     // ==================== LAPORAN OPERASIONAL QUERIES ====================
-    getKpiOperasional: async () => {
+    getKpiOperasional: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:kpi_operasional';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -780,7 +828,8 @@ export const resolvers = {
       return result;
     },
 
-    getRingkasanWorkOrder: async () => {
+    getRingkasanWorkOrder: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:ringkasan_wo';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -794,7 +843,8 @@ export const resolvers = {
       return result;
     },
 
-    getRingkasanLaporan: async () => {
+    getRingkasanLaporan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const cacheKey = 'laporan:ringkasan_laporan';
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -809,7 +859,8 @@ export const resolvers = {
     },
 
     // ==================== PEKERJAAN TEKNISI QUERIES (ERD Compliant) ====================
-    getPekerjaanTeknisi: async (_, { id }) => {
+    getPekerjaanTeknisi: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.findById(id)
         .populate('idSurvei')
         .populate('rabId')
@@ -820,25 +871,29 @@ export const resolvers = {
         .populate('tim');
     },
 
-    getAllPekerjaanTeknisi: async () => {
+    getAllPekerjaanTeknisi: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find().limit(500)
         .populate('tim')
         .sort({ createdAt: -1 });
     },
 
-    getPekerjaanTeknisiByStatus: async (_, { status }) => {
+    getPekerjaanTeknisiByStatus: async (_, { status }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find({ status })
         .populate('tim')
         .sort({ createdAt: -1 });
     },
 
-    getPekerjaanTeknisiByTeknisi: async (_, { teknisiId }) => {
+    getPekerjaanTeknisiByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find({ tim: teknisiId })
         .populate('tim')
         .sort({ createdAt: -1 });
     },
 
-    getPekerjaanTeknisiPendingApproval: async () => {
+    getPekerjaanTeknisiPendingApproval: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PekerjaanTeknisi.find({
         disetujui: null,
         status: 'DitinjauAdmin'
@@ -848,25 +903,29 @@ export const resolvers = {
     },
 
     // ==================== PENYELESAIAN LAPORAN QUERIES ====================
-    getPenyelesaianLaporan: async (_, { id }) => {
+    getPenyelesaianLaporan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PenyelesaianLaporan.findById(id)
         .populate('idLaporan')
         .populate('teknisiId');
     },
 
-    getPenyelesaianLaporanByLaporan: async (_, { idLaporan }) => {
+    getPenyelesaianLaporanByLaporan: async (_, { idLaporan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PenyelesaianLaporan.find({ idLaporan })
         .populate('teknisiId')
         .sort({ tanggalSelesai: -1 });
     },
 
-    getPenyelesaianLaporanByTeknisi: async (_, { teknisiId }) => {
+    getPenyelesaianLaporanByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PenyelesaianLaporan.find({ teknisiId })
         .populate('idLaporan')
         .sort({ tanggalSelesai: -1 });
     },
 
-    getAllPenyelesaianLaporan: async () => {
+    getAllPenyelesaianLaporan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PenyelesaianLaporan.find().limit(500)
         .populate('idLaporan')
         .populate('teknisiId')
@@ -874,28 +933,32 @@ export const resolvers = {
     },
 
     // ==================== PEMASANGAN QUERIES ====================
-    getPemasangan: async (_, { id }) => {
+    getPemasangan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Pemasangan.findById(id)
         .populate('idKoneksiData')
         .populate('teknisiId')
         .populate('diverifikasiOleh');
     },
 
-    getPemasanganByKoneksiData: async (_, { idKoneksiData }) => {
+    getPemasanganByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Pemasangan.findOne({ idKoneksiData })
         .populate('idKoneksiData')
         .populate('teknisiId')
         .populate('diverifikasiOleh');
     },
 
-    getPemasanganByTeknisi: async (_, { teknisiId }) => {
+    getPemasanganByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Pemasangan.find({ teknisiId })
         .populate('idKoneksiData')
         .populate('diverifikasiOleh')
         .sort({ tanggalPemasangan: -1 });
     },
 
-    getPemasanganByStatus: async (_, { statusVerifikasi }) => {
+    getPemasanganByStatus: async (_, { statusVerifikasi }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Pemasangan.find({ statusVerifikasi })
         .populate('idKoneksiData')
         .populate('teknisiId')
@@ -903,7 +966,8 @@ export const resolvers = {
         .sort({ tanggalPemasangan: -1 });
     },
 
-    getAllPemasangan: async () => {
+    getAllPemasangan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await Pemasangan.find().limit(500)
         .populate('idKoneksiData')
         .populate('teknisiId')
@@ -912,25 +976,29 @@ export const resolvers = {
     },
 
     // ==================== PENGAWASAN PEMASANGAN QUERIES ====================
-    getPengawasanPemasangan: async (_, { id }) => {
+    getPengawasanPemasangan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanPemasangan.findById(id)
         .populate('idPemasangan')
         .populate('supervisorId');
     },
 
-    getPengawasanPemasanganByPemasangan: async (_, { idPemasangan }) => {
+    getPengawasanPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanPemasangan.find({ idPemasangan })
         .populate('supervisorId')
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getPengawasanPemasanganBySupervisor: async (_, { supervisorId }) => {
+    getPengawasanPemasanganBySupervisor: async (_, { supervisorId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanPemasangan.find({ supervisorId })
         .populate('idPemasangan')
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getPengawasanPemasanganProblematic: async () => {
+    getPengawasanPemasanganProblematic: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanPemasangan.find({
         $or: [
           { hasilPengawasan: { $in: ['Perbaikan Diperlukan', 'Tidak Sesuai'] } },
@@ -942,7 +1010,8 @@ export const resolvers = {
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getAllPengawasanPemasangan: async () => {
+    getAllPengawasanPemasangan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanPemasangan.find().limit(500)
         .populate('idPemasangan')
         .populate('supervisorId')
@@ -950,25 +1019,29 @@ export const resolvers = {
     },
 
     // ==================== PENGAWASAN SETELAH PEMASANGAN QUERIES ====================
-    getPengawasanSetelahPemasangan: async (_, { id }) => {
+    getPengawasanSetelahPemasangan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.findById(id)
         .populate('idPemasangan')
         .populate('supervisorId');
     },
 
-    getPengawasanSetelahPemasanganByPemasangan: async (_, { idPemasangan }) => {
+    getPengawasanSetelahPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.find({ idPemasangan })
         .populate('supervisorId')
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getPengawasanSetelahPemasanganBySupervisor: async (_, { supervisorId }) => {
+    getPengawasanSetelahPemasanganBySupervisor: async (_, { supervisorId }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.find({ supervisorId })
         .populate('idPemasangan')
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getPengawasanSetelahPemasanganProblematic: async () => {
+    getPengawasanSetelahPemasanganProblematic: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.find({
         $or: [
           { hasilPengawasan: 'Bermasalah' },
@@ -981,14 +1054,16 @@ export const resolvers = {
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getAllPengawasanSetelahPemasangan: async () => {
+    getAllPengawasanSetelahPemasangan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.find().limit(500)
         .populate('idPemasangan')
         .populate('supervisorId')
         .sort({ tanggalPengawasan: -1 });
     },
 
-    getAverageCustomerRating: async () => {
+    getAverageCustomerRating: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       return await PengawasanSetelahPemasangan.getAverageRating();
     }
   },

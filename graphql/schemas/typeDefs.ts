@@ -160,7 +160,7 @@ export const typeDefs: DocumentNode = gql`
     jumlahRecord: Int!
   }
 
-  type EstimashiBiaya {
+  type EstimasiBiaya {
     pemakaianBelumTerbayar: Float!
     estimasiBiaya: Float!
     biayaBeban: Float!
@@ -416,7 +416,7 @@ export const typeDefs: DocumentNode = gql`
     # Riwayat Penggunaan queries
     getRiwayatPenggunaan(meteranId: ID!, limit: Int): [RiwayatPenggunaan!]!
     getRiwayatPenggunaanBulanan(meteranId: ID!): [RiwayatBulananData!]!
-    getEstimashiBiaya(meteranId: ID!): EstimashiBiaya
+    getEstimasiBiaya(meteranId: ID!): EstimasiBiaya
 
     # Tagihan queries
     getTagihan(id: ID!): Tagihan
