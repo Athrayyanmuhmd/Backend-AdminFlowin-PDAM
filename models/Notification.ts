@@ -19,7 +19,7 @@ const NotificationSchema = new Schema<INotification>(
   {
     idAdmin: {
       type: Schema.Types.ObjectId,
-      ref: 'Admin',
+      ref: 'AdminAccount',
       default: null,
     },
     idTeknisi: {
