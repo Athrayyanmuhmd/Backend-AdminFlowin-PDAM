@@ -29,7 +29,7 @@ const NotificationSchema = new Schema<INotification>(
     },
     idPelanggan: {
       type: Schema.Types.ObjectId,
-      ref: 'User',
+      ref: 'Pengguna',
       default: null,
     },
     judul: {

@@ -49,7 +49,7 @@ async function catatAuditLog({ token, aksi, resource, resourceId = null, nilaiBe
     }
     await AuditLog.create({ idAdmin, namaAdmin, aksi, resource, resourceId: resourceId ? String(resourceId) : null, nilaiBefore, nilaiAfter, catatan });
   } catch (err) {
-    console.error('Gagal mencatat audit log:', err.message);
+    logger.error({ err }, 'Gagal mencatat audit log');
   }
 }
 
@@ -67,7 +67,7 @@ async function notifikasiSemuaAdmin(judul, pesan, kategori, link = null) {
     }));
     if (notifs.length > 0) await Notification.insertMany(notifs);
   } catch (err) {
-    console.error('Gagal kirim notifikasi admin:', err.message);
+    logger.error({ err }, 'Gagal kirim notifikasi admin');
   }
 }
 
@@ -1525,7 +1525,7 @@ export const resolvers = {
           await billing.save();
           berhasil++;
         } catch (err) {
-          console.error('Gagal generate tagihan untuk meteran', idMeteran, err.message);
+          logger.error({ err, idMeteran }, 'Gagal generate tagihan untuk meteran');
           gagal++;
         }
       }
