@@ -1,5 +1,6 @@
 // @ts-nocheck — legacy REST controller, phase-out menuju GraphQL
 import crypto from "crypto";
+import logger from "../utils/logger.js";
 import Billing from "../models/Billing.js";
 import RabConnection from "../models/RabConnection.js";
 import Notification from "../models/Notification.js";
@@ -25,7 +26,7 @@ export const handlePaymentWebhook = async (req, res) => {
       status_code,
     } = notification;
 
-    console.log("📨 Webhook received:", {
+    logger.info({
       order_id,
       transaction_status,
       payment_type,
@@ -36,7 +37,7 @@ export const handlePaymentWebhook = async (req, res) => {
     });
 
     console.log(
-      "📨 Full webhook payload:",
+      // Full payload logged at debug level
       JSON.stringify(notification, null, 2)
     );
 
@@ -279,7 +280,7 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
       `✅ RAB payment webhook processing completed: ${rabId} - Status: ${transactionStatus} - Final isPaid: ${updateData.isPaid}`
     );
   } catch (error) {
-    console.error("❌ Error handling RAB payment:", error);
+    logger.error({ err: error }, "RAB payment webhook error");
     console.error("Error stack:", error.stack);
     throw error;
   }
@@ -403,7 +404,7 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
       `✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`
     );
   } catch (error) {
-    console.error("❌ Error handling billing payment:", error);
+    logger.error({ err: error }, "Billing payment webhook error");
     throw error;
   }
 }
@@ -542,7 +543,7 @@ async function handleMultipleBillingPayment(
       `✅ Multiple billing payment updated for user ${userId}: ${unpaidBillings.length} bills - Status: ${transactionStatus}`
     );
   } catch (error) {
-    console.error("❌ Error handling multiple billing payment:", error);
+    logger.error({ err: error }, "Multi-billing payment webhook error");
     throw error;
   }
 }

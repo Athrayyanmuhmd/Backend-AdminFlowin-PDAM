@@ -1,8 +1,9 @@
 import { Schema, model, Document } from 'mongoose';
+import type { MongooseTimestamps } from '../types/index.js';
 
 export type DivisiTeknisi = 'PerencanaanTeknik' | 'TeknikCabang' | 'PengawasanTeknik';
 
-export interface ITechnician {
+export interface ITechnician extends MongooseTimestamps {
   namaLengkap: string;
   NIP?: string | null;
   email: string;

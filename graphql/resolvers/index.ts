@@ -1,5 +1,5 @@
-// @ts-nocheck — full resolver typing is planned for a future iteration (strict: false phase)
 import type { GraphQLContext } from '../../types/index.js';
+import logger from '../../utils/logger.js';
 import AdminAccount from '../../models/AdminAccount.js';
 import AuditLog from '../../models/AuditLog.js';
 import User from '../../models/User.js';
@@ -41,7 +41,7 @@ async function catatAuditLog({ token, aksi, resource, resourceId = null, nilaiBe
     let idAdmin = null;
     if (token) {
       try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
         idAdmin = decoded.id;
         const admin = await AdminAccount.findById(decoded.id, 'namaLengkap');
         if (admin) namaAdmin = admin.namaLengkap;
@@ -98,7 +98,7 @@ export const resolvers = {
     // ==================== AUDIT LOG QUERIES ====================
     getAuditLogs: async (_, { limit = 100, offset = 0, aksi, resource, startDate, endDate }, { token }) => {
       verifyAdminToken(token);
-      const filter = {};
+      const filter: Record<string, any> = {};
       if (aksi) filter.aksi = aksi;
       if (resource) filter.resource = resource;
       if (startDate || endDate) {
@@ -130,6 +130,7 @@ export const resolvers = {
       admin.token = token;
       await admin.save();
 
+      logger.info({ adminId: admin._id, email: admin.email }, 'Admin login successful');
       return { token, admin: { ...admin.toObject(), token } };
     },
 
@@ -293,7 +294,7 @@ export const resolvers = {
     getEstimashiBiaya: async (_, { meteranId }) => {
       const meteran = await Meteran.findById(meteranId).populate('idKelompokPelanggan');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
-      const kelompok = meteran.idKelompokPelanggan;
+      const kelompok = meteran.idKelompokPelanggan as any;
       const pemakaian = meteran.pemakaianBelumTerbayar || 0;
       const biaya = pemakaian <= 10
         ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
@@ -1147,7 +1148,7 @@ export const resolvers = {
       await catatAuditLog({ token, aksi: 'KONEKSI_ASSIGN_TEKNISI', resource: 'KoneksiData', resourceId: id, nilaiAfter: { idTeknisi: technicianId, namaTeknisi: teknisi.namaLengkap } });
       koneksi.idTeknisi = technicianId;
       koneksi.assignedAt = new Date();
-      koneksi.assignedBy = adminPayload.id;
+      koneksi.assignedBy = (adminPayload as any).id;
       await koneksi.save();
       return await ConnectionData.findById(id)
         .populate('idPelanggan')
@@ -1357,7 +1358,7 @@ export const resolvers = {
       const biayaBeban = kelompok?.biayaBeban || 5000;
 
       const billing = new Billing({
-        userId: meteran.idKoneksiData?.idPelanggan || null,
+        userId: (meteran.idKoneksiData as any)?.idPelanggan || null,
         idMeteran: meteran._id,
         periode: periodeDate,
         penggunaanSebelum: penggunaanSebelum > 0 ? penggunaanSebelum : 0,
@@ -1383,7 +1384,7 @@ export const resolvers = {
       const tagihan = await Billing.findById(id);
       if (!tagihan) throw new Error('Tagihan tidak ditemukan');
 
-      const updateData = { statusPembayaran: status };
+      const updateData: Record<string, any> = { statusPembayaran: status };
       if (status === 'Settlement') {
         updateData.tanggalPembayaran = new Date().toISOString();
       }
@@ -1433,7 +1434,7 @@ export const resolvers = {
           const biayaBeban = kelompok?.biayaBeban || 5000;
 
           const billing = new Billing({
-            userId: meteran.idKoneksiData?.idPelanggan || null,
+            userId: (meteran.idKoneksiData as any)?.idPelanggan || null,
             idMeteran: meteran._id,
             periode: new Date(periodeDate),
             penggunaanSebelum: penggunaanSebelum > 0 ? penggunaanSebelum : 0,
@@ -1543,6 +1544,7 @@ export const resolvers = {
         const adminId = decoded.id || decoded.userId;
         if (adminId) {
           await AdminAccount.findByIdAndUpdate(adminId, { token: null });
+          logger.info({ adminId }, 'Admin logout successful');
         }
       } catch (_) { /* token already invalid */ }
       return true;
@@ -1611,7 +1613,7 @@ export const resolvers = {
         id,
         {
           statusVerifikasi,
-          diverifikasiOleh: admin.id,
+          diverifikasiOleh: (admin as any).id,
           tanggalVerifikasi: new Date().toISOString(),
           ...(catatan && { catatan }),
         },

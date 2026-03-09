@@ -1,6 +1,7 @@
 import { Schema, model, Types, Document } from 'mongoose';
+import type { MongooseTimestamps } from '../types/index.js';
 
-export interface IUser {
+export interface IUser extends MongooseTimestamps {
   email: string;
   namaLengkap: string;
   noHP?: string | null;

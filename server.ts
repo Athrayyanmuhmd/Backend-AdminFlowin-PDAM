@@ -1,9 +1,12 @@
-import express, { type Request, type Response } from 'express';
+import express, { type Request, type Response, type NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pinoHttpPkg from 'pino-http';
+const pinoHttp = (pinoHttpPkg as any).default ?? pinoHttpPkg;
 import { configDotenv } from 'dotenv';
+import logger from './utils/logger.js';
 import userRouter from './routes/userRouter.js';
 import reportRouter from './routes/reportRouter.js';
 import transactionRouter from './routes/transactionRoutes.js';
@@ -43,7 +46,7 @@ configDotenv();
 const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
-    console.error(`❌ Environment variable ${key} is required but not set. Check your .env file.`);
+    logger.fatal(`Required env var ${key} is not set`);
     process.exit(1);
   }
 }
@@ -64,6 +67,23 @@ const restAuthLimiter = rateLimit({
 });
 app.use('/admin/auth/login', restAuthLimiter);
 app.use('/technician/login', restAuthLimiter);
+
+// HTTP request logging (skip health check to avoid noise)
+app.use(pinoHttp({
+  logger,
+  autoLogging: {
+    ignore: (req) => req.url === '/health',
+  },
+  customLogLevel: (_req, res) => {
+    if (res.statusCode >= 500) return 'error';
+    if (res.statusCode >= 400) return 'warn';
+    return 'info';
+  },
+  serializers: {
+    req: (req) => ({ method: req.method, url: req.url }),
+    res: (res) => ({ statusCode: res.statusCode }),
+  },
+}));
 
 // CORS Configuration
 app.use(cors({
@@ -98,9 +118,9 @@ const clientOptions = {
 async function connectDB(): Promise<void> {
   try {
     await mongoose.connect(process.env.MONGO_URI as string, clientOptions);
-    console.log('Pinged your deployment. You successfully connected to MongoDB!');
+    logger.info('MongoDB connected successfully');
   } catch (error) {
-    console.error('Koneksi ke MongoDB gagal:', error);
+    logger.error({ err: error }, 'MongoDB connection failed');
     process.exit(1);
   }
 }
@@ -147,7 +167,7 @@ app.use('/work-orders', workOrderRouter);
 
 // Global error handler — must be after all routes
 app.use((err: any, _req: Request, res: Response, _next: any) => {
-  console.error('Unhandled error:', err);
+  logger.error({ err }, 'Unhandled Express error');
   const status = err.status || err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production'
     ? 'Internal server error'
@@ -157,7 +177,7 @@ app.use((err: any, _req: Request, res: Response, _next: any) => {
 
 // Unhandled promise rejections
 process.on('unhandledRejection', (reason) => {
-  console.error('Unhandled Promise Rejection:', reason);
+  logger.error({ reason }, 'Unhandled Promise Rejection');
 });
 
 connectDB()
@@ -165,19 +185,19 @@ connectDB()
     await setupApolloServer(app);
 
     const server = app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
-      console.log(`🚀 GraphQL endpoint: http://localhost:${port}/graphql`);
+      logger.info(`Server running on port ${port}`);
+      logger.info(`GraphQL endpoint: http://localhost:${port}/graphql`);
 
-      console.log('\n🚀 Setting up billing cron jobs...');
+      logger.info('Setting up billing cron jobs...');
       setupBillingCron();
       setupOverdueCron();
       setupReminderCron();
-      console.log('✅ All cron jobs are active\n');
+      logger.info('All cron jobs are active');
     });
 
     server.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${port} sudah digunakan. Hentikan proses lain dulu (taskkill /F /IM node.exe) atau ganti PORT di .env`);
+        logger.fatal(`Port ${port} already in use — stop the existing process`);
         process.exit(1);
       } else {
         throw err;
@@ -186,14 +206,14 @@ connectDB()
 
     // Graceful shutdown
     const shutdown = async (signal: string) => {
-      console.log(`\n${signal} received. Closing server gracefully...`);
+      logger.info(`${signal} received, closing gracefully`);
       server.close(async () => {
         await mongoose.connection.close();
-        console.log('✅ MongoDB connection closed. Server stopped.');
+        logger.info('MongoDB connection closed. Server stopped.');
         process.exit(0);
       });
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
   })
-  .catch(console.dir);
+  .catch((err) => logger.fatal({ err }, "Server startup failed"));

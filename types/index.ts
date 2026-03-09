@@ -44,3 +44,9 @@ export interface UserJwtPayload {
 }
 
 export type JwtPayload = AdminJwtPayload | TechnicianJwtPayload | UserJwtPayload;
+
+// Mongoose timestamps mixin
+export interface MongooseTimestamps {
+  createdAt?: Date;
+  updatedAt?: Date;
+}

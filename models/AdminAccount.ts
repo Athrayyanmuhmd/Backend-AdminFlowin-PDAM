@@ -1,6 +1,7 @@
 import { Schema, model, Document } from 'mongoose';
+import type { MongooseTimestamps } from '../types/index.js';
 
-export interface IAdminAccount {
+export interface IAdminAccount extends MongooseTimestamps {
   NIP?: string;
   namaLengkap: string;
   email: string;
