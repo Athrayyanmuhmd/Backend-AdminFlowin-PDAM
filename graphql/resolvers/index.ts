@@ -468,7 +468,12 @@ export const resolvers = {
       try { verifyAdminToken(token); } catch { return []; }
       const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
       const adminId = decoded.id || decoded.userId;
-      return await Notification.find({ idAdmin: adminId }).sort({ createdAt: -1 }).limit(50);
+      return await Notification.find({ idAdmin: adminId })
+        .populate("idAdmin", "namaLengkap")
+        .populate("idPelanggan", "namaLengkap email")
+        .populate("idTeknisi", "namaLengkap")
+        .sort({ createdAt: -1 })
+        .limit(50);
     },
 
     // ==================== DASHBOARD STATS ====================

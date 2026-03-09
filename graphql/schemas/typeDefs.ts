@@ -57,10 +57,10 @@ export const typeDefs: DocumentNode = gql`
 
   type Admin {
     _id: ID!
-    NIP: String!
-    namaLengkap: String!
-    email: String!
-    noHP: String!
+    NIP: String
+    namaLengkap: String
+    email: String
+    noHP: String
     password: String
     token: String
     createdAt: String
