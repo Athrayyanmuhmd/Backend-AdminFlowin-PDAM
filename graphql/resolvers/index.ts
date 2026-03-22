@@ -331,27 +331,79 @@ export const resolvers = {
     // ==================== TAGIHAN QUERIES ====================
     getTagihan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.findById(id).populate('idMeteran');
+      return await Billing.findById(id).populate({ path: 'idMeteran', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } });
     },
 
     getAllTagihan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 1000)).populate('idMeteran').lean();
+      return await Billing.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 1000))
+        .populate({ path: 'idMeteran', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } })
+        .lean();
     },
 
     getTagihanByMeteran: async (_, { idMeteran }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ idMeteran }).populate('idMeteran');
+      return await Billing.find({ idMeteran }).populate({ path: 'idMeteran', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } });
     },
 
     getTagihanByStatus: async (_, { status }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ statusPembayaran: status }).populate('idMeteran');
+      return await Billing.find({ statusPembayaran: status }).populate({ path: 'idMeteran', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } });
     },
 
     getTunggakan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ menunggak: true }).populate('idMeteran');
+      return await Billing.find({ menunggak: true }).populate({ path: 'idMeteran', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } });
+    },
+
+    getDaftarPemutusan: async (_, __, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+
+      const DENDA_RINGAN   = 150_000;   // < 3 bulan
+      const DENDA_BERAT    = 1_500_000; // >= 3 bulan
+
+      // Kumpulkan userId yang sudah inactive
+      const inactiveUsers = await User.find({ accountStatus: 'inactive' }, '_id').lean();
+      const inactiveIds   = new Set(inactiveUsers.map((u: any) => u._id.toString()));
+
+      // Kumpulkan userId yang punya tagihan merged (sudah ter-detect 3 bulan)
+      const mergedBillings = await Billing.find({ isMergedBilling: true, statusPembayaran: 'Pending' }, 'userId').lean();
+      const mergedIds      = new Set(mergedBillings.map((b: any) => b.userId.toString()));
+
+      const allUserIds = [...new Set([...inactiveIds, ...mergedIds])];
+      if (allUserIds.length === 0) return [];
+
+      const result = [];
+
+      for (const uid of allUserIds) {
+        const user = await User.findById(uid).lean();
+        if (!user) continue;
+
+        // Ambil semua tagihan Pending (termasuk merged billing, exclude status Merged)
+        const tagihanTunggakan = await Billing.find({
+          userId: uid,
+          statusPembayaran: 'Pending',
+        }).sort({ periode: 1 }).lean();
+
+        const jumlahBulanTunggak = tagihanTunggakan.reduce(
+          (sum: number, b: any) => sum + (b.bulanCakupan ?? 1), 0
+        );
+        const totalTunggakan = tagihanTunggakan.reduce(
+          (sum: number, b: any) => sum + (b.totalBiaya ?? 0), 0
+        );
+        const denda = jumlahBulanTunggak >= 3 ? DENDA_BERAT : DENDA_RINGAN;
+
+        result.push({
+          user,
+          tagihanTunggakan,
+          jumlahBulanTunggak,
+          totalTunggakan,
+          denda,
+          sudahDiputus: inactiveIds.has(uid),
+        });
+      }
+
+      return result;
     },
 
     // ==================== LAPORAN QUERIES ====================
@@ -1471,6 +1523,107 @@ export const resolvers = {
 
       const updated = await Billing.findByIdAndUpdate(id, updateData, { new: true }).populate('idMeteran');
       return updated;
+    },
+
+    // ─── Pemutusan: Non-aktifkan pelanggan ────────────────────────────────────
+    deactivateCustomer: async (_, { userId }, { token }) => {
+      verifyAdminToken(token);
+      const DENDA_RINGAN = 150_000;
+      const DENDA_BERAT  = 1_500_000;
+
+      const user = await User.findById(userId);
+      if (!user) throw new Error('Pelanggan tidak ditemukan');
+      if (user.accountStatus === 'inactive') throw new Error('Pelanggan sudah dalam status non-aktif');
+
+      // Hitung jumlah bulan tunggak
+      const pendingBillings = await Billing.find({
+        userId,
+        statusPembayaran: 'Pending',
+        jenisBilling: { $ne: 'denda' },
+      }).sort({ periode: 1 }).lean();
+
+      const jumlahBulanTunggak = pendingBillings.reduce(
+        (sum: number, b: any) => sum + (b.bulanCakupan ?? 1), 0
+      );
+      if (jumlahBulanTunggak < 3) throw new Error('Pelanggan belum memenuhi syarat pemutusan (minimal 3 bulan menunggak)');
+
+      const dendaAmount = jumlahBulanTunggak >= 3 ? DENDA_BERAT : DENDA_RINGAN;
+
+      // Buat tagihan denda terpisah
+      const meteranTagihan = pendingBillings[0];
+      if (meteranTagihan) {
+        await Billing.create({
+          userId,
+          idMeteran:         meteranTagihan.idMeteran,
+          periode:           new Date(),
+          penggunaanSebelum: 0,
+          penggunaanSekarang: 0,
+          totalPemakaian:    0,
+          biaya:             0,
+          biayaBeban:        0,
+          totalBiaya:        dendaAmount,
+          statusPembayaran:  'Pending',
+          tenggatWaktu:      new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          menunggak:         true,
+          jenisBilling:      'denda',
+          bulanCakupan:      0,
+          catatan:           `Denda pemutusan (${jumlahBulanTunggak} bulan menunggak): Rp${dendaAmount.toLocaleString('id-ID')}`,
+        });
+      }
+
+      // Non-aktifkan pelanggan
+      user.accountStatus = 'inactive';
+      await user.save();
+
+      // Notifikasi ke pelanggan
+      await Notification.create({
+        idPelanggan: userId,
+        judul: 'ID Pelanggan Dinonaktifkan',
+        pesan: `ID pelanggan Anda telah dinonaktifkan karena menunggak ${jumlahBulanTunggak} bulan. Harap segera lunasi semua tunggakan beserta denda Rp${dendaAmount.toLocaleString('id-ID')} untuk mengaktifkan kembali.`,
+        kategori: 'Peringatan',
+        link: '/pembayaran',
+        isRead: false,
+      }).catch(() => {});
+
+      return user;
+    },
+
+    // ─── Pemutusan: Konfirmasi pembayaran via loket (cash) ───────────────────
+    konfirmasiPembayaranLoket: async (_, { userId }, { token }) => {
+      verifyAdminToken(token);
+
+      const user = await User.findById(userId);
+      if (!user) throw new Error('Pelanggan tidak ditemukan');
+
+      // Tandai semua tagihan Pending (termasuk denda) sebagai Settlement
+      const now = new Date();
+      await Billing.updateMany(
+        { userId, statusPembayaran: 'Pending' },
+        {
+          $set: {
+            statusPembayaran:  'Settlement',
+            tanggalPembayaran: now,
+            metodePembayaran:  'Loket',
+            menunggak:         false,
+          },
+        }
+      );
+
+      // Aktifkan kembali pelanggan
+      user.accountStatus = 'active';
+      await user.save();
+
+      // Notifikasi ke pelanggan
+      await Notification.create({
+        idPelanggan: userId,
+        judul: 'ID Pelanggan Aktif Kembali',
+        pesan: 'Pembayaran Anda telah dikonfirmasi. ID pelanggan Anda kini aktif kembali.',
+        kategori: 'Transaksi',
+        link: '/riwayat-tagihan',
+        isRead: false,
+      }).catch(() => {});
+
+      return user;
     },
 
     // ==================== TAGIHAN BULK MUTATION ====================

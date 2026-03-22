@@ -7,7 +7,10 @@ export type StatusPembayaranBilling =
   | 'Expire'
   | 'Refund'
   | 'Chargeback'
-  | 'Fraud';
+  | 'Fraud'
+  | 'Merged'; // Record lama yang sudah digabung ke tagihan baru
+
+export type JenisBilling = 'normal' | 'denda';
 
 export interface IBilling {
   userId: Types.ObjectId;
@@ -26,6 +29,12 @@ export interface IBilling {
   menunggak?: boolean;
   denda?: number;
   catatan?: string;
+  // ── Merge tunggakan fields ───────────────────────────
+  jenisBilling?: JenisBilling;        // 'normal' | 'denda'
+  bulanCakupan?: number;              // default 1; merged billing = 2
+  isMergedBilling?: boolean;          // true jika ini record gabungan
+  mergedFromIds?: Types.ObjectId[];   // merged billing → pointer ke 2 record lama
+  mergedIntoBillingId?: Types.ObjectId | null; // record lama → pointer ke merged billing
 }
 
 export interface IBillingDocument extends IBilling, Document {}
@@ -72,7 +81,7 @@ const billingSchema = new Schema<IBilling>(
     },
     statusPembayaran: {
       type: String,
-      enum: ['Pending', 'Settlement', 'Cancel', 'Expire', 'Refund', 'Chargeback', 'Fraud'],
+      enum: ['Pending', 'Settlement', 'Cancel', 'Expire', 'Refund', 'Chargeback', 'Fraud', 'Merged'],
       default: 'Pending',
     },
     tanggalPembayaran: {
@@ -98,6 +107,29 @@ const billingSchema = new Schema<IBilling>(
     catatan: {
       type: String,
       default: '',
+    },
+    jenisBilling: {
+      type: String,
+      enum: ['normal', 'denda'],
+      default: 'normal',
+    },
+    bulanCakupan: {
+      type: Number,
+      default: 1,
+    },
+    isMergedBilling: {
+      type: Boolean,
+      default: false,
+    },
+    mergedFromIds: {
+      type: [Schema.Types.ObjectId],
+      ref: 'Tagihan',
+      default: [],
+    },
+    mergedIntoBillingId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Tagihan',
+      default: null,
     },
   },
   {

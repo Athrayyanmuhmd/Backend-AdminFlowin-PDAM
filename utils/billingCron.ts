@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import Billing from '../models/Billing.js';
 import Meteran from '../models/Meteran.js';
 import Notification from '../models/Notification.js';
+import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
 
 // ─── Helper: hitung tarif air ─────────────────────────────────────────────────
@@ -106,12 +107,101 @@ export const setupBillingCron = (): void => {
       }
 
       logger.info({ successCount, failedCount }, 'Monthly billing generation completed');
+
+      // ── Phase 2: Deteksi 3 bulan menunggak & merge tagihan 1+2 ──────────────
+      await detectAndMergeTunggakan();
+
     } catch (error) {
       logger.error({ err: error }, 'Error in billing cron job');
     }
   });
 
   logger.info('Billing cron scheduled: 1st of every month at 00:01');
+};
+
+// ─── Helper: Deteksi 3 bulan menunggak & merge tagihan bulan ke-1 + ke-2 ──────
+
+const detectAndMergeTunggakan = async (): Promise<void> => {
+  logger.info('Running tunggakan merge detection...');
+  try {
+    // Ambil semua userId unik yang punya tagihan Pending
+    const userIds = await Billing.distinct('userId', { statusPembayaran: 'Pending' });
+    let mergeCount = 0;
+    let flagCount  = 0;
+
+    for (const userId of userIds) {
+      // Ambil semua tagihan Pending milik user, urut terlama dulu
+      const pendingBillings = await Billing.find({
+        userId,
+        statusPembayaran: 'Pending',
+        jenisBilling: { $ne: 'denda' },  // skip tagihan denda
+      }).sort({ periode: 1 }).lean();
+
+      // Hanya proses jika ada tepat 3 atau lebih tagihan Pending berturut-turut
+      if (pendingBillings.length < 3) continue;
+
+      // Ambil 2 tagihan terlama untuk digabung
+      const billA = pendingBillings[0];
+      const billB = pendingBillings[1];
+
+      // Skip jika sudah pernah di-merge (ada mergedIntoBillingId)
+      if ((billA as any).mergedIntoBillingId || (billB as any).mergedIntoBillingId) continue;
+
+      // Buat record tagihan gabungan
+      const periodeA = new Date(billA.periode);
+      const periodeB = new Date(billB.periode);
+      const catatanMerge = `Tagihan gabungan periode ${periodeA.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })} dan ${periodeB.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+
+      const mergedBilling = await Billing.create({
+        userId:            billA.userId,
+        idMeteran:         billA.idMeteran,
+        periode:           billA.periode,
+        penggunaanSebelum: billA.penggunaanSebelum,
+        penggunaanSekarang: billB.penggunaanSekarang,
+        totalPemakaian:    billA.totalPemakaian + billB.totalPemakaian,
+        biaya:             billA.biaya + billB.biaya,
+        biayaBeban:        billA.biayaBeban + billB.biayaBeban,
+        totalBiaya:        billA.totalBiaya + billB.totalBiaya,
+        statusPembayaran:  'Pending',
+        tenggatWaktu:      billB.tenggatWaktu, // pakai tenggat bulan ke-2
+        menunggak:         true,
+        jenisBilling:      'normal',
+        isMergedBilling:   true,
+        bulanCakupan:      2,
+        mergedFromIds:     [billA._id, billB._id],
+        catatan:           catatanMerge,
+      });
+
+      // Tandai 2 tagihan lama sebagai 'Merged'
+      await Billing.updateMany(
+        { _id: { $in: [billA._id, billB._id] } },
+        { $set: { statusPembayaran: 'Merged', mergedIntoBillingId: mergedBilling._id } }
+      );
+
+      mergeCount++;
+      flagCount++;
+
+      // Kirim notifikasi ke semua admin: pelanggan ini perlu pemutusan
+      const admins = await AdminAccount.find({}, '_id').lean();
+      if (admins.length > 0) {
+        const adminNotifs = admins.map((admin: any) => ({
+          idAdmin: admin._id,
+          judul: 'Pelanggan Perlu Pemutusan',
+          pesan: `Pelanggan dengan ID ${userId} telah menunggak 3 bulan berturut-turut. Tagihan bulan 1 dan 2 telah digabungkan. Silakan lakukan pemutusan.`,
+          kategori: 'Peringatan',
+          link: '/billing/pemutusan',
+          isRead: false,
+        }));
+        await Notification.insertMany(adminNotifs, { ordered: false }).catch((e: any) =>
+          logger.error({ err: e }, 'Gagal kirim notifikasi pemutusan ke admin')
+        );
+      }
+    }
+
+    logger.info({ mergeCount, flagCount }, 'Tunggakan merge detection completed');
+  } catch (error) {
+    logger.error({ err: error }, 'Error in tunggakan merge detection');
+  }
 };
 
 // ─── Cron 2: Tandai tagihan overdue (tiap hari 00:05) ─────────────────────────

@@ -43,6 +43,12 @@ export const typeDefs: DocumentNode = gql`
     Refund
     Chargeback
     Fraud
+    Merged
+  }
+
+  enum EnumJenisBilling {
+    normal
+    denda
   }
 
   enum EnumKategori {
@@ -101,9 +107,9 @@ export const typeDefs: DocumentNode = gql`
 
   type KelompokPelanggan {
     _id: ID!
-    namaKelompok: String!
-    hargaDiBawah10mKubik: Float!
-    hargaDiAtas10mKubik: Float!
+    namaKelompok: String
+    hargaDiBawah10mKubik: Float
+    hargaDiAtas10mKubik: Float
     biayaBeban: Float
     createdAt: String
     updatedAt: String
@@ -170,23 +176,37 @@ export const typeDefs: DocumentNode = gql`
 
   type Tagihan {
     _id: ID!
-    idMeteran: Meteran!
-    periode: String!
-    penggunaanSebelum: Float!
-    penggunaanSekarang: Float!
-    totalPemakaian: Float!
-    biaya: Float!
-    biayaBeban: Float!
-    totalBiaya: Float!
-    statusPembayaran: EnumPaymentStatus!
+    idMeteran: Meteran
+    periode: String
+    penggunaanSebelum: Float
+    penggunaanSekarang: Float
+    totalPemakaian: Float
+    biaya: Float
+    biayaBeban: Float
+    totalBiaya: Float
+    statusPembayaran: EnumPaymentStatus
     tanggalPembayaran: String
     metodePembayaran: String
-    tenggatWaktu: String!
-    menunggak: Boolean!
+    tenggatWaktu: String
+    menunggak: Boolean
     denda: Float
     catatan: String
+    jenisBilling: EnumJenisBilling
+    bulanCakupan: Int
+    isMergedBilling: Boolean
+    mergedFromIds: [ID]
+    mergedIntoBillingId: ID
     createdAt: String
     updatedAt: String
+  }
+
+  type DaftarPemutusan {
+    user: Pengguna!
+    tagihanTunggakan: [Tagihan!]!
+    jumlahBulanTunggak: Int!
+    totalTunggakan: Float!
+    denda: Float!
+    sudahDiputus: Boolean!
   }
 
   type Geolocation {
@@ -424,6 +444,7 @@ export const typeDefs: DocumentNode = gql`
     getTagihanByMeteran(idMeteran: ID!): [Tagihan!]!
     getTagihanByStatus(status: EnumPaymentStatus!): [Tagihan!]!
     getTunggakan: [Tagihan!]!
+    getDaftarPemutusan: [DaftarPemutusan!]!
 
     # Laporan queries
     getLaporan(id: ID!): Laporan
@@ -561,6 +582,8 @@ export const typeDefs: DocumentNode = gql`
     generateTagihan(idMeteran: ID!, periode: String!): Tagihan!
     generateTagihanBulanan(periode: String!, idMeteranList: [ID!]!): HasilGenerateTagihan!
     updateStatusPembayaran(id: ID!, status: EnumPaymentStatus!): Tagihan!
+    deactivateCustomer(userId: ID!): Pengguna!
+    konfirmasiPembayaranLoket(userId: ID!): Pengguna!
 
     # Work Order mutations
     createWorkOrder(input: CreateWorkOrderInput!): PekerjaanTeknisi!

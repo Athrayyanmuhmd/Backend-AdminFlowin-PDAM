@@ -5,6 +5,29 @@ import Billing from "../models/Billing.js";
 import RabConnection from "../models/RabConnection.js";
 import Notification from "../models/Notification.js";
 import Meteran from "../models/Meteran.js";
+import User from "../models/User.js";
+
+// ─── Helper: cek dan reaktivasi pelanggan jika semua tagihan lunas ────────────
+async function checkAndReactivateUser(userId: any): Promise<void> {
+  if (!userId) return;
+  const user = await User.findById(userId);
+  if (!user || user.accountStatus !== 'inactive') return;
+
+  const sisaPending = await Billing.countDocuments({ userId, statusPembayaran: 'Pending' });
+  if (sisaPending > 0) return;
+
+  user.accountStatus = 'active';
+  await user.save();
+
+  await Notification.create({
+    idPelanggan: userId,
+    judul: 'ID Pelanggan Aktif Kembali',
+    pesan: 'Semua tunggakan telah dilunasi. ID pelanggan Anda kini aktif kembali.',
+    kategori: 'Transaksi',
+    link: '/riwayat-tagihan',
+    isRead: false,
+  }).catch(() => {});
+}
 
 /**
  * Webhook handler untuk notifikasi pembayaran dari Midtrans
@@ -400,6 +423,11 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
       });
     }
 
+    // Cek reaktivasi otomatis jika user inactive dan semua tagihan sudah lunas
+    if (shouldResetMeteran) {
+      await checkAndReactivateUser(billing.userId._id);
+    }
+
     console.log(
       `✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`
     );
@@ -537,6 +565,11 @@ async function handleMultipleBillingPayment(
         link: '/riwayat-tagihan',
         isRead: false,
       });
+    }
+
+    // Cek reaktivasi otomatis jika user inactive dan semua tagihan sudah lunas
+    if (shouldUpdateMeteran) {
+      await checkAndReactivateUser(userId);
     }
 
     console.log(
