@@ -242,11 +242,31 @@ export const resolvers = {
 
     getMeteranByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const connections = await ConnectionData.find({ idPelanggan });
+      // Support both new (idPelanggan) and old (userId) field names in ConnectionData
+      const connections = await ConnectionData.find({
+        $or: [{ idPelanggan }, { userId: idPelanggan }],
+      }).lean();
       const connectionIds = connections.map(c => c._id);
-      return await Meteran.find({ idKoneksiData: { $in: connectionIds } })
+
+      if (connectionIds.length > 0) {
+        return await Meteran.find({ idKoneksiData: { $in: connectionIds } })
+          .populate('idKelompokPelanggan')
+          .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan', select: 'namaLengkap email noHP' } });
+      }
+
+      // Fallback: cari meteran yang idKoneksiData-nya punya idPelanggan cocok (via aggregation)
+      const { Types } = await import('mongoose');
+      let oid: any;
+      try { oid = new Types.ObjectId(idPelanggan); } catch { return []; }
+
+      const matched = await Meteran.aggregate([
+        { $lookup: { from: 'koneksidatas', localField: 'idKoneksiData', foreignField: '_id', as: '_kd' } },
+        { $match: { $or: [{ '_kd.idPelanggan': oid }, { '_kd.userId': oid }] } },
+      ]);
+      if (!matched.length) return [];
+      return await Meteran.find({ _id: { $in: matched.map(m => m._id) } })
         .populate('idKelompokPelanggan')
-        .populate('idKoneksiData');
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan', select: 'namaLengkap email noHP' } });
     },
 
     // ==================== CONNECTION DATA QUERIES ====================
