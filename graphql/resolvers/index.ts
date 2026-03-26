@@ -1984,6 +1984,7 @@ export const resolvers = {
   },
 
   Laporan: {
+    status: (parent) => parent.status ?? 'Diajukan',
     koordinat: (parent) => {
       const k = parent.koordinat;
       if (!k || (k.latitude == null && k.longitude == null)) return null;
