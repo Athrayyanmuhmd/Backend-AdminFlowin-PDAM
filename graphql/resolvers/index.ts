@@ -1631,13 +1631,16 @@ export const resolvers = {
       verifyAdminToken(token);
       let berhasil = 0;
       let gagal = 0;
+      const detailGagal: Array<{ idMeteran: string; nomorMeteran?: string; nomorAkun?: string; namaLengkap?: string; alasan: string }> = [];
 
       // Bulk-fetch all meterans + kelompok pelanggan upfront to avoid N+1 queries
       const periodeDate = new Date(periode + '-01');
       const periodeEnd = new Date(new Date(periodeDate).setMonth(new Date(periodeDate).getMonth() + 1));
 
       const [meteranList, existingBillings] = await Promise.all([
-        Meteran.find({ _id: { $in: idMeteranList } }).populate('idKoneksiData').lean(),
+        Meteran.find({ _id: { $in: idMeteranList } })
+          .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan', select: 'namaLengkap' } })
+          .lean(),
         Billing.find({ idMeteran: { $in: idMeteranList }, periode: { $gte: periodeDate, $lt: periodeEnd } }).select('idMeteran').lean(),
       ]);
 
@@ -1651,10 +1654,25 @@ export const resolvers = {
       for (const idMeteran of idMeteranList) {
         try {
           const meteran = meteranMap.get(idMeteran.toString());
-          if (!meteran) { gagal++; continue; }
+          if (!meteran) {
+            gagal++;
+            detailGagal.push({ idMeteran: idMeteran.toString(), alasan: 'Meteran tidak ditemukan di database' });
+            continue;
+          }
 
           // Cek apakah tagihan periode ini sudah ada (dari pre-fetched set)
-          if (existingSet.has(idMeteran.toString())) { gagal++; continue; }
+          if (existingSet.has(idMeteran.toString())) {
+            gagal++;
+            const koneksi = meteran.idKoneksiData as any;
+            detailGagal.push({
+              idMeteran: idMeteran.toString(),
+              nomorMeteran: meteran.nomorMeteran,
+              nomorAkun: meteran.nomorAkun,
+              namaLengkap: koneksi?.idPelanggan?.namaLengkap || '-',
+              alasan: `Tagihan periode ${periode} sudah pernah dibuat`,
+            });
+            continue;
+          }
 
           // Ambil kelompok pelanggan dari pre-fetched map
           const kelompok = kelompokMap.get(meteran.idKelompokPelanggan?.toString());
@@ -1667,7 +1685,7 @@ export const resolvers = {
           const biayaBeban = kelompok?.biayaBeban || 5000;
 
           const billing = new Billing({
-            userId: (meteran.idKoneksiData as any)?.idPelanggan || null,
+            userId: (meteran.idKoneksiData as any)?.idPelanggan?._id || (meteran.idKoneksiData as any)?.idPelanggan || null,
             idMeteran: meteran._id,
             periode: new Date(periodeDate),
             penggunaanSebelum: penggunaanSebelum > 0 ? penggunaanSebelum : 0,
@@ -1682,12 +1700,26 @@ export const resolvers = {
           });
           await billing.save();
           berhasil++;
-        } catch (err) {
+        } catch (err: any) {
+          const meteran = meteranMap.get(idMeteran.toString());
+          const koneksi = meteran ? (meteran.idKoneksiData as any) : null;
           logger.error({ err, idMeteran }, 'Gagal generate tagihan untuk meteran');
           gagal++;
+          detailGagal.push({
+            idMeteran: idMeteran.toString(),
+            nomorMeteran: meteran?.nomorMeteran,
+            nomorAkun: meteran?.nomorAkun,
+            namaLengkap: koneksi?.idPelanggan?.namaLengkap || '-',
+            alasan: err?.message || 'Gagal menyimpan tagihan',
+          });
         }
       }
-      return { berhasil, gagal, pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal` };
+      return {
+        berhasil,
+        gagal,
+        pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal`,
+        detailGagal,
+      };
     },
 
     // ==================== SURVEI MUTATIONS ====================

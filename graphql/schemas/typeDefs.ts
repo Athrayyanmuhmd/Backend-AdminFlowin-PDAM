@@ -1034,10 +1034,19 @@ export const typeDefs: DocumentNode = gql`
     count: Int!
   }
 
+  type DetailGagalTagihan {
+    idMeteran: ID!
+    nomorMeteran: String
+    nomorAkun: String
+    namaLengkap: String
+    alasan: String!
+  }
+
   type HasilGenerateTagihan {
     berhasil: Int!
     gagal: Int!
     pesan: String
+    detailGagal: [DetailGagalTagihan!]!
   }
 
   type KpiOperasional {
