@@ -9,10 +9,15 @@ export type StatusPembayaranRab =
   | 'Chargeback'
   | 'Fraud';
 
+export type StatusVerifikasiRab = 'Menunggu' | 'Disetujui' | 'Ditolak';
+
 export interface IRabConnection {
   idKoneksiData: Types.ObjectId;
   totalBiaya: number;
   statusPembayaran?: StatusPembayaranRab;
+  statusVerifikasiAdmin?: StatusVerifikasiRab;
+  alasanPenolakan?: string | null;
+  tanggalVerifikasiAdmin?: Date | null;
   urlRab: string;
   catatan?: string;
 }
@@ -32,6 +37,13 @@ const RabConnectionSchema = new Schema<IRabConnection>(
       enum: ['Pending', 'Settlement', 'Cancel', 'Expire', 'Refund', 'Chargeback', 'Fraud'],
       default: 'Pending',
     },
+    statusVerifikasiAdmin: {
+      type: String,
+      enum: ['Menunggu', 'Disetujui', 'Ditolak'],
+      default: 'Menunggu',
+    },
+    alasanPenolakan: { type: String, default: null },
+    tanggalVerifikasiAdmin: { type: Date, default: null },
     urlRab: { type: String, required: true },
     catatan: { type: String, default: '' },
   },

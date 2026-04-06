@@ -25,6 +25,9 @@ export const surveiTypeDefs = gql`
     idKoneksiData: KoneksiData!
     totalBiaya: Float!
     statusPembayaran: EnumPaymentStatus!
+    statusVerifikasiAdmin: String
+    alasanPenolakan: String
+    tanggalVerifikasiAdmin: String
     urlRab: String!
     catatan: String
     createdAt: String
@@ -69,5 +72,7 @@ export const surveiTypeDefs = gql`
     createRABConnection(idKoneksiData: ID!, totalBiaya: Float!, urlRab: String!, catatan: String): RABConnection!
     updateRABConnection(id: ID!, totalBiaya: Float, urlRab: String, catatan: String, statusPembayaran: EnumPaymentStatus): RABConnection!
     deleteRABConnection(id: ID!): Boolean!
+    approveRAB(id: ID!): RABConnection!
+    rejectRAB(id: ID!, alasanPenolakan: String!): RABConnection!
   }
 `;

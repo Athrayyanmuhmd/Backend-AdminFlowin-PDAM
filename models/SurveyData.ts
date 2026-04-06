@@ -4,7 +4,7 @@ export type StatusSurvei = 'Menunggu' | 'Disetujui' | 'Ditolak';
 
 export interface ISurveyData {
   idKoneksiData: Types.ObjectId;
-  idTeknisi: Types.ObjectId;
+  idTeknisi?: Types.ObjectId;
   urlJaringan: string;
   diameterPipa: number;
   urlPosisiBak: string;
@@ -33,7 +33,8 @@ const SurveyDataSchema = new Schema<ISurveyData>(
     idTeknisi: {
       type: Schema.Types.ObjectId,
       ref: 'Teknisi',
-      required: true,
+      required: false,
+      default: null,
     },
     urlJaringan: { type: String, required: true },
     diameterPipa: { type: Number, required: true },

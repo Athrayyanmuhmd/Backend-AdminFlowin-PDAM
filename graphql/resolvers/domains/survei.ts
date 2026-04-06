@@ -93,6 +93,28 @@ export const surveiResolvers = {
       return true;
     },
 
+    approveRAB: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB tidak ditemukan');
+      rab.statusVerifikasiAdmin = 'Disetujui';
+      rab.alasanPenolakan = null;
+      rab.tanggalVerifikasiAdmin = new Date();
+      await rab.save();
+      return await RabConnection.findById(id).populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+    },
+
+    rejectRAB: async (_, { id, alasanPenolakan }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB tidak ditemukan');
+      rab.statusVerifikasiAdmin = 'Ditolak';
+      rab.alasanPenolakan = alasanPenolakan;
+      rab.tanggalVerifikasiAdmin = new Date();
+      await rab.save();
+      return await RabConnection.findById(id).populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+    },
+
     approveSurvei: async (_, { id }, { token }) => {
       verifyAdminToken(token);
       const survei = await SurveyData.findById(id);
