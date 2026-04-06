@@ -42,7 +42,7 @@ const AdminAccountSchema = new Schema<IAdminAccount>(
       type: String,
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'admins' }
 );
 
 export default model<IAdminAccount>('AdminAccount', AdminAccountSchema);

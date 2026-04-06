@@ -49,7 +49,7 @@ const MeteranSchema = new Schema<IMeteran>(
   },
   {
     timestamps: true,
-    collection: 'meterans',
+    collection: 'meters',
   }
 );
 

@@ -90,7 +90,7 @@ export const setupBillingCron = (): void => {
               idPelanggan: userId,
               judul: 'Tagihan Air Baru',
               pesan: `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${getDueDate().toLocaleDateString('id-ID')}`,
-              kategori: 'Transaksi',
+              kategori: 'Pembayaran',
               link: '/pembayaran',
               isRead: false,
             }).catch((e: any) =>

@@ -37,7 +37,7 @@ const RabConnectionSchema = new Schema<IRabConnection>(
   },
   {
     timestamps: true,
-    collection: 'rabconnections',
+    collection: 'rabs',
   }
 );
 

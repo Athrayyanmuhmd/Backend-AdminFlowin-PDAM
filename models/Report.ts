@@ -28,7 +28,7 @@ export interface IReportDocument extends IReport, Document {}
 
 const ReportSchema = new Schema<IReport>(
   {
-    idPengguna: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
+    idPengguna: { type: Schema.Types.ObjectId, ref: 'Pengguna', required: true },
     namaLaporan: { type: String, required: true },
     masalah: { type: String, required: true },
     alamat: { type: String, required: true },

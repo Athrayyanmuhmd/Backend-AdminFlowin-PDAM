@@ -19,7 +19,7 @@ const TransactionsSchema = new Schema<ITransaction>(
     amount: { type: Number, required: true },
     category: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true, collection: 'pembayarans' }
 );
 
 TransactionsSchema.index({ userID: 1, createdAt: -1 });

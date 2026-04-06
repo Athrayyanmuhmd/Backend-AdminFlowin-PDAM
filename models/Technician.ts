@@ -1,7 +1,7 @@
 import { Schema, model, Document } from 'mongoose';
 import type { MongooseTimestamps } from '../types/index.js';
 
-export type DivisiTeknisi = 'PerencanaanTeknik' | 'TeknikCabang' | 'PengawasanTeknik';
+export type DivisiTeknisi = 'perencanaan_teknik' | 'teknik_cabang' | 'pengawasan_teknik';
 
 export interface ITechnician extends MongooseTimestamps {
   namaLengkap: string;
@@ -37,7 +37,7 @@ const TechnicianSchema = new Schema<ITechnician>(
     },
     divisi: {
       type: String,
-      enum: ['PerencanaanTeknik', 'TeknikCabang', 'PengawasanTeknik'],
+      enum: ['perencanaan_teknik', 'teknik_cabang', 'pengawasan_teknik'],
       default: null,
     },
     password: {
@@ -51,7 +51,7 @@ const TechnicianSchema = new Schema<ITechnician>(
   },
   {
     timestamps: true,
-    collection: 'teknisis',
+    collection: 'teknisiperumdams',
   }
 );
 

@@ -29,7 +29,8 @@ import webhookRouter from './routes/webhookRoutes.js';
 import documentRouter from './routes/documentRoutes.js';
 import iotRouter from './routes/iotRoutes.js';
 import adminCustomerRouter from './routes/adminCustomerRoutes.js';
-import workOrderRouter from './routes/workOrderRoutes.js';
+import internalRouter from './routes/internalRoutes.js';
+
 import {
   setupBillingCron,
   setupOverdueCron,
@@ -43,7 +44,7 @@ const port = 5000;
 configDotenv();
 
 // Validate required environment variables before anything else
-const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY'];
+const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY', 'JWT_ACCESS_SECRET', 'INTERNAL_API_SECRET'];
 for (const key of REQUIRED_ENV) {
   if (!process.env[key]) {
     logger.fatal(`Required env var ${key} is not set`);
@@ -115,13 +116,22 @@ const clientOptions = {
   serverApi: { version: '1' as const, strict: true, deprecationErrors: true },
 };
 
-async function connectDB(): Promise<void> {
-  try {
-    await mongoose.connect(process.env.MONGO_URI as string, clientOptions);
-    logger.info('MongoDB connected successfully');
-  } catch (error) {
-    logger.error({ err: error }, 'MongoDB connection failed');
-    process.exit(1);
+async function connectDB(retries = 3, delayMs = 5000): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGO_URI as string, clientOptions);
+      logger.info('MongoDB connected successfully');
+      return;
+    } catch (error) {
+      logger.error({ err: error }, `MongoDB connection failed (attempt ${attempt}/${retries})`);
+      if (attempt < retries) {
+        logger.info(`Retrying in ${delayMs / 1000}s...`);
+        await new Promise(res => setTimeout(res, delayMs));
+      } else {
+        logger.fatal('MongoDB unreachable after all retries. Check Atlas IP whitelist: https://cloud.mongodb.com → Network Access → Add IP Address');
+        process.exit(1);
+      }
+    }
   }
 }
 
@@ -163,7 +173,8 @@ app.use('/monitoring', monitoringRouter);
 app.use('/documents', documentRouter);
 app.use('/iot', iotRouter);
 app.use('/admin/customers', adminCustomerRouter);
-app.use('/work-orders', workOrderRouter);
+app.use('/internal', internalRouter);
+
 
 // Global error handler — must be after all routes
 app.use((err: any, _req: Request, res: Response, _next: any) => {

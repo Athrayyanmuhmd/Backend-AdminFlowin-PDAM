@@ -15,11 +15,15 @@ export interface IConnectionData {
   kelurahan?: string | null;
   kecamatan?: string | null;
   luasBangunan?: number | null;
+  catatan?: string | null;
   alasanPenolakan?: string | null;
   tanggalVerifikasi?: Date | null;
   idTeknisi?: Types.ObjectId | null;
   assignedAt?: Date | null;
   assignedBy?: Types.ObjectId | null;
+  isVerifiedByTeknisi?: boolean;
+  catatanTeknisi?: string | null;
+  tanggalVerifikasiTeknisi?: Date | null;
 }
 
 export interface IConnectionDataDocument extends IConnectionData, Document {}
@@ -46,6 +50,7 @@ const KoneksiDataSchema = new Schema<IConnectionData>(
     kelurahan: { type: String, default: null },
     kecamatan: { type: String, default: null },
     luasBangunan: { type: Number, default: null },
+    catatan: { type: String, default: null },
     alasanPenolakan: { type: String, default: null },
     tanggalVerifikasi: { type: Date, default: null },
     idTeknisi: {
@@ -59,6 +64,9 @@ const KoneksiDataSchema = new Schema<IConnectionData>(
       ref: 'AdminAccount',
       default: null,
     },
+    isVerifiedByTeknisi: { type: Boolean, default: false },
+    catatanTeknisi: { type: String, default: null },
+    tanggalVerifikasiTeknisi: { type: Date, default: null },
   },
   {
     timestamps: true,

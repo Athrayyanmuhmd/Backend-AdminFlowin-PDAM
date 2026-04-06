@@ -1,6 +1,6 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
-export type KategoriNotif = 'Transaksi' | 'Informasi' | 'Peringatan';
+export type KategoriNotif = 'Pembayaran' | 'Informasi' | 'Peringatan';
 
 export interface INotification {
   idAdmin?: Types.ObjectId | null;
@@ -42,7 +42,7 @@ const NotificationSchema = new Schema<INotification>(
     },
     kategori: {
       type: String,
-      enum: ['Transaksi', 'Informasi', 'Peringatan'],
+      enum: ['Pembayaran', 'Informasi', 'Peringatan'],
       required: true,
     },
     link: {

@@ -1,5 +1,5 @@
 import { ApolloServer } from '@apollo/server';
-import { typeDefs } from './schemas/typeDefs.js';
+import { typeDefs } from './schemas/typeDefs/index.js';
 import { resolvers } from './resolvers/index.js';
 import express, { type Express, type Request, type Response } from 'express';
 import cors from 'cors';

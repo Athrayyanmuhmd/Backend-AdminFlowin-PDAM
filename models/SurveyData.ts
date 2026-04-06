@@ -44,7 +44,7 @@ const SurveyDataSchema = new Schema<ISurveyData>(
   },
   {
     timestamps: true,
-    collection: 'surveydatas',
+    collection: 'surveis',
   }
 );
 

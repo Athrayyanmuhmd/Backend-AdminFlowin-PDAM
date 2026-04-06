@@ -14,13 +14,13 @@ export interface IHistoryUsageDocument extends IHistoryUsage, Document {}
 
 const historyUsageSchema = new Schema<IHistoryUsage>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'Pengguna', required: true },
     meteranId: { type: Schema.Types.ObjectId, ref: 'Meteran', required: true },
     penggunaanAir: { type: Number, required: true },
   },
   {
     timestamps: true,
-    collection: 'historyusages',
+    collection: 'riwayatpenggunaans',
   }
 );
 

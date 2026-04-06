@@ -17,7 +17,7 @@ export interface IIoTConnectionDocument extends IIoTConnection, Document {}
 
 const IoTConnectionSchema = new Schema<IIoTConnection>(
   {
-    userId: { type: Schema.Types.ObjectId, ref: 'Users', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'Pengguna', required: true },
     meteranId: { type: Schema.Types.ObjectId, ref: 'Meteran', required: true },
     deviceId: { type: String, default: null },
     pairingCode: { type: String, default: null },
