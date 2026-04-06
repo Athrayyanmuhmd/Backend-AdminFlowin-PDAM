@@ -13,6 +13,9 @@ export const surveiTypeDefs = gql`
     jumlahPenghuni: String
     standar: Boolean!
     catatan: String
+    statusSurvei: String
+    alasanPenolakan: String
+    tanggalVerifikasiAdmin: String
     createdAt: String
     updatedAt: String
   }
@@ -61,6 +64,8 @@ export const surveiTypeDefs = gql`
       koordinat: GeolocationInput
     ): Survei!
     deleteSurvei(id: ID!): Boolean!
+    approveSurvei(id: ID!): Survei!
+    rejectSurvei(id: ID!, alasanPenolakan: String!): Survei!
     createRABConnection(idKoneksiData: ID!, totalBiaya: Float!, urlRab: String!, catatan: String): RABConnection!
     updateRABConnection(id: ID!, totalBiaya: Float, urlRab: String, catatan: String, statusPembayaran: EnumPaymentStatus): RABConnection!
     deleteRABConnection(id: ID!): Boolean!

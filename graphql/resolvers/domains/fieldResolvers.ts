@@ -92,6 +92,7 @@ export const fieldResolvers = {
       if (!k) return null;
       return { _id: parent._id, latitude: k.latitude ?? k.lat ?? null, longitude: k.longitude ?? k.long ?? null };
     },
+    tanggalVerifikasiAdmin: (parent) => iso(parent.tanggalVerifikasiAdmin),
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },

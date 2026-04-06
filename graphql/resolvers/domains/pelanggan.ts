@@ -1,7 +1,9 @@
 // @ts-nocheck
 import bcrypt from 'bcryptjs';
 import User from '../../../models/User.js';
+import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
+import ConnectionData from '../../../models/ConnectionData.js';
 import Notification from '../../../models/Notification.js';
 import { verifyAdminToken, validateEmail, validatePassword, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
@@ -132,6 +134,40 @@ export const pelangganResolvers = {
         pesan: 'Pembayaran Anda telah dikonfirmasi. ID pelanggan Anda kini aktif kembali.',
         kategori: 'Pembayaran',
         link: '/riwayat-tagihan',
+        isRead: false,
+      }).catch(() => {});
+
+      return user;
+    },
+
+    aktivasiPelanggan: async (_, { koneksiDataId }, { token }) => {
+      verifyAdminToken(token);
+
+      const koneksiData = await ConnectionData.findById(koneksiDataId);
+      if (!koneksiData) throw new Error('Data koneksi tidak ditemukan');
+
+      const userId = koneksiData.idPelanggan;
+      const user = await User.findById(userId);
+      if (!user) throw new Error('Pelanggan tidak ditemukan');
+
+      const meteran = await Meteran.findOne({ idKoneksiData: koneksiDataId });
+      if (!meteran) throw new Error('Meteran tidak ditemukan untuk koneksi ini');
+
+      // Activate user account and mark as verified
+      user.isVerified = true;
+      user.accountStatus = 'active';
+      await user.save();
+
+      // Activate the meter
+      await Meteran.findByIdAndUpdate(meteran._id, { statusAktif: true });
+
+      // Notify the customer
+      await Notification.create({
+        idPelanggan: userId,
+        judul: 'Sambungan Air Aktif',
+        pesan: `Selamat! Sambungan air Anda telah resmi diaktifkan. Nomor meter Anda: ${meteran.nomorMeteran}. Anda sekarang dapat mulai menggunakan layanan air PERUMDAM Tirta Daroy.`,
+        kategori: 'Informasi',
+        link: '/dashboard',
         isRead: false,
       }).catch(() => {});
 

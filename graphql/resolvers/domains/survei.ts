@@ -1,7 +1,8 @@
 // @ts-nocheck
 import SurveyData from '../../../models/SurveyData.js';
 import RabConnection from '../../../models/RabConnection.js';
-import { verifyAdminToken } from '../helpers.js';
+import ConnectionData from '../../../models/ConnectionData.js';
+import { verifyAdminToken, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const surveiResolvers = {
@@ -90,6 +91,52 @@ export const surveiResolvers = {
       if (!rab) throw new Error('RAB Connection tidak ditemukan');
       await RabConnection.findByIdAndDelete(id);
       return true;
+    },
+
+    approveSurvei: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const survei = await SurveyData.findById(id);
+      if (!survei) throw new Error('Survei tidak ditemukan');
+      survei.statusSurvei = 'Disetujui';
+      survei.alasanPenolakan = null;
+      survei.tanggalVerifikasiAdmin = new Date();
+      await survei.save();
+      return await SurveyData.findById(id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } })
+        .populate('idTeknisi');
+    },
+
+    rejectSurvei: async (_, { id, alasanPenolakan }, { token }) => {
+      verifyAdminToken(token);
+      const survei = await SurveyData.findById(id).populate('idKoneksiData');
+      if (!survei) throw new Error('Survei tidak ditemukan');
+
+      survei.statusSurvei = 'Ditolak';
+      survei.alasanPenolakan = alasanPenolakan;
+      survei.tanggalVerifikasiAdmin = new Date();
+      await survei.save();
+
+      // Reset KoneksiData so admin can reassign teknisi for new survey
+      if (survei.idKoneksiData) {
+        await ConnectionData.findByIdAndUpdate(survei.idKoneksiData._id || survei.idKoneksiData, {
+          $set: { isVerifiedByTeknisi: false, catatanTeknisi: null, tanggalVerifikasiTeknisi: null },
+        });
+      }
+
+      // Notify all admins
+      const koneksiData = await ConnectionData.findById(survei.idKoneksiData._id || survei.idKoneksiData)
+        .populate('idPelanggan');
+      const namaPelanggan = (koneksiData?.idPelanggan as any)?.namaLengkap || 'Pelanggan';
+      await notifikasiSemuaAdmin(
+        'Survei Ditolak',
+        `Hasil survei dari ${namaPelanggan} telah ditolak. Alasan: ${alasanPenolakan}. Silakan assign teknisi baru untuk survei ulang.`,
+        'Peringatan',
+        `/operations/connection-data/${survei.idKoneksiData._id || survei.idKoneksiData}`,
+      );
+
+      return await SurveyData.findById(id)
+        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } })
+        .populate('idTeknisi');
     },
   },
 };

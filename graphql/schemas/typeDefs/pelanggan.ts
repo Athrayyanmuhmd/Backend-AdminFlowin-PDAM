@@ -60,5 +60,6 @@ export const pelangganTypeDefs = gql`
     deletePelanggan(id: ID!): DeleteResponse!
     deactivateCustomer(userId: ID!): Pengguna!
     konfirmasiPembayaranLoket(userId: ID!): Pengguna!
+    aktivasiPelanggan(koneksiDataId: ID!): Pengguna!
   }
 `;

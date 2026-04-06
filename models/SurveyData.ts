@@ -1,5 +1,7 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
+export type StatusSurvei = 'Menunggu' | 'Disetujui' | 'Ditolak';
+
 export interface ISurveyData {
   idKoneksiData: Types.ObjectId;
   idTeknisi: Types.ObjectId;
@@ -14,6 +16,9 @@ export interface ISurveyData {
   };
   standar: boolean;
   catatan?: string;
+  statusSurvei?: StatusSurvei;
+  alasanPenolakan?: string | null;
+  tanggalVerifikasiAdmin?: Date | null;
 }
 
 export interface ISurveyDataDocument extends ISurveyData, Document {}
@@ -41,6 +46,13 @@ const SurveyDataSchema = new Schema<ISurveyData>(
     },
     standar: { type: Boolean, required: true },
     catatan: { type: String, default: '' },
+    statusSurvei: {
+      type: String,
+      enum: ['Menunggu', 'Disetujui', 'Ditolak'],
+      default: 'Menunggu',
+    },
+    alasanPenolakan: { type: String, default: null },
+    tanggalVerifikasiAdmin: { type: Date, default: null },
   },
   {
     timestamps: true,
