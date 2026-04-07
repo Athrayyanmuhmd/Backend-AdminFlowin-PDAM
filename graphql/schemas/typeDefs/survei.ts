@@ -35,6 +35,8 @@ export const surveiTypeDefs = gql`
     getPendingRAB: [RABConnection!]!
     getWOBySurvei(surveiId: ID!): PekerjaanTeknisi
     getWOByRAB(rabId: ID!): PekerjaanTeknisi
+    getSurveiByKoneksiData(idKoneksiData: ID!): Survei
+    getRABByKoneksiData(idKoneksiData: ID!): RABConnection
   }
 
   extend type Mutation {

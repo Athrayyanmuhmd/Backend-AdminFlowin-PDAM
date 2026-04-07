@@ -41,6 +41,16 @@ export const surveiResolvers = {
       return await RabConnection.find({ statusPembayaran: 'Pending' }).populate(RAB_POPULATE as any);
     },
 
+    getSurveiByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      return await SurveyData.findOne({ idKoneksiData }).populate(SURVEI_POPULATE as any);
+    },
+
+    getRABByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      return await RabConnection.findOne({ idKoneksiData }).populate(RAB_POPULATE as any);
+    },
+
     // Work order untuk survei tertentu
     getWOBySurvei: async (_, { surveiId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
