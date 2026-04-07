@@ -24,6 +24,9 @@ export interface IConnectionData {
   isVerifiedByTeknisi?: boolean;
   catatanTeknisi?: string | null;
   tanggalVerifikasiTeknisi?: Date | null;
+  idTeknisiDED?: Types.ObjectId | null;
+  assignedDEDAt?: Date | null;
+  assignedDEDBy?: Types.ObjectId | null;
 }
 
 export interface IConnectionDataDocument extends IConnectionData, Document {}
@@ -67,6 +70,9 @@ const KoneksiDataSchema = new Schema<IConnectionData>(
     isVerifiedByTeknisi: { type: Boolean, default: false },
     catatanTeknisi: { type: String, default: null },
     tanggalVerifikasiTeknisi: { type: Date, default: null },
+    idTeknisiDED: { type: Schema.Types.ObjectId, ref: 'Teknisi', default: null },
+    assignedDEDAt: { type: Date, default: null },
+    assignedDEDBy: { type: Schema.Types.ObjectId, ref: 'AdminAccount', default: null },
   },
   {
     timestamps: true,

@@ -108,5 +108,21 @@ export const koneksiDataResolvers = {
       await koneksi.save();
       return await ConnectionData.findById(id).populate('idPelanggan').populate('idTeknisi').populate('assignedBy');
     },
+
+    assignTeknisiDED: async (_, { id, technicianId }, { token }) => {
+      const adminPayload = verifyAdminToken(token);
+      const koneksi = await ConnectionData.findById(id);
+      if (!koneksi) throw new Error('Data koneksi tidak ditemukan');
+      const teknisi = await Technician.findById(technicianId);
+      if (!teknisi) throw new Error('Teknisi tidak ditemukan');
+      await catatAuditLog({ token, aksi: 'KONEKSI_ASSIGN_TEKNISI_DED', resource: 'KoneksiData', resourceId: id, nilaiAfter: { idTeknisiDED: technicianId, namaTeknisi: teknisi.namaLengkap } });
+      koneksi.idTeknisiDED = technicianId;
+      koneksi.assignedDEDAt = new Date();
+      koneksi.assignedDEDBy = (adminPayload as any).id;
+      await koneksi.save();
+      return await ConnectionData.findById(id)
+        .populate('idPelanggan').populate('idTeknisi').populate('assignedBy')
+        .populate('idTeknisiDED').populate('assignedDEDBy');
+    },
   },
 };
