@@ -4,7 +4,6 @@ export const surveiTypeDefs = gql`
   type Survei {
     _id: ID!
     idKoneksiData: KoneksiData!
-    idTeknisi: Teknisi
     koordinat: Geolocation
     urlJaringan: String
     diameterPipa: Float
@@ -13,9 +12,6 @@ export const surveiTypeDefs = gql`
     jumlahPenghuni: String
     standar: Boolean!
     catatan: String
-    statusSurvei: String
-    alasanPenolakan: String
-    tanggalVerifikasiAdmin: String
     createdAt: String
     updatedAt: String
   }
@@ -25,9 +21,6 @@ export const surveiTypeDefs = gql`
     idKoneksiData: KoneksiData!
     totalBiaya: Float!
     statusPembayaran: EnumPaymentStatus!
-    statusVerifikasiAdmin: String
-    alasanPenolakan: String
-    tanggalVerifikasiAdmin: String
     urlRab: String!
     catatan: String
     createdAt: String
@@ -40,12 +33,13 @@ export const surveiTypeDefs = gql`
     getRABConnection(id: ID!): RABConnection
     getAllRABConnections: [RABConnection!]!
     getPendingRAB: [RABConnection!]!
+    getWOBySurvei(surveiId: ID!): PekerjaanTeknisi
+    getWOByRAB(rabId: ID!): PekerjaanTeknisi
   }
 
   extend type Mutation {
     createSurvei(
       idKoneksiData: ID!
-      idTeknisi: ID!
       urlJaringan: String!
       diameterPipa: Float!
       urlPosisiBak: String!
@@ -67,12 +61,10 @@ export const surveiTypeDefs = gql`
       koordinat: GeolocationInput
     ): Survei!
     deleteSurvei(id: ID!): Boolean!
-    approveSurvei(id: ID!): Survei!
-    rejectSurvei(id: ID!, alasanPenolakan: String!): Survei!
+    assignTeknisiSurvei(surveiId: ID!, teknisiIds: [ID!]!): PekerjaanTeknisi!
+    assignTeknisiRAB(rabId: ID!, teknisiIds: [ID!]!): PekerjaanTeknisi!
     createRABConnection(idKoneksiData: ID!, totalBiaya: Float!, urlRab: String!, catatan: String): RABConnection!
     updateRABConnection(id: ID!, totalBiaya: Float, urlRab: String, catatan: String, statusPembayaran: EnumPaymentStatus): RABConnection!
     deleteRABConnection(id: ID!): Boolean!
-    approveRAB(id: ID!): RABConnection!
-    rejectRAB(id: ID!, alasanPenolakan: String!): RABConnection!
   }
 `;

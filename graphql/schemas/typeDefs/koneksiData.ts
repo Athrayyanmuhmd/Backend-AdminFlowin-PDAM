@@ -21,12 +21,6 @@ export const koneksiDataTypeDefs = gql`
     idTeknisi: Teknisi
     assignedAt: String
     assignedBy: Admin
-    isVerifiedByTeknisi: Boolean
-    catatanTeknisi: String
-    tanggalVerifikasiTeknisi: String
-    idTeknisiDED: Teknisi
-    assignedDEDAt: String
-    assignedDEDBy: Admin
     createdAt: String
     updatedAt: String
   }
@@ -66,6 +60,5 @@ export const koneksiDataTypeDefs = gql`
     deleteKoneksiData(id: ID!): Boolean!
     assignTeknisiToKoneksi(id: ID!, technicianId: ID!): KoneksiData!
     unassignTeknisiFromKoneksi(id: ID!): KoneksiData!
-    assignTeknisiDED(id: ID!, technicianId: ID!): KoneksiData!
   }
 `;
