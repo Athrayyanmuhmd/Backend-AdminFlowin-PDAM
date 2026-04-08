@@ -41,6 +41,7 @@ export const meteranTypeDefs = gql`
     getMeteran(id: ID!): Meteran
     getAllMeteran(limit: Int, offset: Int): [Meteran!]!
     getMeteranByPelanggan(idPelanggan: ID!): [Meteran!]!
+    getMeteranByKoneksiData(idKoneksiData: ID!): Meteran
     getRiwayatPenggunaan(meteranId: ID!, limit: Int): [RiwayatPenggunaan!]!
     getRiwayatPenggunaanBulanan(meteranId: ID!): [RiwayatBulananData!]!
     getEstimasiBiaya(meteranId: ID!): EstimasiBiaya

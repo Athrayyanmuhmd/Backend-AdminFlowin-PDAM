@@ -71,6 +71,13 @@ export const meteranResolvers = {
       }));
     },
 
+    getMeteranByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      return await Meteran.findOne({ idKoneksiData })
+        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
+        .populate({ path: 'idKoneksiData', strictPopulate: false });
+    },
+
     getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const meteran = await Meteran.findById(meteranId).populate('idKelompokPelanggan');
