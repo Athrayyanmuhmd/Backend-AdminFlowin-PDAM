@@ -3,7 +3,7 @@ import { gql } from 'graphql-tag';
 export const surveiTypeDefs = gql`
   type Survei {
     _id: ID!
-    idKoneksiData: KoneksiData!
+    idKoneksiData: KoneksiData
     koordinat: Geolocation
     urlJaringan: String
     diameterPipa: Float
@@ -18,7 +18,7 @@ export const surveiTypeDefs = gql`
 
   type RABConnection {
     _id: ID!
-    idKoneksiData: KoneksiData!
+    idKoneksiData: KoneksiData
     totalBiaya: Float!
     statusPembayaran: EnumPaymentStatus!
     urlRab: String!
