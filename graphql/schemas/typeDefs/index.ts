@@ -7,6 +7,7 @@ import { koneksiDataTypeDefs } from './koneksiData.js';
 import { tagihanTypeDefs } from './tagihan.js';
 import { laporanTypeDefs } from './laporan.js';
 import { workOrderTypeDefs } from './workOrder.js';
+import { teknisiTypeDefs } from './teknisi.js';
 import { surveiTypeDefs } from './survei.js';
 import { notifikasiTypeDefs } from './notifikasi.js';
 import { pemasanganTypeDefs } from './pemasangan.js';
@@ -25,6 +26,7 @@ export const typeDefs = [
   tagihanTypeDefs,
   laporanTypeDefs,
   workOrderTypeDefs,
+  teknisiTypeDefs,
   surveiTypeDefs,
   notifikasiTypeDefs,
   pemasanganTypeDefs,

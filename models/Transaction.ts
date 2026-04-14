@@ -1,6 +1,7 @@
 import { Schema, model, Document } from 'mongoose';
 
 // Legacy model — kept for backward compat, do not add new features here
+// PENTING: collection 'transactions' (legacy admin), BUKAN 'pembayarans' (milik Ahmad/User)
 export interface ITransaction {
   name: string;
   userID: string;
@@ -19,7 +20,7 @@ const TransactionsSchema = new Schema<ITransaction>(
     amount: { type: Number, required: true },
     category: { type: String, required: true },
   },
-  { timestamps: true, collection: 'pembayarans' }
+  { timestamps: true, collection: 'transactions' }
 );
 
 TransactionsSchema.index({ userID: 1, createdAt: -1 });

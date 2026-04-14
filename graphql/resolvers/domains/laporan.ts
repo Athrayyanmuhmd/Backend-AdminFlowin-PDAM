@@ -1,83 +1,92 @@
 // @ts-nocheck
 import Report from '../../../models/Report.js';
-import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
 import PenyelesaianLaporan from '../../../models/PenyelesaianLaporan.js';
 import { verifyAdminToken, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
+
+// Disesuaikan dengan Ahmad — Report model fields PascalCase (IdPengguna, Status, etc.)
+// DB status values: Ditunda, Ditugaskan, DitinjauAdmin, SedangDikerjakan, Selesai, Dibatalkan
+// GQL enum maps these via fieldResolvers (DITUNDA, DITUGASKAN, etc.)
+
+// Map GQL SCREAMING_SNAKE status → DB PascalCase
+const statusGqlToDb: Record<string, string> = {
+  DITUNDA: 'Ditunda',
+  DITUGASKAN: 'Ditugaskan',
+  DITINJAU_ADMIN: 'DitinjauAdmin',
+  SEDANG_DIKERJAKAN: 'SedangDikerjakan',
+  SELESAI: 'Selesai',
+  DIBATALKAN: 'Dibatalkan',
+};
 
 export const laporanResolvers = {
   Query: {
     getLaporan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Report.findById(id).populate('idPengguna');
+      return await Report.findById(id).populate('IdPengguna');
     },
 
     getAllLaporan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Report.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500)).populate('idPengguna');
+      return await Report.find()
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(Math.min(limit, 500))
+        .populate('IdPengguna');
     },
 
     getLaporanByStatus: async (_, { status }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Report.find({ status }).populate('idPengguna');
+      const dbStatus = statusGqlToDb[status] || status;
+      return await Report.find({ Status: dbStatus }).populate('IdPengguna');
     },
 
     getLaporanByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Report.find({ idPengguna: idPelanggan }).populate('idPengguna');
+      return await Report.find({ IdPengguna: idPelanggan }).populate('IdPengguna');
     },
 
     getPenyelesaianLaporan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PenyelesaianLaporan.findById(id).populate('idLaporan').populate('teknisiId');
+      return await PenyelesaianLaporan.findById(id).populate('idLaporan');
     },
 
     getPenyelesaianLaporanByLaporan: async (_, { idLaporan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PenyelesaianLaporan.find({ idLaporan }).populate('teknisiId').sort({ tanggalSelesai: -1 });
-    },
-
-    getPenyelesaianLaporanByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PenyelesaianLaporan.find({ teknisiId }).populate('idLaporan').sort({ tanggalSelesai: -1 });
+      return await PenyelesaianLaporan.find({ idLaporan }).sort({ createdAt: -1 });
     },
 
     getAllPenyelesaianLaporan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PenyelesaianLaporan.find().limit(500).populate('idLaporan').populate('teknisiId').sort({ tanggalSelesai: -1 });
+      return await PenyelesaianLaporan.find()
+        .limit(500)
+        .populate('idLaporan')
+        .sort({ createdAt: -1 });
     },
   },
 
   Mutation: {
     updateLaporanStatus: async (_, { id, status }) => {
-      const updated = await Report.findByIdAndUpdate(id, { status }, { new: true }).populate('idPengguna');
-      if (status === 'Diajukan') {
-        await notifikasiSemuaAdmin('Laporan Pelanggan Baru', 'Ada laporan baru dari pelanggan yang memerlukan penanganan.', 'Peringatan', '/operations/laporan');
+      const dbStatus = statusGqlToDb[status] || status;
+      const updated = await Report.findByIdAndUpdate(id, { Status: dbStatus }, { new: true }).populate('IdPengguna');
+      // Notifikasi admin saat laporan ditugaskan
+      if (dbStatus === 'Ditugaskan') {
+        await notifikasiSemuaAdmin(
+          'Laporan Pelanggan Diproses',
+          'Status laporan telah diperbarui.',
+          'INFORMASI',
+          '/operations/laporan',
+        );
       }
       return updated;
-    },
-
-    createWorkOrderFromLaporan: async (_, { idLaporan, teknisiIds, catatan }) => {
-      const laporan = await Report.findById(idLaporan);
-      if (!laporan) throw new Error('Laporan tidak ditemukan');
-      const existingWO = await PekerjaanTeknisi.findOne({ idLaporan, status: { $nin: ['Selesai', 'Dibatalkan'] } });
-      if (existingWO) throw new Error('Work order aktif untuk laporan ini sudah ada');
-
-      const workOrder = new PekerjaanTeknisi({ idLaporan, tim: teknisiIds, status: 'Ditugaskan', disetujui: null, catatan: catatan || '' });
-      const saved = await workOrder.save();
-      await Report.findByIdAndUpdate(idLaporan, { status: 'ProsesPerbaikan' });
-      await notifikasiSemuaAdmin('Work Order Baru dari Laporan', `Work order telah dibuat untuk menangani laporan: ${laporan.namaLaporan}`, 'Informasi', '/operations/work-orders');
-
-      return await PekerjaanTeknisi.findById(saved._id)
-        .populate({ path: 'idLaporan', populate: { path: 'idPengguna' } })
-        .populate('tim');
     },
 
     createPenyelesaianLaporan: async (_, { input }, { token }) => {
       verifyAdminToken(token);
       const penyelesaian = new PenyelesaianLaporan(input);
       const saved = await penyelesaian.save();
-      if (input.idLaporan) await Report.findByIdAndUpdate(input.idLaporan, { status: 'Selesai' });
+      if (input.idLaporan) {
+        await Report.findByIdAndUpdate(input.idLaporan, { Status: 'Selesai' });
+      }
       return saved;
     },
 
@@ -89,7 +98,7 @@ export const laporanResolvers = {
     deletePenyelesaianLaporan: async (_, { id }, { token }) => {
       verifyAdminToken(token);
       await PenyelesaianLaporan.findByIdAndDelete(id);
-      return true;
+      return { success: true, message: 'Penyelesaian laporan berhasil dihapus' };
     },
   },
 };

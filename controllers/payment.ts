@@ -87,11 +87,11 @@ export const createPayment = [
 
       // Create a notification for payment creation
       const paymentNotification = new Notification({
-        userId: id,
-        judul: "Pembayaran Dibuat",
-        message: `Pembayaran sebesar Rp${amount} telah dibuat. Silakan selesaikan pembayaran.`,
-        kategori: "Transaksi",
-        link: transaction.redirect_url,
+        IdPelanggan: id,
+        Judul: "Pembayaran Dibuat",
+        Pesan: `Pembayaran sebesar Rp${amount} telah dibuat. Silakan selesaikan pembayaran.`,
+        Kategori: "PEMBAYARAN",
+        Link: transaction.redirect_url,
       });
 
       await paymentNotification.save();
@@ -182,10 +182,10 @@ export const webhookMidtrans = async (req, res) => {
 
     // Create a notification for transaction status update
     const statusNotification = new Notification({
-      userId,
-      judul: notificationTitle,
-      pesan: notificationMessage,
-      kategori: "Transaksi",
+      IdPelanggan: userId,
+      Judul: notificationTitle,
+      Pesan: notificationMessage,
+      Kategori: "PEMBAYARAN",
     });
 
     await statusNotification.save();

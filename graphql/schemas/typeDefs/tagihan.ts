@@ -1,28 +1,30 @@
 import { gql } from 'graphql-tag';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Tagihan.ts)
+// Field names PascalCase — sesuai Ahmad
+
 export const tagihanTypeDefs = gql`
   type Tagihan {
     _id: ID!
-    idMeteran: Meteran
-    periode: String
-    penggunaanSebelum: Float
-    penggunaanSekarang: Float
-    totalPemakaian: Float
-    biaya: Float
-    biayaBeban: Float
-    totalBiaya: Float
-    statusPembayaran: EnumPaymentStatus
-    tanggalPembayaran: String
-    metodePembayaran: String
-    tenggatWaktu: String
-    menunggak: Boolean
-    denda: Float
-    catatan: String
+    userId: ID
+    IdMeteran: Meteran
+    Periode: String!
+    PenggunaanSebelum: Float
+    PenggunaanSekarang: Float
+    TotalPemakaian: Float
+    Biaya: Float
+    BiayaBeban: Float
+    TotalBiaya: Float
+    StatusPembayaran: PaymentStatus
+    TanggalPembayaran: String
+    MetodePembayaran: String
+    TenggatWaktu: String
+    Menunggak: Boolean
+    Denda: Float
+    Catatan: String
     jenisBilling: EnumJenisBilling
     bulanCakupan: Int
     isMergedBilling: Boolean
-    mergedFromIds: [ID]
-    mergedIntoBillingId: ID
     createdAt: String
     updatedAt: String
   }
@@ -37,9 +39,9 @@ export const tagihanTypeDefs = gql`
   }
 
   type DetailGagalTagihan {
-    idMeteran: ID!
-    nomorMeteran: String
-    nomorAkun: String
+    IdMeteran: ID!
+    NomorMeteran: String
+    NomorAkun: String
     namaLengkap: String
     alasan: String!
   }
@@ -54,15 +56,15 @@ export const tagihanTypeDefs = gql`
   extend type Query {
     getTagihan(id: ID!): Tagihan
     getAllTagihan(limit: Int, offset: Int): [Tagihan!]!
-    getTagihanByMeteran(idMeteran: ID!): [Tagihan!]!
-    getTagihanByStatus(status: EnumPaymentStatus!): [Tagihan!]!
+    getTagihanByMeteran(IdMeteran: ID!): [Tagihan!]!
+    getTagihanByStatus(status: PaymentStatus!): [Tagihan!]!
     getTunggakan: [Tagihan!]!
     getDaftarPemutusan: [DaftarPemutusan!]!
   }
 
   extend type Mutation {
-    generateTagihan(idMeteran: ID!, periode: String!): Tagihan!
-    generateTagihanBulanan(periode: String!, idMeteranList: [ID!]!): HasilGenerateTagihan!
-    updateStatusPembayaran(id: ID!, status: EnumPaymentStatus!): Tagihan!
+    generateTagihan(IdMeteran: ID!, Periode: String!): Tagihan!
+    generateTagihanBulanan(Periode: String!, IdMeteranList: [ID!]!): HasilGenerateTagihan!
+    updateStatusPembayaran(id: ID!, status: PaymentStatus!): Tagihan!
   }
 `;

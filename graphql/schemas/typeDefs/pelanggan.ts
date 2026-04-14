@@ -16,6 +16,9 @@ export const pelangganTypeDefs = gql`
     password: String
     token: String
     isVerified: Boolean
+    googleId: String
+    profilePicture: String
+    authProvider: String
     createdAt: String
     updatedAt: String
   }

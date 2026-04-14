@@ -5,88 +5,53 @@ import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasa
 import { verifyAdminToken } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
+// Disesuaikan dengan Rafli — model simplified, no teknisiId/supervisorId/statusVerifikasi
+
 export const pemasanganResolvers = {
   Query: {
     getPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.findById(id).populate('idKoneksiData').populate('teknisiId').populate('diverifikasiOleh');
+      return await Pemasangan.findById(id).populate('idKoneksiData');
     },
 
     getPemasanganByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.findOne({ idKoneksiData }).populate('idKoneksiData').populate('teknisiId').populate('diverifikasiOleh');
-    },
-
-    getPemasanganByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await Pemasangan.find({ teknisiId }).populate('idKoneksiData').populate('diverifikasiOleh').sort({ tanggalPemasangan: -1 });
-    },
-
-    getPemasanganByStatus: async (_, { statusVerifikasi }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await Pemasangan.find({ statusVerifikasi }).populate('idKoneksiData').populate('teknisiId').populate('diverifikasiOleh').sort({ tanggalPemasangan: -1 });
+      return await Pemasangan.findOne({ idKoneksiData }).populate('idKoneksiData');
     },
 
     getAllPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.find().limit(500).populate('idKoneksiData').populate('teknisiId').populate('diverifikasiOleh').sort({ tanggalPemasangan: -1 });
+      return await Pemasangan.find().limit(500).populate('idKoneksiData').sort({ createdAt: -1 });
     },
 
     getPengawasanPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.findById(id).populate('idPemasangan').populate('supervisorId');
+      return await PengawasanPemasangan.findById(id).populate('idPemasangan');
     },
 
     getPengawasanPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.find({ idPemasangan }).populate('supervisorId').sort({ tanggalPengawasan: -1 });
-    },
-
-    getPengawasanPemasanganBySupervisor: async (_, { supervisorId }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PengawasanPemasangan.find({ supervisorId }).populate('idPemasangan').sort({ tanggalPengawasan: -1 });
-    },
-
-    getPengawasanPemasanganProblematic: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PengawasanPemasangan.find({ $or: [{ hasilPengawasan: { $in: ['Perbaikan Diperlukan', 'Tidak Sesuai'] } }, { perluTindakLanjut: true }] })
-        .populate('idPemasangan').populate('supervisorId').sort({ tanggalPengawasan: -1 });
+      return await PengawasanPemasangan.find({ idPemasangan }).sort({ createdAt: -1 });
     },
 
     getAllPengawasanPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.find().limit(500).populate('idPemasangan').populate('supervisorId').sort({ tanggalPengawasan: -1 });
+      return await PengawasanPemasangan.find().limit(500).populate('idPemasangan').sort({ createdAt: -1 });
     },
 
     getPengawasanSetelahPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.findById(id).populate('idPemasangan').populate('supervisorId');
+      return await PengawasanSetelahPemasangan.findById(id).populate('idPemasangan');
     },
 
     getPengawasanSetelahPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find({ idPemasangan }).populate('supervisorId').sort({ tanggalPengawasan: -1 });
-    },
-
-    getPengawasanSetelahPemasanganBySupervisor: async (_, { supervisorId }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find({ supervisorId }).populate('idPemasangan').sort({ tanggalPengawasan: -1 });
-    },
-
-    getPengawasanSetelahPemasanganProblematic: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find({ $or: [{ hasilPengawasan: 'Bermasalah' }, { statusMeteran: { $ne: 'Berfungsi Normal' } }, { perluTindakLanjut: true }] })
-        .populate('idPemasangan').populate('supervisorId').sort({ tanggalPengawasan: -1 });
+      return await PengawasanSetelahPemasangan.find({ idPemasangan }).sort({ createdAt: -1 });
     },
 
     getAllPengawasanSetelahPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find().limit(500).populate('idPemasangan').populate('supervisorId').sort({ tanggalPengawasan: -1 });
-    },
-
-    getAverageCustomerRating: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.getAverageRating();
+      return await PengawasanSetelahPemasangan.find().limit(500).populate('idPemasangan').sort({ createdAt: -1 });
     },
   },
 
@@ -105,15 +70,6 @@ export const pemasanganResolvers = {
       verifyAdminToken(token);
       await Pemasangan.findByIdAndDelete(id);
       return true;
-    },
-
-    verifyPemasangan: async (_, { id, statusVerifikasi, catatan }, { token }) => {
-      const admin = verifyAdminToken(token);
-      return await Pemasangan.findByIdAndUpdate(
-        id,
-        { statusVerifikasi, diverifikasiOleh: (admin as any).id, tanggalVerifikasi: new Date().toISOString(), ...(catatan && { catatan }) },
-        { new: true },
-      );
     },
 
     createPengawasanPemasangan: async (_, { input }, { token }) => {

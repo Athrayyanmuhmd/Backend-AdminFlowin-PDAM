@@ -17,9 +17,9 @@ const checkNotificationExists = async (userId, title, category) => {
   tomorrow.setDate(tomorrow.getDate() + 1);
 
   return await Notification.findOne({
-    userId,
-    title,
-    category,
+    IdPelanggan: userId,
+    Judul: title,
+    Kategori: category,
     createdAt: { $gte: today, $lt: tomorrow },
   });
 };
@@ -55,11 +55,11 @@ export const createSubscribe = [
           await existingSubscription.save();
 
           const subscribeNotification = new Notification({
-            userId: customerDetail.id,
-            judul: "Langganan Diaktifkan Kembali",
-            message:
+            IdPelanggan: customerDetail.id,
+            Judul: "Langganan Diaktifkan Kembali",
+            Pesan:
               "Anda telah berhasil mengaktifkan kembali langganan layanan air.",
-            kategori: "Informasi",
+            Kategori: "INFORMASI",
           });
 
           await subscribeNotification.save();
@@ -98,10 +98,10 @@ export const createSubscribe = [
       await newSubscribe.save();
 
       const subscribeNotification = new Notification({
-        userId: customerDetail.id,
-        judul: "Langganan Dibuat",
-        pesan: "Anda telah berhasil berlangganan layanan air.",
-        kategori: "Informasi",
+        IdPelanggan: customerDetail.id,
+        Judul: "Langganan Dibuat",
+        Pesan: "Anda telah berhasil berlangganan layanan air.",
+        Kategori: "INFORMASI",
       });
 
       await subscribeNotification.save();
@@ -367,13 +367,13 @@ export const incrementUsedWater = async (req, res) => {
 
         if (!existingNotification) {
           const notification = await new Notification({
-            userId,
-            judul: "Peringatan Saldo",
-            message: `Tagihan air Anda sebagian telah dibayar untuk ${affordableLiters} liter. Sisa tagihan untuk ${remainingLiters} liter (Rp${
+            IdPelanggan: userId,
+            Judul: "Peringatan Saldo",
+            Pesan: `Tagihan air Anda sebagian telah dibayar untuk ${affordableLiters} liter. Sisa tagihan untuk ${remainingLiters} liter (Rp${
               remainingLiters * costPerLiter
             }) tidak dapat diproses karena saldo tidak mencukupi`,
-            kategori: "Transaksi",
-            link: `/billing/${userId}`,
+            Kategori: "PERINGATAN",
+            Link: `/billing/${userId}`,
           }).save({ session });
 
           await session.commitTransaction();
@@ -453,17 +453,17 @@ export const incrementUsedWater = async (req, res) => {
       let notification;
       if (!existingPaymentNotification) {
         notification = await new Notification({
-          userId,
-          judul: "Pembayaran Tagihan Air",
-          message: `Tagihan air Anda untuk periode ${
+          IdPelanggan: userId,
+          Judul: "Pembayaran Tagihan Air",
+          Pesan: `Tagihan air Anda untuk periode ${
             waterCredit.billingTime
           } telah dibayar. Total pembayaran: Rp${totalCost}${
             tokenReward > 0
               ? `. Anda mendapatkan reward token sebesar ${tokenReward} karena penggunaan air yang efisien!`
               : ""
           }`,
-          kategori: "Transaksi",
-          link: `/billing/${userId}`,
+          Kategori: "PEMBAYARAN",
+          Link: `/billing/${userId}`,
         }).save({ session });
       }
 
@@ -570,10 +570,10 @@ export const isBalanceZero = async (req, res) => {
 
       if (!existingNotification) {
         const pipeCloseNotification = new Notification({
-          userId,
-          judul: "Pipa Ditutup",
-          pesan: "Pipa air Anda telah ditutup karena saldo nol.",
-          kategori: "Informasi",
+          IdPelanggan: userId,
+          Judul: "Pipa Ditutup",
+          Pesan: "Pipa air Anda telah ditutup karena saldo nol.",
+          Kategori: "INFORMASI",
         });
 
         await pipeCloseNotification.save();
@@ -806,10 +806,10 @@ export const unsubscribe = [
       // );
 
       const unsubscribeNotification = new Notification({
-        userId,
-        judul: "Berhenti Berlangganan",
-        pesan: "Anda telah berhasil berhenti berlangganan dari layanan air.",
-        kategori: "Informasi",
+        IdPelanggan: userId,
+        Judul: "Berhenti Berlangganan",
+        Pesan: "Anda telah berhasil berhenti berlangganan dari layanan air.",
+        Kategori: "INFORMASI",
       });
 
       await unsubscribeNotification.save();

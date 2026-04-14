@@ -3,37 +3,46 @@ import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
+import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, catatAuditLog } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
+const METERAN_POPULATE = [
+  { path: 'IdKelompokPelanggan', strictPopulate: false },
+  { path: 'IdKoneksiData', strictPopulate: false },
+];
+
 export const meteranResolvers = {
   Query: {
     getMeteran: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Meteran.findById(id)
-        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
-        .populate({ path: 'idKoneksiData', strictPopulate: false });
+      return await Meteran.findById(id).populate(METERAN_POPULATE as any);
     },
 
     getAllMeteran: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Meteran.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500))
-        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
-        .populate({ path: 'idKoneksiData', strictPopulate: false });
+      return await Meteran.find()
+        .sort({ createdAt: -1 })
+        .skip(offset)
+        .limit(Math.min(limit, 500))
+        .populate(METERAN_POPULATE as any);
     },
 
     getMeteranByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const connections = await ConnectionData.find({ $or: [{ idPelanggan }, { userId: idPelanggan }] }).lean();
+      // Cari KoneksiData milik pelanggan (field PascalCase sesuai Ahmad)
+      const connections = await ConnectionData.find({
+        $or: [{ IdPelanggan: idPelanggan }, { userId: idPelanggan }],
+      }).lean();
       const connectionIds = connections.map(c => c._id);
 
       if (connectionIds.length > 0) {
-        return await Meteran.find({ idKoneksiData: { $in: connectionIds } })
-          .populate('idKelompokPelanggan')
-          .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan', select: 'namaLengkap email noHP' } });
+        return await Meteran.find({ IdKoneksiData: { $in: connectionIds } })
+          .populate('IdKelompokPelanggan')
+          .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap email noHP' } });
       }
 
       const { Types } = await import('mongoose');
@@ -41,17 +50,23 @@ export const meteranResolvers = {
       try { oid = new Types.ObjectId(idPelanggan); } catch { return []; }
 
       const matched = await Meteran.aggregate([
-        { $lookup: { from: 'koneksidatas', localField: 'idKoneksiData', foreignField: '_id', as: '_kd' } },
-        { $match: { $or: [{ '_kd.idPelanggan': oid }, { '_kd.userId': oid }] } },
+        { $lookup: { from: 'koneksidatas', localField: 'IdKoneksiData', foreignField: '_id', as: '_kd' } },
+        { $match: { $or: [{ '_kd.IdPelanggan': oid }, { '_kd.userId': oid }] } },
       ]);
       if (!matched.length) return [];
       return await Meteran.find({ _id: { $in: matched.map(m => m._id) } })
-        .populate('idKelompokPelanggan')
-        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan', select: 'namaLengkap email noHP' } });
+        .populate('IdKelompokPelanggan')
+        .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap email noHP' } });
+    },
+
+    getMeteranByKoneksiData: async (_, { IdKoneksiData }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      return await Meteran.findOne({ IdKoneksiData }).populate(METERAN_POPULATE as any);
     },
 
     getRiwayatPenggunaan: async (_, { meteranId, limit = 50 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
+      // HistoryUsage masih pakai meteranId (camelCase) — IoT REST pipeline, jangan ganti
       return await HistoryUsage.find({ meteranId }).sort({ createdAt: -1 }).limit(limit);
     },
 
@@ -60,7 +75,11 @@ export const meteranResolvers = {
       const mongoose = await import('mongoose');
       const hasil = await HistoryUsage.aggregate([
         { $match: { meteranId: new mongoose.default.Types.ObjectId(meteranId) } },
-        { $group: { _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } }, totalPemakaian: { $sum: '$penggunaanAir' }, jumlahRecord: { $count: {} } } },
+        { $group: {
+          _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } },
+          totalPemakaian: { $sum: '$penggunaanAir' },
+          jumlahRecord: { $count: {} },
+        }},
         { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
         { $limit: 12 },
       ]);
@@ -71,43 +90,72 @@ export const meteranResolvers = {
       }));
     },
 
-    getMeteranByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
+    getRiwayatBulananAhmad: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Meteran.findOne({ idKoneksiData })
-        .populate({ path: 'idKelompokPelanggan', strictPopulate: false })
-        .populate({ path: 'idKoneksiData', strictPopulate: false });
+      // Baca dari Ahmad's RiwayatPenggunaan (collection: riwayatpenggunaas)
+      // MeteranId di Ahmad adalah ObjectId ref ke Meter
+      const records = await RiwayatPenggunaan.find({ MeteranId: meteranId })
+        .sort({ Periode: -1 })
+        .limit(24)
+        .lean();
+      return records.map((r) => ({
+        _id: r._id,
+        periode: r.Periode,
+        totalPenggunaan: r.TotalPenggunaan ?? 0,
+        createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+      }));
     },
 
     getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const meteran = await Meteran.findById(meteranId).populate('idKelompokPelanggan');
+      const meteran = await Meteran.findById(meteranId).populate('IdKelompokPelanggan');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
-      const kelompok = meteran.idKelompokPelanggan as any;
+      const kelompok = (meteran as any).IdKelompokPelanggan as any;
       const pemakaian = meteran.pemakaianBelumTerbayar || 0;
-      const biaya = pemakaian <= 10
-        ? pemakaian * (kelompok?.hargaDiBawah10mKubik || 1500)
-        : 10 * (kelompok?.hargaDiBawah10mKubik || 1500) + (pemakaian - 10) * (kelompok?.hargaDiAtas10mKubik || 2000);
-      const biayaBeban = kelompok?.biayaBeban || 5000;
-      return { pemakaianBelumTerbayar: pemakaian, estimasiBiaya: biaya, biayaBeban, totalEstimasi: biaya + biayaBeban, namaKelompok: kelompok?.namaKelompok || null };
+      const batasRendah = kelompok?.BatasRendah ?? 10;
+      const biaya = pemakaian <= batasRendah
+        ? pemakaian * (kelompok?.TarifRendah ?? 1500)
+        : batasRendah * (kelompok?.TarifRendah ?? 1500) + (pemakaian - batasRendah) * (kelompok?.TarifTinggi ?? 2000);
+      const biayaBeban = kelompok?.BiayaBeban ?? 5000;
+      return {
+        pemakaianBelumTerbayar: pemakaian,
+        estimasiBiaya: biaya,
+        biayaBeban,
+        totalEstimasi: biaya + biayaBeban,
+        namaKelompok: kelompok?.NamaKelompok || null,
+      };
     },
   },
 
   Mutation: {
-    createMeteran: async (_, { idKelompokPelanggan, nomorMeteran, nomorAkun, idKoneksiData }, { token }) => {
+    createMeteran: async (_, { IdKelompokPelanggan, NomorMeteran, NomorAkun, IdKoneksiData }, { token }) => {
       verifyAdminToken(token);
-      const existing = await Meteran.findOne({ nomorAkun });
-      if (existing) throw new Error(`Nomor akun ${nomorAkun} sudah digunakan`);
-      const meteran = new Meteran({ idKelompokPelanggan, nomorMeteran, nomorAkun, idKoneksiData: idKoneksiData || null });
+      const existing = await Meteran.findOne({ NomorAkun });
+      if (existing) throw new Error(`Nomor akun ${NomorAkun} sudah digunakan`);
+      const meteran = new Meteran({
+        IdKelompokPelanggan,
+        NomorMeteran,
+        NomorAkun,
+        IdKoneksiData: IdKoneksiData || null,
+      });
       await meteran.save();
-      await catatAuditLog({ token, aksi: 'METERAN_CREATE', resource: 'Meteran', resourceId: meteran._id, nilaiAfter: { nomorMeteran, nomorAkun, idKoneksiData } });
-      return await Meteran.findById(meteran._id).populate('idKelompokPelanggan').populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+      await catatAuditLog({
+        token,
+        aksi: 'METERAN_CREATE',
+        resource: 'Meteran',
+        resourceId: meteran._id,
+        nilaiAfter: { NomorMeteran, NomorAkun, IdKoneksiData },
+      });
+      return await Meteran.findById(meteran._id)
+        .populate('IdKelompokPelanggan')
+        .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } });
     },
 
     updateMeteran: async (_, { id, ...updates }, { token }) => {
       verifyAdminToken(token);
       const meteran = await Meteran.findByIdAndUpdate(id, updates, { new: true })
-        .populate('idKelompokPelanggan')
-        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } });
+        .populate('IdKelompokPelanggan')
+        .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } });
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       return meteran;
     },
@@ -116,11 +164,17 @@ export const meteranResolvers = {
       verifyAdminToken(token);
       const meteran = await Meteran.findById(id);
       if (!meteran) throw new Error('Meteran tidak ditemukan');
-      const activeBilling = await Billing.findOne({ idMeteran: id, statusPembayaran: { $in: ['Pending'] } });
+      const activeBilling = await Billing.findOne({ IdMeteran: id, StatusPembayaran: { $in: ['pending'] } });
       if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
-      await catatAuditLog({ token, aksi: 'METERAN_DELETE', resource: 'Meteran', resourceId: id, nilaiBefore: { nomorMeteran: meteran.nomorMeteran, nomorAkun: meteran.nomorAkun } });
+      await catatAuditLog({
+        token,
+        aksi: 'METERAN_DELETE',
+        resource: 'Meteran',
+        resourceId: id,
+        nilaiBefore: { NomorMeteran: (meteran as any).NomorMeteran, NomorAkun: (meteran as any).NomorAkun },
+      });
       await Meteran.findByIdAndDelete(id);
-      return true;
+      return { success: true, message: 'Meteran berhasil dihapus' };
     },
   },
 };

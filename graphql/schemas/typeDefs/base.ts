@@ -2,63 +2,84 @@ import { gql } from 'graphql-tag';
 
 export const baseTypeDefs = gql`
   # ============================================
-  # ENUMS
+  # ENUMS — disesuaikan dengan Ahmad & Rafli
   # ============================================
 
-  enum EnumJenisLaporan {
-    AirTidakMengalir
-    AirKeruh
-    KebocoranPipa
-    MeteranBermasalah
-    KendalaLainnya
+  # Ahmad (flowin-backend/Laporan.ts)
+  enum JenisLaporan {
+    AIR_TIDAK_MENGALIR
+    AIR_KERUH
+    KEBOCORAN_PIPA
+    METERAN_BERMASALAH
+    KENDALA_LAINNYA
   }
 
-  enum EnumWorkStatusPelanggan {
-    Diajukan
-    ProsesPerbaikan
-    Selesai
+  # Ahmad (flowin-backend/Laporan.ts) — status laporan pelanggan
+  enum WorkStatusPelanggan {
+    DITUNDA
+    DITUGASKAN
+    DITINJAU_ADMIN
+    SEDANG_DIKERJAKAN
+    SELESAI
+    DIBATALKAN
   }
 
-  enum EnumWorkStatus {
-    Ditunda
-    Ditugaskan
-    DitinjauAdmin
-    SedangDikerjakan
-    Selesai
-    Dibatalkan
+  # Ahmad (flowin-backend/Tagihan.ts) — status pembayaran tagihan
+  enum PaymentStatus {
+    PENDING
+    SETTLEMENT
+    CANCEL
+    EXPIRE
+    REFUND
+    CHARGEBACK
+    FRAUD
+    MERGED
   }
 
-  enum EnumDivisiTeknisi {
+  # Ahmad (flowin-backend/KoneksiData.ts) — status pengajuan sambungan
+  enum StatusPengajuanEnum {
+    PENDING
+    APPROVED
+    REJECTED
+  }
+
+  # Rafli (flowin-teknisi-graphql/auth.ts)
+  enum DivisiTeknisi {
     perencanaan_teknik
     teknik_cabang
     pengawasan_teknik
   }
 
-  enum EnumPaymentStatus {
-    Pending
-    Settlement
-    Cancel
-    Expire
-    Refund
-    Chargeback
-    Fraud
-    Merged
-  }
-
+  # Admin-only enums (billing)
   enum EnumJenisBilling {
     normal
     denda
   }
 
+  # Admin-only enums (notifikasi) — PEMBAYARAN sesuai Ahmad
   enum EnumKategori {
-    Pembayaran
-    Informasi
-    Peringatan
+    PEMBAYARAN
+    INFORMASI
+    PERINGATAN
   }
 
   # ============================================
   # SHARED TYPES
   # ============================================
+
+  # Pagination — digunakan oleh WorkOrder (Rafli) & laporan
+  type PageInfo {
+    total: Int!
+    page: Int!
+    limit: Int!
+    totalPages: Int!
+    hasNextPage: Boolean!
+  }
+
+  input PaginationInput {
+    page: Int
+    limit: Int
+  }
 
   type Geolocation {
     _id: ID

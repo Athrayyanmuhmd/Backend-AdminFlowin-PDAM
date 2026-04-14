@@ -1,5 +1,9 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Laporan.ts)
+// Collection: laporans — shared across systems
+// Field names PascalCase agar sinkron dengan Ahmad
+
 export type JenisLaporan =
   | 'AirTidakMengalir'
   | 'AirKeruh'
@@ -7,50 +11,77 @@ export type JenisLaporan =
   | 'MeteranBermasalah'
   | 'KendalaLainnya';
 
-export type StatusLaporan = 'Diajukan' | 'ProsesPerbaikan' | 'Selesai';
+export type StatusLaporan =
+  | 'Ditunda'
+  | 'Ditugaskan'
+  | 'DitinjauAdmin'
+  | 'SedangDikerjakan'
+  | 'Selesai'
+  | 'Dibatalkan';
 
 export interface IReport {
-  idPengguna: Types.ObjectId;
-  namaLaporan: string;
-  masalah: string;
-  alamat: string;
-  imageUrl?: string[];
-  jenisLaporan: JenisLaporan;
-  catatan?: string | null;
-  koordinat: {
-    longitude: number;
-    latitude: number;
-  };
-  status?: StatusLaporan;
+  IdPengguna: Types.ObjectId;
+  NamaLaporan: string;
+  Masalah: string;
+  Alamat: string;
+  ImageURL?: string[];
+  JenisLaporan: JenisLaporan;
+  Catatan?: string | null;
+  Koordinat?: Types.ObjectId | null;
+  Status: StatusLaporan;
 }
 
 export interface IReportDocument extends IReport, Document {}
 
 const ReportSchema = new Schema<IReport>(
   {
-    idPengguna: { type: Schema.Types.ObjectId, ref: 'Pengguna', required: true },
-    namaLaporan: { type: String, required: true },
-    masalah: { type: String, required: true },
-    alamat: { type: String, required: true },
-    imageUrl: { type: [String], default: [] },
-    jenisLaporan: {
+    IdPengguna: {
+      type: Schema.Types.ObjectId,
+      ref: 'Pengguna',
+      required: true,
+    },
+    NamaLaporan: {
+      type: String,
+      required: true,
+    },
+    Masalah: {
+      type: String,
+      required: true,
+    },
+    Alamat: {
+      type: String,
+      required: true,
+    },
+    ImageURL: {
+      type: [String],
+      default: [],
+    },
+    JenisLaporan: {
       type: String,
       enum: ['AirTidakMengalir', 'AirKeruh', 'KebocoranPipa', 'MeteranBermasalah', 'KendalaLainnya'],
       required: true,
     },
-    catatan: { type: String, default: null },
-    koordinat: {
-      longitude: { type: Number, required: true },
-      latitude: { type: Number, required: true },
-    },
-    status: {
+    Catatan: {
       type: String,
-      enum: ['Diajukan', 'ProsesPerbaikan', 'Selesai'],
+      default: null,
+    },
+    Koordinat: {
+      type: Schema.Types.ObjectId,
+      ref: 'GeoLokasi',
+      default: null,
+    },
+    Status: {
+      type: String,
+      enum: ['Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan', 'Selesai', 'Dibatalkan'],
       required: true,
-      default: 'Diajukan',
+      default: 'Ditunda',
     },
   },
   { timestamps: true }
 );
+
+ReportSchema.index({ IdPengguna: 1 });
+ReportSchema.index({ Status: 1 });
+ReportSchema.index({ JenisLaporan: 1 });
 
 export default model<IReport>('Laporan', ReportSchema);

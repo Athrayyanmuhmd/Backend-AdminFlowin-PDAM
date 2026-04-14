@@ -1,40 +1,49 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Tagihan.ts)
+// Collection: tagihans — shared across systems
+// Field names PascalCase agar sinkron dengan Ahmad
+
+// Lowercase enum values — sesuai Ahmad (flowin-backend/Tagihan.ts)
 export type StatusPembayaranBilling =
-  | 'Pending'
-  | 'Settlement'
-  | 'Cancel'
-  | 'Expire'
-  | 'Refund'
-  | 'Chargeback'
-  | 'Fraud'
-  | 'Merged'; // Record lama yang sudah digabung ke tagihan baru
+  | 'pending'
+  | 'settlement'
+  | 'cancel'
+  | 'expire'
+  | 'refund'
+  | 'chargeback'
+  | 'fraud'
+  | 'merged'; // Admin-only: record lama yang sudah digabung
 
 export type JenisBilling = 'normal' | 'denda';
 
 export interface IBilling {
-  userId: Types.ObjectId;
-  idMeteran: Types.ObjectId;
-  periode: Date;
-  penggunaanSebelum: number;
-  penggunaanSekarang: number;
-  totalPemakaian: number;
-  biaya: number;
-  biayaBeban: number;
-  totalBiaya: number;
-  statusPembayaran?: StatusPembayaranBilling;
-  tanggalPembayaran?: Date | null;
-  metodePembayaran?: string | null;
-  tenggatWaktu: Date;
-  menunggak?: boolean;
-  denda?: number;
-  catatan?: string;
-  // ── Merge tunggakan fields ───────────────────────────
-  jenisBilling?: JenisBilling;        // 'normal' | 'denda'
-  bulanCakupan?: number;              // default 1; merged billing = 2
-  isMergedBilling?: boolean;          // true jika ini record gabungan
-  mergedFromIds?: Types.ObjectId[];   // merged billing → pointer ke 2 record lama
-  mergedIntoBillingId?: Types.ObjectId | null; // record lama → pointer ke merged billing
+  // Eksklusif admin — untuk query "tagihan per user"
+  userId?: Types.ObjectId | null;
+  // PascalCase FK — sesuai Ahmad
+  IdMeteran: Types.ObjectId;
+  // Ahmad: Periode = String "YYYY-MM"
+  Periode: string;
+  PenggunaanSebelum: number;
+  PenggunaanSekarang: number;
+  TotalPemakaian: number;
+  Biaya: number;
+  // Eksklusif admin (tidak ada di Ahmad)
+  BiayaBeban: number;
+  TotalBiaya: number;
+  StatusPembayaran: StatusPembayaranBilling;
+  TanggalPembayaran?: Date | null;
+  MetodePembayaran?: string | null;
+  TenggatWaktu: Date;
+  Menunggak: boolean;
+  Denda: number;
+  // Admin extras
+  Catatan?: string;
+  jenisBilling?: JenisBilling;
+  bulanCakupan?: number;
+  isMergedBilling?: boolean;
+  mergedFromIds?: Types.ObjectId[];
+  mergedIntoBillingId?: Types.ObjectId | null;
 }
 
 export interface IBillingDocument extends IBilling, Document {}
@@ -44,67 +53,68 @@ const billingSchema = new Schema<IBilling>(
     userId: {
       type: Schema.Types.ObjectId,
       ref: 'Pengguna',
-      required: true,
+      default: null,
     },
-    idMeteran: {
+    IdMeteran: {
       type: Schema.Types.ObjectId,
       ref: 'Meteran',
       required: true,
+      index: true,
     },
-    periode: {
-      type: Date,
-      required: true,
-    },
-    penggunaanSebelum: {
-      type: Number,
-      required: true,
-    },
-    penggunaanSekarang: {
-      type: Number,
-      required: true,
-    },
-    totalPemakaian: {
-      type: Number,
-      required: true,
-    },
-    biaya: {
-      type: Number,
-      required: true,
-    },
-    biayaBeban: {
-      type: Number,
-      required: true,
-    },
-    totalBiaya: {
-      type: Number,
-      required: true,
-    },
-    statusPembayaran: {
+    Periode: {
       type: String,
-      enum: ['Pending', 'Settlement', 'Cancel', 'Expire', 'Refund', 'Chargeback', 'Fraud', 'Merged'],
-      default: 'Pending',
+      required: true,
     },
-    tanggalPembayaran: {
+    PenggunaanSebelum: {
+      type: Number,
+      required: true,
+    },
+    PenggunaanSekarang: {
+      type: Number,
+      required: true,
+    },
+    TotalPemakaian: {
+      type: Number,
+      required: true,
+    },
+    Biaya: {
+      type: Number,
+      required: true,
+    },
+    BiayaBeban: {
+      type: Number,
+      required: true,
+    },
+    TotalBiaya: {
+      type: Number,
+      required: true,
+    },
+    StatusPembayaran: {
+      type: String,
+      enum: ['pending', 'settlement', 'cancel', 'expire', 'refund', 'chargeback', 'fraud', 'merged'],
+      default: 'pending',
+    },
+    TanggalPembayaran: {
       type: Date,
       default: null,
     },
-    metodePembayaran: {
+    MetodePembayaran: {
       type: String,
       default: null,
     },
-    tenggatWaktu: {
+    TenggatWaktu: {
       type: Date,
       required: true,
     },
-    menunggak: {
+    Menunggak: {
       type: Boolean,
       default: false,
     },
-    denda: {
+    Denda: {
       type: Number,
       default: 0,
     },
-    catatan: {
+    Catatan: {
       type: String,
       default: '',
     },
@@ -123,22 +133,22 @@ const billingSchema = new Schema<IBilling>(
     },
     mergedFromIds: {
       type: [Schema.Types.ObjectId],
-      ref: 'Tagihan',
       default: [],
     },
     mergedIntoBillingId: {
       type: Schema.Types.ObjectId,
-      ref: 'Tagihan',
       default: null,
     },
   },
   {
     timestamps: true,
+    collection: 'tagihans',
   }
 );
 
-billingSchema.index({ userId: 1, periode: 1 });
-billingSchema.index({ idMeteran: 1, periode: 1 });
-billingSchema.index({ statusPembayaran: 1, tenggatWaktu: 1 });
+billingSchema.index({ userId: 1, Periode: 1 });
+billingSchema.index({ IdMeteran: 1, Periode: 1 });
+billingSchema.index({ StatusPembayaran: 1, TenggatWaktu: 1 });
+billingSchema.index({ Menunggak: 1 });
 
 export default model<IBilling>('Tagihan', billingSchema);

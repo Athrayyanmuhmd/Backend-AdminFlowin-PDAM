@@ -1,88 +1,220 @@
-// @ts-nocheck
-import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
-import { verifyAdminToken, notifikasiSemuaAdmin } from '../helpers.js';
+// Semua operasi WorkOrder di-proxy ke Rafli (flowin-teknisi-graphql)
+// Admin menggunakan JWT-nya sendiri sebagai Bearer token ke Rafli's API
+// + x-api-key (INTERNAL_API_SECRET) otomatis ditambahkan oleh rafliGraphQL
+
+import { rafliGraphQL } from '../../../utils/rafliClient.js';
+import { verifyAdminToken } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-const WO_POPULATE = [
-  { path: 'idSurvei', populate: { path: 'idKoneksiData', populate: { path: 'idPelanggan' } } },
-  { path: 'rabId' },
-  { path: 'idLaporan', populate: { path: 'idPengguna' } },
-  { path: 'tim' },
-];
+function getToken(ctx: GraphQLContext): string | undefined {
+  return ctx.token ?? undefined;
+}
 
 export const workOrderResolvers = {
   Query: {
-    getWorkOrder: async (_, { id }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.findById(id).populate(WO_POPULATE as any);
+    workOrders: async (_: any, { filter, pagination }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      try {
+        const data = await rafliGraphQL(
+          `query WorkOrders($filter: WorkOrderFilterInput, $pagination: PaginationInput) {
+            workOrders(filter: $filter, pagination: $pagination) {
+              data {
+                id idKoneksiData jenisPekerjaan statusTim status statusRespon
+                alasanPenolakan catatanTim catatanReview createdAt updatedAt
+                teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+                tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+                koneksiData {
+                  id statusPengajuan nik noKK imb alamat kelurahan kecamatan luasBangunan
+                  nikUrl kkUrl imbUrl tanggalVerifikasi alasanPenolakan createdAt updatedAt
+                  pelanggan { id namaLengkap email noHp }
+                }
+                workOrderSebelumnya { id jenisPekerjaan status }
+                riwayatRespon { aksi alasan tanggal oleh { id namaLengkap } }
+                riwayatReview { status catatan tanggal oleh { id namaLengkap } }
+              }
+              pagination { total page limit totalPages hasNextPage }
+            }
+          }`,
+          { filter, pagination },
+          getToken(ctx)
+        );
+        return (data as any).workOrders ?? { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
+      } catch (err: any) {
+        console.error('[workOrders] Rafli backend tidak tersedia:', err.message);
+        return { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
+      }
     },
 
-    getAllWorkOrders: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find().limit(500).populate(WO_POPULATE as any).sort({ createdAt: -1 });
+    workOrder: async (_: any, { id }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      try {
+        const data = await rafliGraphQL(
+          `query WorkOrder($id: ID!) {
+            workOrder(id: $id) {
+              id idKoneksiData jenisPekerjaan statusTim status statusRespon
+              alasanPenolakan catatanTim catatanReview catatanReviewPenolakan createdAt updatedAt
+              idSurvei idRAB idPemasangan idPengawasanPemasangan idPengawasanSetelahPemasangan idPenyelesaianLaporan
+              teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+              tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+              koneksiData {
+                id statusPengajuan nik noKK imb alamat kelurahan kecamatan luasBangunan
+                nikUrl kkUrl imbUrl tanggalVerifikasi alasanPenolakan createdAt updatedAt
+                pelanggan { id namaLengkap email noHp }
+              }
+              workOrderSebelumnya { id jenisPekerjaan status createdAt }
+              riwayatRespon { aksi alasan tanggal oleh { id namaLengkap } }
+              riwayatReview { status catatan tanggal oleh { id namaLengkap } }
+            }
+          }`,
+          { id },
+          getToken(ctx)
+        );
+        return (data as any).workOrder ?? null;
+      } catch (err: any) {
+        console.error('[workOrder] Rafli backend tidak tersedia:', err.message);
+        return null;
+      }
     },
 
-    getWorkOrdersByStatus: async (_, { status }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find({ status }).populate(WO_POPULATE as any).sort({ createdAt: -1 });
+    workOrdersByKoneksiData: async (_: any, { idKoneksiData }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      try {
+        const data = await rafliGraphQL(
+          `query WorkOrdersByKoneksiData($idKoneksiData: ID!) {
+            workOrdersByKoneksiData(idKoneksiData: $idKoneksiData) {
+              id idKoneksiData jenisPekerjaan status statusRespon statusTim createdAt updatedAt
+              teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+              tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+            }
+          }`,
+          { idKoneksiData },
+          getToken(ctx)
+        );
+        return (data as any).workOrdersByKoneksiData ?? [];
+      } catch (err: any) {
+        console.error('[workOrdersByKoneksiData] Rafli backend tidak tersedia:', err.message);
+        return [];
+      }
     },
 
-    getWorkOrdersByTeknisi: async (_, { idTeknisi }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find({ tim: idTeknisi }).populate(WO_POPULATE as any).sort({ createdAt: -1 });
+    workflowChain: async (_: any, { idKoneksiData }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      try {
+        const data = await rafliGraphQL(
+          `query WorkflowChain($idKoneksiData: ID!) {
+            workflowChain(idKoneksiData: $idKoneksiData) {
+              jenisPekerjaan chainStatus urutan bisaDibuat
+              workOrder {
+                id status statusRespon statusTim createdAt updatedAt
+                teknisiPenanggungJawab { id namaLengkap }
+              }
+            }
+          }`,
+          { idKoneksiData },
+          getToken(ctx)
+        );
+        return (data as any).workflowChain ?? [];
+      } catch (err: any) {
+        console.error('[workflowChain] Rafli backend tidak tersedia:', err.message);
+        return [];
+      }
     },
 
-    getPekerjaanTeknisi: async (_, { id }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.findById(id)
-        .populate('idSurvei').populate('rabId').populate('idPenyelesaianLaporan')
-        .populate('idPemasangan').populate('idPengawasanPemasangan').populate('idPengawasanSetelahPemasangan')
-        .populate('tim');
-    },
-
-    getAllPekerjaanTeknisi: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find().limit(500).populate('tim').sort({ createdAt: -1 });
-    },
-
-    getPekerjaanTeknisiByStatus: async (_, { status }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find({ status }).populate('tim').sort({ createdAt: -1 });
-    },
-
-    getPekerjaanTeknisiByTeknisi: async (_, { teknisiId }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find({ tim: teknisiId }).populate('tim').sort({ createdAt: -1 });
-    },
-
-    getPekerjaanTeknisiPendingApproval: async (_, __, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      return await PekerjaanTeknisi.find({ disetujui: null, status: 'DitinjauAdmin' }).populate('tim').sort({ createdAt: -1 });
+    cekPrerequisitePekerjaan: async (_: any, { idKoneksiData, jenisPekerjaan }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      try {
+        const data = await rafliGraphQL(
+          `query CekPrerequisite($idKoneksiData: ID!, $jenisPekerjaan: JenisPekerjaan!) {
+            cekPrerequisitePekerjaan(idKoneksiData: $idKoneksiData, jenisPekerjaan: $jenisPekerjaan)
+          }`,
+          { idKoneksiData, jenisPekerjaan },
+          getToken(ctx)
+        );
+        return (data as any).cekPrerequisitePekerjaan ?? false;
+      } catch (err: any) {
+        console.error('[cekPrerequisitePekerjaan] Rafli backend tidak tersedia:', err.message);
+        return false;
+      }
     },
   },
 
   Mutation: {
-    createWorkOrder: async (_, { input }) => {
-      const workOrder = new PekerjaanTeknisi({ ...input, status: 'Ditugaskan', disetujui: null });
-      const saved = await (await workOrder.save()).populate('tim');
-      await notifikasiSemuaAdmin('Work Order Baru Dibuat', 'Work order baru telah dibuat dan ditugaskan ke teknisi.', 'Informasi', '/operations/work-orders');
-      return saved;
+    buatWorkOrder: async (_: any, { input }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      const data = await rafliGraphQL(
+        `mutation BuatWorkOrder($input: BuatWorkOrderInput!) {
+          buatWorkOrder(input: $input) {
+            success message
+            workOrder {
+              id idKoneksiData jenisPekerjaan status statusRespon statusTim createdAt updatedAt
+              teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+              tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+            }
+          }
+        }`,
+        { input },
+        getToken(ctx)
+      );
+      return (data as any).buatWorkOrder;
     },
 
-    assignWorkOrder: async (_, { id, teknisiIds }) => {
-      return await PekerjaanTeknisi.findByIdAndUpdate(id, { tim: teknisiIds }, { new: true }).populate('tim');
+    reviewPenolakan: async (_: any, { input }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      const data = await rafliGraphQL(
+        `mutation ReviewPenolakan($input: ReviewPenolakanInput!) {
+          reviewPenolakan(input: $input) {
+            success message
+            workOrder { id status statusRespon riwayatRespon { aksi alasan tanggal oleh { id namaLengkap } } }
+          }
+        }`,
+        { input },
+        getToken(ctx)
+      );
+      return (data as any).reviewPenolakan;
     },
 
-    updateWorkOrderStatus: async (_, { id, status, catatan }) => {
-      const updated = await PekerjaanTeknisi.findByIdAndUpdate(id, { status, catatan }, { new: true }).populate('tim');
-      if (status === 'DitinjauAdmin') {
-        await notifikasiSemuaAdmin('Work Order Menunggu Peninjauan', 'Teknisi telah menyelesaikan pekerjaan dan membutuhkan persetujuan admin.', 'Peringatan', '/operations/work-orders');
-      }
-      return updated;
+    reviewTim: async (_: any, { input }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      const data = await rafliGraphQL(
+        `mutation ReviewTim($input: ReviewTimInput!) {
+          reviewTim(input: $input) {
+            success message
+            workOrder { id status statusTim tim { id namaLengkap } }
+          }
+        }`,
+        { input },
+        getToken(ctx)
+      );
+      return (data as any).reviewTim;
     },
 
-    approveWorkOrder: async (_, { id, disetujui, catatan }) => {
-      return await PekerjaanTeknisi.findByIdAndUpdate(id, { disetujui, catatan }, { new: true }).populate('tim');
+    reviewHasil: async (_: any, { input }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      const data = await rafliGraphQL(
+        `mutation ReviewHasil($input: ReviewHasilInput!) {
+          reviewHasil(input: $input) {
+            success message
+            workOrder { id status riwayatReview { status catatan tanggal oleh { id namaLengkap } } }
+          }
+        }`,
+        { input },
+        getToken(ctx)
+      );
+      return (data as any).reviewHasil;
+    },
+
+    batalkanWorkOrder: async (_: any, { id, catatan }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+      const data = await rafliGraphQL(
+        `mutation BatalkanWorkOrder($id: ID!, $catatan: String) {
+          batalkanWorkOrder(id: $id, catatan: $catatan) {
+            success message
+          }
+        }`,
+        { id, catatan },
+        getToken(ctx)
+      );
+      return (data as any).batalkanWorkOrder;
     },
   },
 };

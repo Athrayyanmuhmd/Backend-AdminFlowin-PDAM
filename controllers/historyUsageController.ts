@@ -344,18 +344,18 @@ export const getHistories = async (req, res) => {
       totalUsageToday[0].totalUsedWater >= 500
     ) {
       const existingNotification = await Notification.findOne({
-        userId,
-        judul: "Peringatan Penggunaan Air Berlebih!",
+        IdPelanggan: userId,
+        Judul: "Peringatan Penggunaan Air Berlebih!",
         createdAt: { $gte: todayUTC },
-        kategori: "Informasi",
+        Kategori: "PERINGATAN",
       });
 
       if (!existingNotification) {
         notification = new Notification({
-          userId,
-          judul: "Peringatan Penggunaan Air Berlebih!",
-          message: `Penggunaan air Anda hari ini telah mencapai ${totalUsageToday[0].totalUsedWater} liter. Harap hemat air!`,
-          kategori: "Informasi",
+          IdPelanggan: userId,
+          Judul: "Peringatan Penggunaan Air Berlebih!",
+          Pesan: `Penggunaan air Anda hari ini telah mencapai ${totalUsageToday[0].totalUsedWater} liter. Harap hemat air!`,
+          Kategori: "PERINGATAN",
         });
         await notification.save();
       }

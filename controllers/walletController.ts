@@ -97,10 +97,10 @@ export const convertConservasionToken = [
       wallet.conservationToken -= token;
 
       const notification = new Notification({
-        userId,
-        judul: "Konversi Token",
-        pesan: `Anda telah berhasil mengkonversi ${token} token konservasi menjadi Rp${convertedAmount}`,
-        kategori: "Transaksi",
+        IdPelanggan: userId,
+        Judul: "Konversi Token",
+        Pesan: `Anda telah berhasil mengkonversi ${token} token konservasi menjadi Rp${convertedAmount}`,
+        Kategori: "PEMBAYARAN",
       });
       await notification.save();
 

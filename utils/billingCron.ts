@@ -5,15 +5,24 @@ import Notification from '../models/Notification.js';
 import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
 
+// ─── Helper: format periode "YYYY-MM" ─────────────────────────────────────────
+
+const formatPeriode = (d: Date): string => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+};
+
 // ─── Helper: hitung tarif air ─────────────────────────────────────────────────
 
 const calculateWaterBill = (totalPemakaian: number, kelompok: any) => {
-  const hargaBawah = kelompok?.hargaDiBawah10mKubik ?? 1500;
-  const hargaAtas  = kelompok?.hargaDiAtas10mKubik  ?? 2000;
-  const biaya = totalPemakaian <= 10
-    ? totalPemakaian * hargaBawah
-    : 10 * hargaBawah + (totalPemakaian - 10) * hargaAtas;
-  const biayaBeban = kelompok?.biayaBeban ?? 5000;
+  const tarifRendah = kelompok?.TarifRendah ?? 1500;
+  const tarifTinggi = kelompok?.TarifTinggi ?? 2000;
+  const batasRendah = kelompok?.BatasRendah ?? 10;
+  const biaya = totalPemakaian <= batasRendah
+    ? totalPemakaian * tarifRendah
+    : batasRendah * tarifRendah + (totalPemakaian - batasRendah) * tarifTinggi;
+  const biayaBeban = kelompok?.BiayaBeban ?? 5000;
   return { biaya, biayaBeban, totalBiaya: biaya + biayaBeban };
 };
 
@@ -28,14 +37,13 @@ export const setupBillingCron = (): void => {
   cron.schedule('1 0 1 * *', async () => {
     logger.info('Running monthly billing generation...');
     try {
-      const now         = new Date();
-      const periodeDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      const periodeEnd  = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const now      = new Date();
+      const periode  = formatPeriode(now); // "YYYY-MM"
 
-      // Populate idKelompokPelanggan + idKoneksiData → idPelanggan (untuk userId Billing)
+      // Populate IdKelompokPelanggan + IdKoneksiData → IdPelanggan (untuk userId Billing)
       const meterans = await Meteran.find({ statusAktif: true })
-        .populate('idKelompokPelanggan')
-        .populate({ path: 'idKoneksiData', populate: { path: 'idPelanggan' } })
+        .populate('IdKelompokPelanggan')
+        .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } })
         .lean();
 
       let successCount = 0;
@@ -43,55 +51,91 @@ export const setupBillingCron = (): void => {
 
       for (const meteran of meterans) {
         try {
-          const koneksiData = (meteran as any).idKoneksiData;
-          const userId      = koneksiData?.idPelanggan?._id ?? null;
+          const koneksiData = (meteran as any).IdKoneksiData;
+          const userId      = koneksiData?.IdPelanggan?._id ?? null;
 
           // Skip jika billing periode ini sudah ada
           const existingBilling = await Billing.findOne({
-            idMeteran: meteran._id,
-            periode: { $gte: periodeDate, $lt: periodeEnd },
+            IdMeteran: meteran._id,
+            Periode: periode,
           });
           if (existingBilling) {
-            logger.info({ nomorMeteran: meteran.nomorMeteran }, 'Billing already exists, skipping');
+            logger.info({ NomorMeteran: (meteran as any).NomorMeteran }, 'Billing already exists, skipping');
             continue;
           }
 
-          const pemakaian = meteran.pemakaianBelumTerbayar ?? 0;
+          // Sync pemakaianBelumTerbayar: kurangi untuk tagihan yang sudah di-settle
+          // (kemungkinan dibayar Ahmad tanpa decrement field ini)
+          const settledUnaccounted = await Billing.find({
+            IdMeteran: meteran._id,
+            StatusPembayaran: 'settlement',
+            Catatan: { $not: /\[pemakaian_applied\]/ },
+          }).select('TotalPemakaian Catatan').lean();
+
+          if (settledUnaccounted.length > 0) {
+            const toDecrement = settledUnaccounted.reduce(
+              (sum: number, t: any) => sum + (t.TotalPemakaian ?? 0), 0
+            );
+            if (toDecrement > 0) {
+              await Meteran.findByIdAndUpdate(meteran._id, {
+                $inc: { pemakaianBelumTerbayar: -toDecrement },
+              });
+              // Tandai sudah di-sync agar tidak double-decrement
+              await Billing.updateMany(
+                { _id: { $in: settledUnaccounted.map((t: any) => t._id) } },
+                { $set: { Catatan: '[pemakaian_applied]' } }
+              );
+              // Reload nilai setelah sync
+              (meteran as any).pemakaianBelumTerbayar = Math.max(
+                0, ((meteran as any).pemakaianBelumTerbayar ?? 0) - toDecrement
+              );
+              logger.info(
+                { NomorMeteran: (meteran as any).NomorMeteran, toDecrement },
+                'Synced pemakaianBelumTerbayar from settled tagihans'
+              );
+            }
+          }
+
+          const pemakaian = (meteran as any).pemakaianBelumTerbayar ?? 0;
           if (pemakaian === 0) {
-            logger.info({ nomorMeteran: meteran.nomorMeteran }, 'No usage to bill, skipping');
+            logger.info({ NomorMeteran: (meteran as any).NomorMeteran }, 'No usage to bill, skipping');
             continue;
           }
 
-          const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian ?? 0) - pemakaian);
+          const totalPemakaian   = (meteran as any).totalPemakaian ?? 0;
+          const penggunaanSebelum = Math.max(0, totalPemakaian - pemakaian);
           const { biaya, biayaBeban, totalBiaya } = calculateWaterBill(
             pemakaian,
-            (meteran as any).idKelompokPelanggan
+            (meteran as any).IdKelompokPelanggan
           );
+
+          const tenggatWaktu = getDueDate();
 
           const billing = new Billing({
             userId,
-            idMeteran: meteran._id,
-            periode: periodeDate,
-            penggunaanSebelum,
-            penggunaanSekarang: meteran.totalPemakaian ?? 0,
-            totalPemakaian: pemakaian,
-            biaya,
-            biayaBeban,
-            totalBiaya,
-            statusPembayaran: 'Pending',
-            tenggatWaktu: getDueDate(),
-            menunggak: false,
+            IdMeteran: meteran._id,
+            Periode: periode,
+            PenggunaanSebelum: penggunaanSebelum,
+            PenggunaanSekarang: totalPemakaian,
+            TotalPemakaian: pemakaian,
+            Biaya: biaya,
+            BiayaBeban: biayaBeban,
+            TotalBiaya: totalBiaya,
+            StatusPembayaran: 'pending',
+            TenggatWaktu: tenggatWaktu,
+            Menunggak: false,
+            Denda: 0,
           });
           await billing.save();
 
           // Kirim notifikasi ke pelanggan jika ada userId
           if (userId) {
             await Notification.create({
-              idPelanggan: userId,
-              judul: 'Tagihan Air Baru',
-              pesan: `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${getDueDate().toLocaleDateString('id-ID')}`,
-              kategori: 'Pembayaran',
-              link: '/pembayaran',
+              IdPelanggan: userId,
+              Judul: 'Tagihan Air Baru',
+              Pesan: `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}`,
+              Kategori: 'PEMBAYARAN',
+              Link: '/pembayaran',
               isRead: false,
             }).catch((e: any) =>
               logger.error({ err: e }, 'Gagal kirim notifikasi billing baru')
@@ -99,9 +143,9 @@ export const setupBillingCron = (): void => {
           }
 
           successCount++;
-          logger.info({ nomorMeteran: meteran.nomorMeteran, totalBiaya }, 'Billing created');
+          logger.info({ NomorMeteran: (meteran as any).NomorMeteran, totalBiaya }, 'Billing created');
         } catch (error: any) {
-          logger.error({ err: error, nomorMeteran: meteran.nomorMeteran }, 'Gagal generate billing');
+          logger.error({ err: error, NomorMeteran: (meteran as any).NomorMeteran }, 'Gagal generate billing');
           failedCount++;
         }
       }
@@ -124,72 +168,71 @@ export const setupBillingCron = (): void => {
 const detectAndMergeTunggakan = async (): Promise<void> => {
   logger.info('Running tunggakan merge detection...');
   try {
-    // Ambil semua userId unik yang punya tagihan Pending
-    const userIds = await Billing.distinct('userId', { statusPembayaran: 'Pending' });
+    // Ambil semua userId unik yang punya tagihan PENDING
+    const userIds = await Billing.distinct('userId', { StatusPembayaran: 'pending' });
     let mergeCount = 0;
-    let flagCount  = 0;
 
     for (const userId of userIds) {
-      // Ambil semua tagihan Pending milik user, urut terlama dulu
+      // Ambil semua tagihan PENDING milik user, urut terlama dulu
       const pendingBillings = await Billing.find({
         userId,
-        statusPembayaran: 'Pending',
-        jenisBilling: { $ne: 'denda' },  // skip tagihan denda
-      }).sort({ periode: 1 }).lean();
+        StatusPembayaran: 'pending',
+        jenisBilling: { $ne: 'denda' },
+      }).sort({ Periode: 1 }).lean();
 
-      // Hanya proses jika ada tepat 3 atau lebih tagihan Pending berturut-turut
+      // Hanya proses jika ada tepat 3 atau lebih tagihan PENDING
       if (pendingBillings.length < 3) continue;
 
       // Ambil 2 tagihan terlama untuk digabung
       const billA = pendingBillings[0];
       const billB = pendingBillings[1];
 
-      // Skip jika sudah pernah di-merge (ada mergedIntoBillingId)
+      // Skip jika sudah pernah di-merge
       if ((billA as any).mergedIntoBillingId || (billB as any).mergedIntoBillingId) continue;
 
-      // Buat record tagihan gabungan
-      const periodeA = new Date(billA.periode);
-      const periodeB = new Date(billB.periode);
-      const catatanMerge = `Tagihan gabungan periode ${periodeA.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })} dan ${periodeB.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+      // Periode sebagai string "YYYY-MM" — format untuk catatan gabungan
+      const periodeAStr = String((billA as any).Periode || '');
+      const periodeBStr = String((billB as any).Periode || '');
+      const catatanMerge = `Tagihan gabungan periode ${periodeAStr} dan ${periodeBStr}`;
 
       const mergedBilling = await Billing.create({
-        userId:            billA.userId,
-        idMeteran:         billA.idMeteran,
-        periode:           billA.periode,
-        penggunaanSebelum: billA.penggunaanSebelum,
-        penggunaanSekarang: billB.penggunaanSekarang,
-        totalPemakaian:    billA.totalPemakaian + billB.totalPemakaian,
-        biaya:             billA.biaya + billB.biaya,
-        biayaBeban:        billA.biayaBeban + billB.biayaBeban,
-        totalBiaya:        billA.totalBiaya + billB.totalBiaya,
-        statusPembayaran:  'Pending',
-        tenggatWaktu:      billB.tenggatWaktu, // pakai tenggat bulan ke-2
-        menunggak:         true,
-        jenisBilling:      'normal',
-        isMergedBilling:   true,
-        bulanCakupan:      2,
-        mergedFromIds:     [billA._id, billB._id],
-        catatan:           catatanMerge,
+        userId:              (billA as any).userId,
+        IdMeteran:           (billA as any).IdMeteran,
+        Periode:             periodeAStr,
+        PenggunaanSebelum:   (billA as any).PenggunaanSebelum,
+        PenggunaanSekarang:  (billB as any).PenggunaanSekarang,
+        TotalPemakaian:      ((billA as any).TotalPemakaian || 0) + ((billB as any).TotalPemakaian || 0),
+        Biaya:               ((billA as any).Biaya || 0) + ((billB as any).Biaya || 0),
+        BiayaBeban:          ((billA as any).BiayaBeban || 0) + ((billB as any).BiayaBeban || 0),
+        TotalBiaya:          ((billA as any).TotalBiaya || 0) + ((billB as any).TotalBiaya || 0),
+        StatusPembayaran:    'pending',
+        TenggatWaktu:        (billB as any).TenggatWaktu,
+        Menunggak:           true,
+        Denda:               0,
+        jenisBilling:        'normal',
+        isMergedBilling:     true,
+        bulanCakupan:        2,
+        mergedFromIds:       [billA._id, billB._id],
+        Catatan:             catatanMerge,
       });
 
-      // Tandai 2 tagihan lama sebagai 'Merged'
+      // Tandai 2 tagihan lama sebagai 'MERGED'
       await Billing.updateMany(
         { _id: { $in: [billA._id, billB._id] } },
-        { $set: { statusPembayaran: 'Merged', mergedIntoBillingId: mergedBilling._id } }
+        { $set: { StatusPembayaran: 'merged', mergedIntoBillingId: mergedBilling._id } }
       );
 
       mergeCount++;
-      flagCount++;
 
       // Kirim notifikasi ke semua admin: pelanggan ini perlu pemutusan
       const admins = await AdminAccount.find({}, '_id').lean();
       if (admins.length > 0) {
         const adminNotifs = admins.map((admin: any) => ({
-          idAdmin: admin._id,
-          judul: 'Pelanggan Perlu Pemutusan',
-          pesan: `Pelanggan dengan ID ${userId} telah menunggak 3 bulan berturut-turut. Tagihan bulan 1 dan 2 telah digabungkan. Silakan lakukan pemutusan.`,
-          kategori: 'Peringatan',
-          link: '/billing/pemutusan',
+          IdAdmin: admin._id,
+          Judul: 'Pelanggan Perlu Pemutusan',
+          Pesan: `Pelanggan dengan ID ${userId} telah menunggak 3 bulan berturut-turut. Tagihan bulan 1 dan 2 telah digabungkan. Silakan lakukan pemutusan.`,
+          Kategori: 'PERINGATAN',
+          Link: '/billing/pemutusan',
           isRead: false,
         }));
         await Notification.insertMany(adminNotifs, { ordered: false }).catch((e: any) =>
@@ -198,7 +241,7 @@ const detectAndMergeTunggakan = async (): Promise<void> => {
       }
     }
 
-    logger.info({ mergeCount, flagCount }, 'Tunggakan merge detection completed');
+    logger.info({ mergeCount }, 'Tunggakan merge detection completed');
   } catch (error) {
     logger.error({ err: error }, 'Error in tunggakan merge detection');
   }
@@ -212,28 +255,27 @@ export const setupOverdueCron = (): void => {
     try {
       const now = new Date();
 
-      // Bulk update — pakai field yang benar: statusPembayaran, tenggatWaktu, menunggak
       const overdueResult = await Billing.updateMany(
-        { statusPembayaran: 'Pending', tenggatWaktu: { $lt: now }, menunggak: false },
-        { $set: { menunggak: true } }
+        { StatusPembayaran: 'pending', TenggatWaktu: { $lt: now }, Menunggak: false },
+        { $set: { Menunggak: true } }
       );
       const updatedCount = overdueResult.modifiedCount;
 
       if (updatedCount > 0) {
         const overdueBillings = await Billing.find({
-          statusPembayaran: 'Pending',
-          menunggak: true,
-          tenggatWaktu: { $lt: now },
+          StatusPembayaran: 'pending',
+          Menunggak: true,
+          TenggatWaktu: { $lt: now },
           updatedAt: { $gte: new Date(Date.now() - 60_000) },
-        }).select('userId periode').lean();
+        }).select('userId Periode').lean();
 
         if (overdueBillings.length > 0) {
           const notifs = overdueBillings.map((b: any) => ({
-            idPelanggan: b.userId,
-            judul: 'Tagihan Terlambat',
-            pesan: `Tagihan air periode ${b.periode} telah melewati jatuh tempo. Segera lakukan pembayaran.`,
-            kategori: 'Peringatan',
-            link: '/pembayaran',
+            IdPelanggan: b.userId,
+            Judul: 'Tagihan Terlambat',
+            Pesan: `Tagihan air periode ${b.Periode} telah melewati jatuh tempo. Segera lakukan pembayaran.`,
+            Kategori: 'PERINGATAN',
+            Link: '/pembayaran',
             isRead: false,
           }));
           await Notification.insertMany(notifs, { ordered: false }).catch((e: any) =>
@@ -257,14 +299,13 @@ export const setupReminderCron = (): void => {
   cron.schedule('0 8 * * *', async () => {
     logger.info('Running billing reminder check...');
     try {
-      const now           = new Date();
+      const now            = new Date();
       const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
-      // Pakai tenggatWaktu (bukan dueDate), statusPembayaran (bukan isPaid)
       const upcomingBillings = await Billing.find({
-        statusPembayaran: 'Pending',
-        tenggatWaktu: { $gte: now, $lte: threeDaysLater },
-      }).populate('userId', 'namaLengkap').lean();
+        StatusPembayaran: 'pending',
+        TenggatWaktu: { $gte: now, $lte: threeDaysLater },
+      }).lean();
 
       let reminderCount = 0;
 
@@ -272,27 +313,27 @@ export const setupReminderCron = (): void => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const userId = (billing as any).userId?._id ?? billing.userId;
+        const userId = (billing as any).userId;
         if (!userId) continue;
 
         const existingReminder = await Notification.findOne({
-          idPelanggan: userId,
-          judul: 'Pengingat Jatuh Tempo',
+          IdPelanggan: userId,
+          Judul: 'Pengingat Jatuh Tempo',
           createdAt: { $gte: today },
         });
 
         if (!existingReminder) {
-          const tenggatWaktu = (billing as any).tenggatWaktu;
+          const tenggatWaktu = (billing as any).TenggatWaktu;
           const daysUntilDue = Math.ceil(
             (new Date(tenggatWaktu).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
           );
 
           await Notification.create({
-            idPelanggan: userId,
-            judul: 'Pengingat Jatuh Tempo',
-            pesan: `Tagihan air sebesar Rp${(billing as any).totalBiaya.toLocaleString('id-ID')} akan jatuh tempo dalam ${daysUntilDue} hari (${new Date(tenggatWaktu).toLocaleDateString('id-ID')}). Segera lakukan pembayaran.`,
-            kategori: 'Informasi',
-            link: '/pembayaran',
+            IdPelanggan: userId,
+            Judul: 'Pengingat Jatuh Tempo',
+            Pesan: `Tagihan air sebesar Rp${((billing as any).TotalBiaya || 0).toLocaleString('id-ID')} akan jatuh tempo dalam ${daysUntilDue} hari (${new Date(tenggatWaktu).toLocaleDateString('id-ID')}). Segera lakukan pembayaran.`,
+            Kategori: 'INFORMASI',
+            Link: '/pembayaran',
             isRead: false,
           }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi reminder'));
 

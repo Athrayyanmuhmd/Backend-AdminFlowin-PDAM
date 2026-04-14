@@ -96,11 +96,11 @@ export const changePassword = [
 
         // Create notification for password change
         const passwordNotification = new Notification({
-          userId: id,
-          judul: "Kata Sandi Diubah",
-          pesan: "Kata sandi akun Anda telah berhasil diubah.",
-          kategori: "Informasi",
-          link: `/profile/${id}`,
+          IdPelanggan: id,
+          Judul: "Kata Sandi Diubah",
+          Pesan: "Kata sandi akun Anda telah berhasil diubah.",
+          Kategori: "INFORMASI",
+          Link: `/profile/${id}`,
         });
 
         await passwordNotification.save();
@@ -191,11 +191,11 @@ export const editProfile = [
 
       // Create notification for profile update
       const profileNotification = new Notification({
-        userId: id,
-        judul: "Profil Diperbarui",
-        pesan: "Profil akun Anda telah berhasil diperbarui.",
-        kategori: "Informasi",
-        link: `/profile/${id}`,
+        IdPelanggan: id,
+        Judul: "Profil Diperbarui",
+        Pesan: "Profil akun Anda telah berhasil diperbarui.",
+        Kategori: "INFORMASI",
+        Link: `/profile/${id}`,
       });
 
       await profileNotification.save();
@@ -254,10 +254,10 @@ export const loginUser = async (req, res, next) => {
 
               // Create a notification for successful login
               const loginNotification = new Notification({
-                userId: user._id,
-                judul: "Login Berhasil",
-                pesan: "Anda telah berhasil masuk ke akun Anda.",
-                kategori: "Informasi",
+                IdPelanggan: user._id,
+                Judul: "Login Berhasil",
+                Pesan: "Anda telah berhasil masuk ke akun Anda.",
+                Kategori: "INFORMASI",
               });
 
               await loginNotification.save();
@@ -313,10 +313,10 @@ export const loginByGoogle = async (req, res) => {
 
       // Create a notification for successful login
       const loginNotification = new Notification({
-        userId: existingUser._id,
-        judul: "Login Berhasil",
-        pesan: "Anda telah berhasil masuk ke akun Anda.",
-        kategori: "Informasi",
+        IdPelanggan: existingUser._id,
+        Judul: "Login Berhasil",
+        Pesan: "Anda telah berhasil masuk ke akun Anda.",
+        Kategori: "INFORMASI",
       });
 
       await loginNotification.save();
@@ -388,10 +388,10 @@ export const registerByGoogle = async (req, res) => {
     newUser.set("token", token);
 
     const registerNotification = new Notification({
-      userId: newUser._id,
-      judul: "Login Berhasil",
-      pesan: "Anda telah berhasil masuk ke akun Anda.",
-      kategori: "Informasi",
+      IdPelanggan: newUser._id,
+      Judul: "Login Berhasil",
+      Pesan: "Anda telah berhasil masuk ke akun Anda.",
+      Kategori: "INFORMASI",
     });
     await Promise.all([
       newUser.save({ session }),
@@ -444,10 +444,10 @@ export const logoutUser = [
 
       // Create a notification for logout
       const logoutNotification = new Notification({
-        userId,
-        judul: "Logout Berhasil",
-        pesan: "Anda telah berhasil keluar dari akun Anda.",
-        kategori: "Informasi",
+        IdPelanggan: userId,
+        Judul: "Logout Berhasil",
+        Pesan: "Anda telah berhasil keluar dari akun Anda.",
+        Kategori: "INFORMASI",
       });
 
       await logoutNotification.save();

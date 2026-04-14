@@ -152,15 +152,15 @@ export const generateMonthlyBilling = async (req, res) => {
 
         // Create notification
         const notification = new Notification({
-          userId: meteran.userId._id,
-          judul: "Tagihan Air Baru",
-          message: `Tagihan air untuk periode ${currentPeriode} sebesar Rp${totalBiaya.toLocaleString(
+          IdPelanggan: meteran.userId._id,
+          Judul: "Tagihan Air Baru",
+          Pesan: `Tagihan air untuk periode ${currentPeriode} sebesar Rp${totalBiaya.toLocaleString(
             "id-ID"
           )}. Total pemakaian: ${totalPemakaian} m³. Jatuh tempo: ${getDueDate().toLocaleDateString(
             "id-ID"
           )}`,
-          kategori: "Transaksi",
-          link: `/pembayaran`,
+          Kategori: "PEMBAYARAN",
+          Link: `/pembayaran`,
         });
 
         await notification.save();
@@ -287,15 +287,15 @@ export const generateBillingForMeter = async (req, res) => {
 
     // Create notification
     const notification = new Notification({
-      userId: meteran.userId._id,
-      judul: "Tagihan Air Baru",
-      message: `Tagihan air untuk periode ${currentPeriode} sebesar Rp${totalBiaya.toLocaleString(
+      IdPelanggan: meteran.userId._id,
+      Judul: "Tagihan Air Baru",
+      Pesan: `Tagihan air untuk periode ${currentPeriode} sebesar Rp${totalBiaya.toLocaleString(
         "id-ID"
       )}. Total pemakaian: ${totalPemakaian} m³. Jatuh tempo: ${getDueDate().toLocaleDateString(
         "id-ID"
       )}`,
-      kategori: "Transaksi",
-      link: `/pembayaran`,
+      Kategori: "PEMBAYARAN",
+      Link: `/pembayaran`,
     });
 
     await notification.save();
@@ -524,17 +524,17 @@ export const payBilling = async (req, res) => {
 
     // Create notification
     const notification = new Notification({
-      userId,
-      judul: "Pembayaran Berhasil",
-      message: `Pembayaran tagihan air periode ${
+      IdPelanggan: userId,
+      Judul: "Pembayaran Berhasil",
+      Pesan: `Pembayaran tagihan air periode ${
         billing.periode
       } sebesar Rp${totalPaid.toLocaleString("id-ID")}${
         denda > 0
           ? ` (termasuk denda keterlambatan Rp${denda.toLocaleString("id-ID")})`
           : ""
       } telah berhasil`,
-      kategori: "Transaksi",
-      link: `/riwayat-tagihan`,
+      Kategori: "PEMBAYARAN",
+      Link: `/riwayat-tagihan`,
     });
 
     await notification.save();
@@ -629,17 +629,17 @@ export const payAllBilling = async (req, res) => {
 
     // Create notification
     const notification = new Notification({
-      userId,
-      judul: "Pembayaran Berhasil",
-      message: `Pembayaran ${
+      IdPelanggan: userId,
+      Judul: "Pembayaran Berhasil",
+      Pesan: `Pembayaran ${
         unpaidBillings.length
       } tagihan air berhasil! Total: Rp${totalPaid.toLocaleString("id-ID")}${
         totalDenda > 0
           ? ` (termasuk denda Rp${totalDenda.toLocaleString("id-ID")})`
           : ""
       }`,
-      kategori: "Transaksi",
-      link: `/riwayat-tagihan`,
+      Kategori: "PEMBAYARAN",
+      Link: `/riwayat-tagihan`,
     });
 
     await notification.save();
@@ -1017,9 +1017,9 @@ export const updatePaymentStatus = async (req, res) => {
 
     // Create notification
     const notification = new Notification({
-      userId: billing.userId,
-      judul: statusPembayaran ? "Pembayaran Berhasil" : "Status Pembayaran Diubah",
-      pesan: statusPembayaran
+      IdPelanggan: billing.userId,
+      Judul: statusPembayaran ? "Pembayaran Berhasil" : "Status Pembayaran Diubah",
+      Pesan: statusPembayaran
         ? `Pembayaran tagihan air periode ${
             billing.periode
           } sebesar Rp${billing.totalBiaya.toLocaleString("id-ID")}${
@@ -1028,8 +1028,8 @@ export const updatePaymentStatus = async (req, res) => {
               : ""
           } telah berhasil`
         : `Status pembayaran tagihan air periode ${billing.periode} telah diubah`,
-      kategori: "Transaksi",
-      link: statusPembayaran ? `/riwayat-tagihan` : `/pembayaran`,
+      Kategori: "PEMBAYARAN",
+      Link: statusPembayaran ? `/riwayat-tagihan` : `/pembayaran`,
     });
 
     await notification.save();
@@ -1066,15 +1066,15 @@ export const updateOverdueStatus = async (req, res) => {
 
       // Send overdue notification
       const notification = new Notification({
-        userId: billing.userId,
-        judul: "Tagihan Terlambat",
-        message: `Tagihan air periode ${
+        IdPelanggan: billing.userId,
+        Judul: "Tagihan Terlambat",
+        Pesan: `Tagihan air periode ${
           billing.periode
         } sebesar Rp${billing.totalBiaya.toLocaleString(
           "id-ID"
         )} telah melewati jatuh tempo. Segera lakukan pembayaran untuk menghindari denda.`,
-        kategori: "Peringatan",
-        link: `/pembayaran`,
+        Kategori: "PERINGATAN",
+        Link: `/pembayaran`,
       });
 
       await notification.save();

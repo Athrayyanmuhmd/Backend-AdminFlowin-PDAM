@@ -25,6 +25,7 @@ export const authResolvers = {
       return { token, admin: { ...admin.toObject(), token } };
     },
 
+    // Login teknisi ke admin panel — pakai Technician model lokal (bukan Rafli)
     loginTechnician: async (_, { email, password }) => {
       const teknisi = await Technician.findOne({ email });
       if (!teknisi) throw new Error('Email atau kata sandi salah.');
@@ -50,25 +51,6 @@ export const authResolvers = {
       verifyAdminToken(token);
       return await AdminAccount.find().limit(500);
     },
-
-    getTeknisi: async (_, { id }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      const tek = await Technician.findById(id);
-      if (!tek) return null;
-      return { ...tek.toObject(), createdAt: tek.createdAt?.toISOString(), updatedAt: tek.updatedAt?.toISOString() };
-    },
-
-    getAllTeknisi: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      const list = await Technician.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
-      return list.map(tek => ({ ...tek.toObject(), createdAt: tek.createdAt?.toISOString(), updatedAt: tek.updatedAt?.toISOString() }));
-    },
-
-    getTeknisiByDivisi: async (_, { divisi }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
-      const list = await Technician.find({ divisi });
-      return list.map(tek => ({ ...tek.toObject(), createdAt: tek.createdAt?.toISOString(), updatedAt: tek.updatedAt?.toISOString() }));
-    },
   },
 
   Mutation: {
@@ -82,7 +64,13 @@ export const authResolvers = {
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({ ...input, password: hashedPassword });
       const saved = await admin.save();
-      await catatAuditLog({ token, aksi: 'ADMIN_CREATE', resource: 'Admin', resourceId: saved._id, nilaiAfter: { NIP: input.NIP, namaLengkap: input.namaLengkap, email: input.email } });
+      await catatAuditLog({
+        token,
+        aksi: 'ADMIN_CREATE',
+        resource: 'Admin',
+        resourceId: saved._id,
+        nilaiAfter: { NIP: input.NIP, namaLengkap: input.namaLengkap, email: input.email },
+      });
       return saved;
     },
 
@@ -90,35 +78,27 @@ export const authResolvers = {
       verifyAdminToken(token);
       if (input.password) input.password = await bcrypt.hash(input.password, 10);
       const updated = await AdminAccount.findByIdAndUpdate(id, input, { new: true });
-      await catatAuditLog({ token, aksi: 'ADMIN_UPDATE', resource: 'Admin', resourceId: id, nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email } });
+      await catatAuditLog({
+        token,
+        aksi: 'ADMIN_UPDATE',
+        resource: 'Admin',
+        resourceId: id,
+        nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email },
+      });
       return updated;
     },
 
     deleteAdmin: async (_, { id }, { token }) => {
       const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
-      await catatAuditLog({ token, aksi: 'ADMIN_DELETE', resource: 'Admin', resourceId: id, nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email } : null });
-      return { success: true, message: 'Admin deleted successfully' };
-    },
-
-    createTeknisi: async (_, { input }, { token }) => {
-      verifyAdminToken(token);
-      if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
-      validatePassword(input.password);
-      validatePhone(input.noHP);
-      const existing = await Technician.findOne({ email: input.email });
-      if (existing) throw new Error('Email sudah terdaftar');
-      const hashedPassword = await bcrypt.hash(input.password, 10);
-      return await new Technician({ ...input, password: hashedPassword }).save();
-    },
-
-    updateTeknisi: async (_, { id, input }) => {
-      return await Technician.findByIdAndUpdate(id, input, { new: true });
-    },
-
-    deleteTeknisi: async (_, { id }) => {
-      await Technician.findByIdAndDelete(id);
-      return { success: true, message: 'Teknisi deleted successfully' };
+      await catatAuditLog({
+        token,
+        aksi: 'ADMIN_DELETE',
+        resource: 'Admin',
+        resourceId: id,
+        nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email } : null,
+      });
+      return { success: true, message: 'Admin berhasil dihapus' };
     },
 
     logoutAdmin: async (_, __, { token }) => {

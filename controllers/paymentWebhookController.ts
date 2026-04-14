@@ -6,6 +6,7 @@ import RabConnection from "../models/RabConnection.js";
 import Notification from "../models/Notification.js";
 import Meteran from "../models/Meteran.js";
 import User from "../models/User.js";
+import KoneksiData from "../models/ConnectionData.js";
 
 // ─── Helper: cek dan reaktivasi pelanggan jika semua tagihan lunas ────────────
 async function checkAndReactivateUser(userId: any): Promise<void> {
@@ -13,18 +14,19 @@ async function checkAndReactivateUser(userId: any): Promise<void> {
   const user = await User.findById(userId);
   if (!user || user.accountStatus !== 'inactive') return;
 
-  const sisaPending = await Billing.countDocuments({ userId, statusPembayaran: 'Pending' });
+  // Field PascalCase sesuai Billing model
+  const sisaPending = await Billing.countDocuments({ userId, StatusPembayaran: 'pending' });
   if (sisaPending > 0) return;
 
   user.accountStatus = 'active';
   await user.save();
 
   await Notification.create({
-    idPelanggan: userId,
-    judul: 'ID Pelanggan Aktif Kembali',
-    pesan: 'Semua tunggakan telah dilunasi. ID pelanggan Anda kini aktif kembali.',
-    kategori: 'Transaksi',
-    link: '/riwayat-tagihan',
+    IdPelanggan: userId,
+    Judul: 'Akun Aktif Kembali',
+    Pesan: 'Semua tunggakan telah dilunasi. Akun Anda kini aktif kembali.',
+    Kategori: 'INFORMASI',
+    Link: '/tagihan',
     isRead: false,
   }).catch(() => {});
 }
@@ -59,10 +61,7 @@ export const handlePaymentWebhook = async (req, res) => {
       fraud_status,
     });
 
-    console.log(
-      // Full payload logged at debug level
-      JSON.stringify(notification, null, 2)
-    );
+    console.log(JSON.stringify(notification, null, 2));
 
     // Verify signature from Midtrans
     const serverKey = process.env.MIDTRANS_SERVER_KEY;
@@ -71,14 +70,8 @@ export const handlePaymentWebhook = async (req, res) => {
       return res.status(500).json({ status: "error", pesan: "Server configuration error" });
     }
 
-    // Build signature string: order_id + status_code + gross_amount + serverKey
     const signatureString = `${order_id}${status_code}${gross_amount}${serverKey}`;
-    const hash = crypto
-      .createHash("sha512")
-      .update(signatureString)
-      .digest("hex");
-
-    // Use timing-safe comparison to prevent timing attacks
+    const hash = crypto.createHash("sha512").update(signatureString).digest("hex");
     const hashBuffer = Buffer.from(hash, 'hex');
     const sigBuffer = Buffer.from(signature_key || '', 'hex');
     const signaturesMatch = hashBuffer.length === sigBuffer.length &&
@@ -86,47 +79,27 @@ export const handlePaymentWebhook = async (req, res) => {
 
     if (!signaturesMatch) {
       console.error("❌ Invalid signature from Midtrans", { order_id, status_code });
-      return res.status(403).json({
-        status: "error",
-        pesan: "Invalid signature",
-      });
+      return res.status(403).json({ status: "error", pesan: "Invalid signature" });
     }
 
     console.log("✅ Signature verified:", order_id);
 
-    // Tentukan tipe pembayaran berdasarkan order_id
     if (order_id.startsWith("RAB-")) {
-      // Handle RAB Payment
       await handleRABPayment(order_id, transaction_status, notification);
     } else if (order_id.startsWith("BILLING-MULTI-")) {
-      // Handle Multiple Billing Payment
-      await handleMultipleBillingPayment(
-        order_id,
-        transaction_status,
-        notification
-      );
+      await handleMultipleBillingPayment(order_id, transaction_status, notification);
     } else if (order_id.startsWith("BILLING-")) {
-      // Handle Single Billing Payment
       await handleBillingPayment(order_id, transaction_status, notification);
     } else {
-      console.error("❌ Unknown order_id format:", order_id);
-      return res.status(400).json({
-        status: "error",
-        pesan: "Unknown order_id format",
-      });
+      // Order format dari Ahmad (FLOWIN-*) atau sistem lain — abaikan dengan graceful
+      console.log("⚠️ Unknown order_id format, skipping:", order_id);
+      return res.status(200).json({ status: "ok", pesan: "Order ID format not handled by this webhook" });
     }
 
-    // Send success response to Midtrans
-    res.status(200).json({
-      status: "success",
-      pesan: "Notification processed successfully",
-    });
+    res.status(200).json({ status: "success", pesan: "Notification processed successfully" });
   } catch (error) {
     console.error("❌ Error processing webhook:", error);
-    res.status(500).json({
-      status: "error",
-      pesan: "Internal server error",
-    });
+    res.status(500).json({ status: "error", pesan: "Internal server error" });
   }
 };
 
@@ -136,252 +109,131 @@ export const handlePaymentWebhook = async (req, res) => {
  */
 async function handleRABPayment(orderId, transactionStatus, notification) {
   try {
-    // Extract RAB ID from order_id
-    // Format lama: RAB-{rabId}
-    // Format baru: RAB-{rabId}-{timestamp}
     const parts = orderId.split("-");
-    const rabId = parts[1]; // Ambil part kedua yang merupakan rabId
+    const rabId = parts[1];
 
-    console.log(
-      `🔍 Processing RAB payment for rabId: ${rabId} (order_id: ${orderId})`
-    );
+    console.log(`🔍 Processing RAB payment for rabId: ${rabId} (order_id: ${orderId})`);
 
-    const rab = await RabConnection.findById(rabId).populate("userId");
-
+    // RabConnection tidak memiliki userId — ambil via idKoneksiData → IdPelanggan
+    const rab = await RabConnection.findById(rabId);
     if (!rab) {
       console.error("❌ RAB not found:", rabId);
       return;
     }
 
-    console.log(`📋 Current RAB status:`, {
-      rabId: rab._id,
-      isPaid: rab.isPaid,
-      totalBiaya: rab.totalBiaya,
-      userId: rab.userId._id,
-    });
+    // Ambil userId dari koneksiData
+    let pelangganId: any = null;
+    if (rab.idKoneksiData) {
+      const koneksi = await KoneksiData.findById(rab.idKoneksiData).select('IdPelanggan');
+      pelangganId = koneksi?.IdPelanggan ?? null;
+    }
 
-    let updateData = {};
+    console.log(`📋 Current RAB status: rabId=${rab._id}, statusPembayaran=${rab.statusPembayaran}`);
+    console.log(`📊 Transaction status received: "${transactionStatus}"`);
+
     let notificationTitle = "";
     let notificationMessage = "";
 
-    console.log(`📊 Transaction status received: "${transactionStatus}"`);
-
     switch (transactionStatus) {
       case "settlement":
-        console.log("� Processing SETTLEMENT status...");
-        updateData = {
-          isPaid: true,
-        };
-        notificationTitle = "✅ Pembayaran RAB Berhasil";
-        notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString(
-          "id-ID"
-        )} telah berhasil. Pemasangan akan segera dijadwalkan.`;
-        console.log("✅ SETTLEMENT status, will update isPaid to true");
-        break;
-
-      case "capture":
-        console.log("� Processing CAPTURE status...");
-        if (notification.fraud_status === "accept") {
-          notificationTitle = "✅ Pembayaran RAB Berhasil (Capture)";
-          notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(
-            notification.gross_amount
-          ).toLocaleString(
-            "id-ID"
-          )} telah berhasil (captured). Menunggu settlement.`;
-          console.log(
-            "✅ CAPTURE accepted, but will NOT update isPaid (waiting for settlement)"
-          );
-        } else {
-          console.log(
-            `⚠️ CAPTURE but fraud_status is: ${notification.fraud_status}`
-          );
+      case "capture": {
+        if (transactionStatus === "capture" && notification.fraud_status !== "accept") {
+          console.log(`⚠️ CAPTURE but fraud_status is: ${notification.fraud_status}`);
+          return;
         }
-        // Tidak update isPaid, tunggu settlement
-        console.log(
-          "⚠️ Status CAPTURE - no database update, waiting for settlement"
-        );
-        return;
+        // Field RAB model pakai camelCase: statusPembayaran
+        await RabConnection.findByIdAndUpdate(rabId, { statusPembayaran: 'settlement' }, { new: true });
+        notificationTitle = 'Pembayaran RAB Berhasil';
+        notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Pemasangan akan segera dijadwalkan.`;
+        console.log(`✅ RAB status updated to settlement`);
+        break;
+      }
 
       case "pending":
-        console.log("⏳ Processing PENDING status...");
-        notificationTitle = "⏳ Pembayaran RAB Pending";
-        notificationMessage = `Pembayaran RAB sedang diproses. Mohon selesaikan pembayaran Anda.`;
-        // Tidak update isPaid untuk pending
-        console.log("⚠️ Status PENDING - no database update");
+        console.log("⏳ RAB payment pending, no DB update");
         return;
 
       case "deny":
       case "cancel":
       case "expire":
-        console.log(`❌ Processing FAILED status: ${transactionStatus}`);
-        notificationTitle = "❌ Pembayaran RAB Gagal";
-        notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString("id-ID")} gagal atau dibatalkan. Silakan coba lagi.`;
-        // Tidak update isPaid untuk failed status, biarkan tetap false
-        console.log(
-          "⚠️ Status FAILED - no database update, isPaid remains false"
-        );
-        return;
+        notificationTitle = 'Pembayaran RAB Gagal';
+        notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} gagal atau dibatalkan. Silakan coba lagi.`;
+        break;
 
       default:
         console.log("⚠️ Unhandled transaction status:", transactionStatus);
-        console.log("⚠️ Will not update RAB status");
         return;
     }
 
-    // Check if updateData has any fields
-    if (Object.keys(updateData).length === 0) {
-      console.error("❌ No update data to apply!");
-      return;
-    }
-
-    // Update RAB
-    console.log(`🔄 Updating RAB ${rabId} with data:`, updateData);
-
-    try {
-      // Method 1: Update dengan findByIdAndUpdate
-      const updatedRab = await RabConnection.findByIdAndUpdate(
-        rabId,
-        updateData,
-        {
-          new: true, // Return updated document
-          runValidators: true, // Run schema validators
-        }
-      );
-
-      if (!updatedRab) {
-        console.error(
-          `❌ Failed to update RAB: ${rabId} - Document not found after update`
-        );
-        throw new Error(`RAB ${rabId} not found after update`);
-      }
-
-      console.log(`✅ RAB updated successfully:`, {
-        rabId: updatedRab._id.toString(),
-        isPaid: updatedRab.isPaid,
-        wasChanged: updatedRab.isPaid !== rab.isPaid,
-        oldValue: rab.isPaid,
-        newValue: updatedRab.isPaid,
-      });
-
-      // Verify update dengan re-fetch
-      const verifyRab = await RabConnection.findById(rabId);
-      console.log(
-        `🔍 Verification - RAB isPaid after update:`,
-        verifyRab?.isPaid
-      );
-
-      if (verifyRab?.isPaid !== updateData.isPaid) {
-        console.error(
-          `❌ CRITICAL: Update verification failed! Expected: ${updateData.isPaid}, Got: ${verifyRab?.isPaid}`
-        );
-      } else {
-        console.log(`✅ Update verified successfully!`);
-      }
-    } catch (updateError) {
-      console.error(`❌ Error updating RAB:`, updateError);
-      throw updateError;
-    }
-
-    // Create notification for user
-    if (notificationTitle && notificationMessage) {
+    // Kirim notifikasi ke pelanggan — field PascalCase sesuai Notification model & Ahmad
+    if (notificationTitle && pelangganId) {
       await Notification.create({
-        idPelanggan: rab.userId._id,
-        judul: notificationTitle,
-        pesan: notificationMessage,
-        kategori: 'Transaksi',
-        link: '/koneksi-rab',
+        IdPelanggan: pelangganId,
+        Judul: notificationTitle,
+        Pesan: notificationMessage,
+        Kategori: 'PEMBAYARAN',
+        Link: '/connection-data',
         isRead: false,
-      });
-      console.log(`📬 Notification created for user: ${rab.userId._id}`);
+      }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi RAB'));
     }
 
-    console.log(
-      `✅ RAB payment webhook processing completed: ${rabId} - Status: ${transactionStatus} - Final isPaid: ${updateData.isPaid}`
-    );
+    console.log(`✅ RAB payment webhook processing completed: ${rabId} - Status: ${transactionStatus}`);
   } catch (error) {
     logger.error({ err: error }, "RAB payment webhook error");
-    console.error("Error stack:", error.stack);
     throw error;
   }
 }
 
 /**
- * Handle Billing payment webhook
+ * Handle single Billing payment webhook
+ * Order ID format: BILLING-{billingId}
  */
 async function handleBillingPayment(orderId, transactionStatus, notification) {
   try {
-    // Extract Billing ID from order_id (format: BILLING-{billingId})
     const billingId = orderId.replace("BILLING-", "");
 
+    // Populate: userId (camelCase OK), IdMeteran (PascalCase sesuai Billing model)
     const billing = await Billing.findById(billingId)
       .populate("userId")
-      .populate("idMeteran");
+      .populate("IdMeteran");
 
     if (!billing) {
       console.error("❌ Billing not found:", billingId);
       return;
     }
 
-    let updateData = {};
+    let updateData: any = {};
     let notificationTitle = "";
     let notificationMessage = "";
     let shouldResetMeteran = false;
 
     switch (transactionStatus) {
       case "capture":
-        if (notification.fraud_status === "accept") {
-          updateData = {
-            statusPembayaran: "Settlement",
-            tanggalPembayaran: new Date(),
-            metodePembayaran: notification.payment_type,
-            catatan: `Dibayar via ${
-              notification.payment_type
-            } pada ${new Date().toLocaleString("id-ID")}`,
-          };
-          notificationTitle = "💧 Pembayaran Tagihan Air Berhasil";
-          notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(
-            notification.gross_amount
-          ).toLocaleString("id-ID")} untuk periode ${
-            billing.periode
-          } telah berhasil. Terima kasih!`;
-          shouldResetMeteran = true;
-        }
-        break;
-
+        if (notification.fraud_status !== "accept") break;
+        // fallthrough intentional
       case "settlement":
+        // Field names PascalCase sesuai Billing model
         updateData = {
-          statusPembayaran: "Settlement",
-          tanggalPembayaran: new Date(),
-          metodePembayaran: notification.payment_type,
-          catatan: `Dibayar via ${
-            notification.payment_type
-          } pada ${new Date().toLocaleString("id-ID")}`,
+          StatusPembayaran: 'settlement',
+          TanggalPembayaran: new Date(),
+          MetodePembayaran: notification.payment_type,
+          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')}`,
         };
-        notificationTitle = "💧 Pembayaran Tagihan Air Berhasil";
-        notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString("id-ID")} untuk periode ${
-          billing.periode
-        } telah berhasil. Terima kasih!`;
+        notificationTitle = 'Pembayaran Tagihan Air Berhasil';
+        notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} untuk periode ${(billing as any).Periode} telah berhasil. Terima kasih!`;
         shouldResetMeteran = true;
         break;
 
       case "pending":
-        notificationTitle = "⏳ Pembayaran Tagihan Pending";
-        notificationMessage = `Pembayaran tagihan air sedang diproses. Mohon selesaikan pembayaran Anda.`;
+        notificationTitle = 'Pembayaran Tagihan Sedang Diproses';
+        notificationMessage = 'Pembayaran tagihan air sedang diproses. Mohon selesaikan pembayaran Anda.';
         break;
 
       case "deny":
       case "cancel":
       case "expire":
-        notificationTitle = "❌ Pembayaran Tagihan Gagal";
-        notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString("id-ID")} gagal atau dibatalkan. Silakan coba lagi.`;
+        notificationTitle = 'Pembayaran Tagihan Gagal';
+        notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} gagal atau dibatalkan. Silakan coba lagi.`;
         break;
 
       default:
@@ -389,48 +241,42 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
         return;
     }
 
-    // Update Billing
     if (Object.keys(updateData).length > 0) {
       await Billing.findByIdAndUpdate(billingId, updateData);
     }
 
-    // Reset meteran pemakaianBelumTerbayar jika pembayaran berhasil
-    if (shouldResetMeteran && billing.idMeteran) {
-      const meteran = await Meteran.findById(billing.idMeteran._id);
+    // Kurangi pemakaianBelumTerbayar — field IdMeteran PascalCase sesuai Billing model
+    if (shouldResetMeteran && (billing as any).IdMeteran) {
+      const meteranId = (billing as any).IdMeteran._id ?? (billing as any).IdMeteran;
+      const meteran = await Meteran.findById(meteranId);
       if (meteran) {
-        // KURANGI pemakaianBelumTerbayar sesuai billing yang dibayar
-        // Bukan reset ke 0 karena mungkin ada tagihan lain yang belum dibayar
         meteran.pemakaianBelumTerbayar = Math.max(
           0,
-          meteran.pemakaianBelumTerbayar - billing.totalPemakaian
+          (meteran.pemakaianBelumTerbayar ?? 0) - ((billing as any).TotalPemakaian ?? 0)
         );
         await meteran.save();
-        console.log(
-          `✅ Kurangi pemakaianBelumTerbayar untuk meteran: ${billing.idMeteran._id} (${billing.totalPemakaian} m³)`
-        );
+        console.log(`✅ pemakaianBelumTerbayar dikurangi: ${(billing as any).TotalPemakaian} m³`);
       }
     }
 
-    // Create notification for user
-    if (notificationTitle && notificationMessage) {
+    // Kirim notifikasi ke pelanggan — field PascalCase sesuai Notification model & Ahmad
+    const pelangganId = (billing as any).userId?._id ?? (billing as any).userId;
+    if (notificationTitle && pelangganId) {
       await Notification.create({
-        idPelanggan: billing.userId._id,
-        judul: notificationTitle,
-        pesan: notificationMessage,
-        kategori: 'Transaksi',
-        link: '/riwayat-tagihan',
+        IdPelanggan: pelangganId,
+        Judul: notificationTitle,
+        Pesan: notificationMessage,
+        Kategori: 'PEMBAYARAN',
+        Link: '/tagihan',
         isRead: false,
-      });
+      }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi billing'));
     }
 
-    // Cek reaktivasi otomatis jika user inactive dan semua tagihan sudah lunas
     if (shouldResetMeteran) {
-      await checkAndReactivateUser(billing.userId._id);
+      await checkAndReactivateUser(pelangganId);
     }
 
-    console.log(
-      `✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`
-    );
+    console.log(`✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`);
   } catch (error) {
     logger.error({ err: error }, "Billing payment webhook error");
     throw error;
@@ -441,87 +287,55 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
  * Handle Multiple Billing payment webhook
  * Order ID format: BILLING-MULTI-{userId}-{timestamp}
  */
-async function handleMultipleBillingPayment(
-  orderId,
-  transactionStatus,
-  notification
-) {
+async function handleMultipleBillingPayment(orderId, transactionStatus, notification) {
   try {
-    // Extract userId from order_id (format: BILLING-MULTI-{userId}-{timestamp})
     const parts = orderId.split("-");
     const userId = parts[2];
 
     console.log(`📋 Processing multiple billing payment for user: ${userId}`);
 
-    // Get all unpaid billings for this user
+    // Filter PascalCase sesuai Billing model
     const unpaidBillings = await Billing.find({
-      userId: userId,
-      statusPembayaran: { $ne: "Settlement" },
-    }).populate("idMeteran");
+      userId,
+      StatusPembayaran: { $nin: ['settlement', 'merged'] },
+    }).populate("IdMeteran");
 
     if (unpaidBillings.length === 0) {
       console.error("❌ No unpaid billings found for user:", userId);
       return;
     }
 
-    let updateData = {};
+    let updateData: any = {};
     let notificationTitle = "";
     let notificationMessage = "";
     let shouldUpdateMeteran = false;
 
     switch (transactionStatus) {
       case "capture":
-        if (notification.fraud_status === "accept") {
-          updateData = {
-            statusPembayaran: "Settlement",
-            tanggalPembayaran: new Date(),
-            metodePembayaran: notification.payment_type,
-            catatan: `Dibayar via ${
-              notification.payment_type
-            } pada ${new Date().toLocaleString("id-ID")}`,
-          };
-          notificationTitle = "💧 Pembayaran Semua Tagihan Berhasil";
-          notificationMessage = `Pembayaran ${
-            unpaidBillings.length
-          } tagihan air sebesar Rp${parseFloat(
-            notification.gross_amount
-          ).toLocaleString("id-ID")} telah berhasil. Terima kasih!`;
-          shouldUpdateMeteran = true;
-        }
-        break;
-
+        if (notification.fraud_status !== "accept") break;
+        // fallthrough intentional
       case "settlement":
         updateData = {
-          statusPembayaran: "Settlement",
-          tanggalPembayaran: new Date(),
-          metodePembayaran: notification.payment_type,
-          catatan: `Dibayar via ${
-            notification.payment_type
-          } pada ${new Date().toLocaleString("id-ID")}`,
+          StatusPembayaran: 'settlement',
+          TanggalPembayaran: new Date(),
+          MetodePembayaran: notification.payment_type,
+          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')}`,
         };
-        notificationTitle = "💧 Pembayaran Semua Tagihan Berhasil";
-        notificationMessage = `Pembayaran ${
-          unpaidBillings.length
-        } tagihan air sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString("id-ID")} telah berhasil. Terima kasih!`;
+        notificationTitle = 'Pembayaran Semua Tagihan Berhasil';
+        notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Terima kasih!`;
         shouldUpdateMeteran = true;
         break;
 
       case "pending":
-        notificationTitle = "⏳ Pembayaran Tagihan Pending";
+        notificationTitle = 'Pembayaran Tagihan Sedang Diproses';
         notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sedang diproses. Mohon selesaikan pembayaran Anda.`;
         break;
 
       case "deny":
       case "cancel":
       case "expire":
-        notificationTitle = "❌ Pembayaran Tagihan Gagal";
-        notificationMessage = `Pembayaran ${
-          unpaidBillings.length
-        } tagihan air sebesar Rp${parseFloat(
-          notification.gross_amount
-        ).toLocaleString("id-ID")} gagal atau dibatalkan. Silakan coba lagi.`;
+        notificationTitle = 'Pembayaran Tagihan Gagal';
+        notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} gagal atau dibatalkan. Silakan coba lagi.`;
         break;
 
       default:
@@ -529,52 +343,58 @@ async function handleMultipleBillingPayment(
         return;
     }
 
-    // Update all unpaid billings
     if (Object.keys(updateData).length > 0) {
-      let totalPemakaian = 0;
+      // Group by meteran untuk kurangi pemakaianBelumTerbayar
+      const meteranTotalMap = new Map<string, number>();
 
       for (const billing of unpaidBillings) {
         await Billing.findByIdAndUpdate(billing._id, updateData);
-        totalPemakaian += billing.totalPemakaian;
-        console.log(`✅ Updated billing: ${billing._id} (${billing.periode})`);
+
+        if (shouldUpdateMeteran) {
+          // Field IdMeteran PascalCase sesuai Billing model
+          const meteranId = ((billing as any).IdMeteran?._id ?? (billing as any).IdMeteran)?.toString();
+          if (meteranId) {
+            meteranTotalMap.set(
+              meteranId,
+              (meteranTotalMap.get(meteranId) ?? 0) + ((billing as any).TotalPemakaian ?? 0)
+            );
+          }
+        }
       }
 
-      // Update meteran - kurangi pemakaianBelumTerbayar sesuai total usage yang dibayar
-      if (shouldUpdateMeteran && unpaidBillings[0].meteranId) {
-        const meteran = await Meteran.findById(unpaidBillings[0].meteranId._id);
-        if (meteran) {
-          meteran.pemakaianBelumTerbayar = Math.max(
-            0,
-            meteran.pemakaianBelumTerbayar - totalPemakaian
-          );
-          await meteran.save();
-          console.log(
-            `✅ Kurangi pemakaianBelumTerbayar untuk meteran: ${unpaidBillings[0].meteranId._id} (${totalPemakaian} m³)`
-          );
+      // Kurangi pemakaianBelumTerbayar per meteran
+      if (shouldUpdateMeteran) {
+        for (const [meteranId, totalPemakaian] of meteranTotalMap.entries()) {
+          const meteran = await Meteran.findById(meteranId);
+          if (meteran) {
+            meteran.pemakaianBelumTerbayar = Math.max(
+              0,
+              (meteran.pemakaianBelumTerbayar ?? 0) - totalPemakaian
+            );
+            await meteran.save();
+            console.log(`✅ pemakaianBelumTerbayar dikurangi: meteran=${meteranId}, total=${totalPemakaian} m³`);
+          }
         }
       }
     }
 
-    // Create notification for user
-    if (notificationTitle && notificationMessage) {
+    // Kirim notifikasi ke pelanggan — field PascalCase sesuai Notification model & Ahmad
+    if (notificationTitle && userId) {
       await Notification.create({
-        idPelanggan: userId,
-        judul: notificationTitle,
-        pesan: notificationMessage,
-        kategori: 'Transaksi',
-        link: '/riwayat-tagihan',
+        IdPelanggan: userId,
+        Judul: notificationTitle,
+        Pesan: notificationMessage,
+        Kategori: 'PEMBAYARAN',
+        Link: '/tagihan',
         isRead: false,
-      });
+      }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi multi-billing'));
     }
 
-    // Cek reaktivasi otomatis jika user inactive dan semua tagihan sudah lunas
     if (shouldUpdateMeteran) {
       await checkAndReactivateUser(userId);
     }
 
-    console.log(
-      `✅ Multiple billing payment updated for user ${userId}: ${unpaidBillings.length} bills - Status: ${transactionStatus}`
-    );
+    console.log(`✅ Multiple billing payment updated for user ${userId}: ${unpaidBillings.length} bills - Status: ${transactionStatus}`);
   } catch (error) {
     logger.error({ err: error }, "Multi-billing payment webhook error");
     throw error;

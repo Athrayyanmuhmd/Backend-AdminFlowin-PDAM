@@ -1,75 +1,72 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
-export type StatusVerifikasiKoneksi = 'Menunggu' | 'Disetujui' | 'Ditolak';
+// Disesuaikan dengan Ahmad (flowin-backend/KoneksiData.ts) & Rafli (DataConnection.ts)
+// Collection: koneksidatas — shared across all three systems
+// Field names PascalCase untuk FK agar sinkron dengan Ahmad & Rafli
+
+export type StatusPengajuan = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export interface IConnectionData {
-  idPelanggan?: Types.ObjectId | null;
-  statusVerifikasi?: StatusVerifikasiKoneksi;
-  NIK?: string | null;
-  NIKUrl?: string | null;
-  noKK?: string | null;
-  KKUrl?: string | null;
-  IMB?: string | null;
-  IMBUrl?: string | null;
-  alamat?: string | null;
-  kelurahan?: string | null;
-  kecamatan?: string | null;
-  luasBangunan?: number | null;
+  IdPelanggan: Types.ObjectId;
+  StatusPengajuan: StatusPengajuan;
+  AlasanPenolakan?: string | null;
+  TanggalVerifikasi?: Date | null;
+  NIK: string;
+  NIKUrl: string;
+  NoKK: string;
+  KKUrl: string;
+  IMB: string;
+  IMBUrl: string;
+  Alamat: string;
+  Kelurahan: string;
+  Kecamatan: string;
+  LuasBangunan: number;
+  // Field eksklusif admin (tidak ada di Ahmad/Rafli)
   catatan?: string | null;
-  alasanPenolakan?: string | null;
-  tanggalVerifikasi?: Date | null;
-  idTeknisi?: Types.ObjectId | null;
-  assignedAt?: Date | null;
-  assignedBy?: Types.ObjectId | null;
 }
 
 export interface IConnectionDataDocument extends IConnectionData, Document {}
 
 const KoneksiDataSchema = new Schema<IConnectionData>(
   {
-    idPelanggan: {
+    IdPelanggan: {
       type: Schema.Types.ObjectId,
       ref: 'Pengguna',
-      default: null,
+      required: [true, 'ID Pelanggan wajib diisi'],
+      index: true,
     },
-    statusVerifikasi: {
+    StatusPengajuan: {
       type: String,
-      enum: ['Menunggu', 'Disetujui', 'Ditolak'],
-      default: 'Menunggu',
+      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+      default: 'PENDING',
     },
-    NIK: { type: String, default: null },
-    NIKUrl: { type: String, default: null },
-    noKK: { type: String, default: null },
-    KKUrl: { type: String, default: null },
-    IMB: { type: String, default: null },
-    IMBUrl: { type: String, default: null },
-    alamat: { type: String, default: null },
-    kelurahan: { type: String, default: null },
-    kecamatan: { type: String, default: null },
-    luasBangunan: { type: Number, default: null },
+    AlasanPenolakan: { type: String, default: null },
+    TanggalVerifikasi: { type: Date, default: null },
+    NIK: {
+      type: String,
+      required: [true, 'NIK wajib diisi'],
+      unique: true,
+      trim: true,
+    },
+    NIKUrl: { type: String, required: [true, 'NIK URL wajib diisi'] },
+    NoKK: { type: String, required: [true, 'No KK wajib diisi'], trim: true },
+    KKUrl: { type: String, required: [true, 'KK URL wajib diisi'] },
+    IMB: { type: String, required: [true, 'IMB wajib diisi'], trim: true },
+    IMBUrl: { type: String, required: [true, 'IMB URL wajib diisi'] },
+    Alamat: { type: String, required: [true, 'Alamat wajib diisi'] },
+    Kelurahan: { type: String, required: [true, 'Kelurahan wajib diisi'] },
+    Kecamatan: { type: String, required: [true, 'Kecamatan wajib diisi'] },
+    LuasBangunan: { type: Number, required: [true, 'Luas Bangunan wajib diisi'] },
     catatan: { type: String, default: null },
-    alasanPenolakan: { type: String, default: null },
-    tanggalVerifikasi: { type: Date, default: null },
-    idTeknisi: {
-      type: Schema.Types.ObjectId,
-      ref: 'Teknisi',
-      default: null,
-    },
-    assignedAt: { type: Date, default: null },
-    assignedBy: {
-      type: Schema.Types.ObjectId,
-      ref: 'AdminAccount',
-      default: null,
-    },
   },
   {
     timestamps: true,
     collection: 'koneksidatas',
+    strict: false, // Agar field format lama (camelCase dari Ahmad) bisa dibaca
   }
 );
 
-KoneksiDataSchema.index({ idPelanggan: 1 });
-KoneksiDataSchema.index({ statusVerifikasi: 1, createdAt: -1 });
-KoneksiDataSchema.index({ idTeknisi: 1 });
+KoneksiDataSchema.index({ StatusPengajuan: 1, createdAt: -1 });
 
-export default model<IConnectionData>('ConnectionData', KoneksiDataSchema);
+// Model name 'KoneksiData' — sama dengan Ahmad & Rafli
+export default model<IConnectionData>('KoneksiData', KoneksiDataSchema);

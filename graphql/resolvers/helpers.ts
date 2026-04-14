@@ -72,16 +72,40 @@ export async function notifikasiSemuaAdmin(
   try {
     const admins = await AdminAccount.find({}, '_id');
     const notifs = admins.map((admin) => ({
-      idAdmin: admin._id,
-      judul,
-      pesan,
-      kategori,
-      link,
+      IdAdmin: admin._id,
+      Judul: judul,
+      Pesan: pesan,
+      Kategori: kategori,
+      Link: link,
       isRead: false,
     }));
     if (notifs.length > 0) await Notification.insertMany(notifs);
   } catch (err) {
     logger.error({ err }, 'Gagal kirim notifikasi admin');
+  }
+}
+
+// Kirim notifikasi ke pelanggan (user Ahmad) — menulis ke koleksi notifikasis
+// yang dibaca Ahmad via query { IdPelanggan: userId }
+// Kategori harus 'INFORMASI' atau 'PEMBAYARAN' (sesuai enum Ahmad)
+export async function notifikasiUntukPelanggan(
+  idPelanggan: string,
+  judul: string,
+  pesan: string,
+  kategori: 'INFORMASI' | 'PEMBAYARAN' = 'INFORMASI',
+  link: string | null = null,
+) {
+  try {
+    await Notification.create({
+      IdPelanggan: idPelanggan,
+      Judul: judul,
+      Pesan: pesan,
+      Kategori: kategori,
+      Link: link,
+      isRead: false,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Gagal kirim notifikasi pelanggan');
   }
 }
 

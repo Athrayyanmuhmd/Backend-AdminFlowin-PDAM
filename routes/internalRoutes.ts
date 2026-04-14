@@ -3,6 +3,7 @@ import { verifyInternalSecret } from '../middleware/internalAuth.js';
 import ConnectionData from '../models/ConnectionData.js';
 import SurveyData from '../models/SurveyData.js';
 import PekerjaanTeknisi from '../models/PekerjaanTeknisi.js';
+import RabConnection from '../models/RabConnection.js';
 import Technician from '../models/Technician.js';
 import { notifikasiSemuaAdmin } from '../graphql/resolvers/helpers.js';
 import logger from '../utils/logger.js';
@@ -14,6 +15,9 @@ const router = Router();
  *
  * Dipanggil oleh backend Rafli (flowin-teknisi-graphql) saat teknisi
  * telah menyelesaikan survei lapangan dan mengisi data survei.
+ *
+ * CATATAN: PekerjaanTeknisi (WorkOrder) dibuat dan dikelola oleh Rafli.
+ * Route ini hanya mengirim notifikasi ke admin — TIDAK membuat PekerjaanTeknisi baru.
  *
  * Body:
  *   koneksiDataId  — ID dokumen KoneksiData yang disurvei
@@ -32,7 +36,7 @@ router.post('/survei-selesai', verifyInternalSecret, async (req: Request, res: R
   }
 
   try {
-    const koneksi = await ConnectionData.findById(koneksiDataId).populate('idPelanggan');
+    const koneksi = await ConnectionData.findById(koneksiDataId).populate('IdPelanggan');
     if (!koneksi) {
       res.status(404).json({ success: false, message: 'Data koneksi tidak ditemukan' });
       return;
@@ -45,7 +49,7 @@ router.post('/survei-selesai', verifyInternalSecret, async (req: Request, res: R
     }
 
     // Cari survei yang terkait dengan koneksi ini
-    let survei = surveiId
+    const survei = surveiId
       ? await SurveyData.findById(surveiId)
       : await SurveyData.findOne({ idKoneksiData: koneksiDataId });
 
@@ -54,42 +58,31 @@ router.post('/survei-selesai', verifyInternalSecret, async (req: Request, res: R
       return;
     }
 
-    // Buat atau update PekerjaanTeknisi untuk survei ini
-    let wo = await PekerjaanTeknisi.findOne({ idSurvei: survei._id });
-    if (!wo) {
-      wo = new PekerjaanTeknisi({
-        idSurvei: survei._id,
-        tim: [teknisiId],
-        status: 'DitinjauAdmin',
-        disetujui: null,
-        catatan: catatan || null,
-      });
-      await wo.save();
-    } else {
-      // Update ke DitinjauAdmin agar admin bisa review
-      wo.status = 'DitinjauAdmin';
-      if (catatan) wo.catatan = catatan;
-      await wo.save();
-    }
+    // Cari PekerjaanTeknisi yang sudah dibuat oleh Rafli (jika ada)
+    const wo = await PekerjaanTeknisi.findOne({
+      idKoneksiData: koneksiDataId,
+      jenisPekerjaan: 'survei',
+      idSurvei: survei._id,
+    });
 
     // Notify admin
-    const pelangganNama = (koneksi.idPelanggan as any)?.namaLengkap || 'Pelanggan';
+    const pelangganNama = (koneksi.IdPelanggan as any)?.namaLengkap || 'Pelanggan';
     await notifikasiSemuaAdmin(
       'Survei Lapangan Selesai',
-      `Teknisi ${teknisi.namaLengkap} telah menyelesaikan survei lapangan untuk pengajuan atas nama ${pelangganNama}. Silakan review dan setujui work order survei.`,
-      'Informasi',
+      `Teknisi ${teknisi.namaLengkap} telah menyelesaikan survei lapangan untuk pengajuan atas nama ${pelangganNama}.${catatan ? ` Catatan: ${catatan}` : ''} Silakan review hasil survei.`,
+      'INFORMASI',
       `/operations/connection-data/${koneksiDataId}`,
     );
 
-    logger.info({ koneksiDataId, teknisiId, surveiId: survei._id, woId: wo._id }, 'Survei selesai dari backend Rafli');
+    logger.info({ koneksiDataId, teknisiId, surveiId: survei._id, woId: wo?._id }, 'Survei selesai dari backend Rafli');
 
     res.status(200).json({
       success: true,
-      message: 'Survei selesai dicatat. Work order menunggu persetujuan admin.',
+      message: 'Survei selesai dicatat. Notifikasi dikirim ke admin.',
       data: {
         surveiId: survei._id,
-        woId: wo._id,
-        status: wo.status,
+        woId: wo?._id || null,
+        status: wo?.status || null,
       },
     });
   } catch (err) {
@@ -103,10 +96,13 @@ router.post('/survei-selesai', verifyInternalSecret, async (req: Request, res: R
  *
  * Dipanggil oleh backend Rafli saat teknisi telah selesai membuat dokumen DED/RAB.
  *
+ * CATATAN: PekerjaanTeknisi (WorkOrder) dibuat dan dikelola oleh Rafli.
+ * Route ini hanya mengirim notifikasi ke admin — TIDAK membuat PekerjaanTeknisi baru.
+ *
  * Body:
  *   koneksiDataId — ID dokumen KoneksiData
  *   teknisiId     — ID teknisi
- *   rabId         — ID RabConnection yang sudah dibuat
+ *   rabId         — ID RAB (RabConnection) yang sudah dibuat
  *   catatan       — Catatan dari teknisi (opsional)
  */
 router.post('/rab-selesai', verifyInternalSecret, async (req: Request, res: Response) => {
@@ -118,7 +114,7 @@ router.post('/rab-selesai', verifyInternalSecret, async (req: Request, res: Resp
   }
 
   try {
-    const koneksi = await ConnectionData.findById(koneksiDataId).populate('idPelanggan');
+    const koneksi = await ConnectionData.findById(koneksiDataId).populate('IdPelanggan');
     if (!koneksi) {
       res.status(404).json({ success: false, message: 'Data koneksi tidak ditemukan' });
       return;
@@ -130,40 +126,36 @@ router.post('/rab-selesai', verifyInternalSecret, async (req: Request, res: Resp
       return;
     }
 
-    // Buat atau update PekerjaanTeknisi untuk RAB ini
-    let wo = await PekerjaanTeknisi.findOne({ rabId });
-    if (!wo) {
-      wo = new PekerjaanTeknisi({
-        rabId,
-        tim: [teknisiId],
-        status: 'DitinjauAdmin',
-        disetujui: null,
-        catatan: catatan || null,
-      });
-      await wo.save();
-    } else {
-      wo.status = 'DitinjauAdmin';
-      if (catatan) wo.catatan = catatan;
-      await wo.save();
+    const rab = await RabConnection.findById(rabId);
+    if (!rab) {
+      res.status(404).json({ success: false, message: 'Dokumen RAB tidak ditemukan' });
+      return;
     }
 
-    const pelangganNama = (koneksi.idPelanggan as any)?.namaLengkap || 'Pelanggan';
+    // Cari PekerjaanTeknisi yang sudah dibuat oleh Rafli (jika ada)
+    const wo = await PekerjaanTeknisi.findOne({
+      idKoneksiData: koneksiDataId,
+      jenisPekerjaan: 'rab',
+      idRAB: rabId,
+    });
+
+    const pelangganNama = (koneksi.IdPelanggan as any)?.namaLengkap || 'Pelanggan';
     await notifikasiSemuaAdmin(
       'Dokumen DED/RAB Selesai',
-      `Teknisi ${teknisi.namaLengkap} telah menyelesaikan dokumen DED/RAB untuk pengajuan atas nama ${pelangganNama}. Silakan review dan setujui work order RAB.`,
-      'Informasi',
+      `Teknisi ${teknisi.namaLengkap} telah menyelesaikan dokumen DED/RAB untuk pengajuan atas nama ${pelangganNama}.${catatan ? ` Catatan: ${catatan}` : ''} Silakan review dan setujui.`,
+      'INFORMASI',
       `/operations/connection-data/${koneksiDataId}`,
     );
 
-    logger.info({ koneksiDataId, teknisiId, rabId, woId: wo._id }, 'RAB selesai dari backend Rafli');
+    logger.info({ koneksiDataId, teknisiId, rabId, woId: wo?._id }, 'RAB selesai dari backend Rafli');
 
     res.status(200).json({
       success: true,
-      message: 'Dokumen RAB selesai dicatat. Work order menunggu persetujuan admin.',
+      message: 'Dokumen RAB selesai dicatat. Notifikasi dikirim ke admin.',
       data: {
         rabId,
-        woId: wo._id,
-        status: wo.status,
+        woId: wo?._id || null,
+        status: wo?.status || null,
       },
     });
   } catch (err) {

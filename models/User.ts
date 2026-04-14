@@ -21,6 +21,10 @@ export interface IUser extends MongooseTimestamps {
   iotConnectionId?: Types.ObjectId | null;
   isIoTConnected?: boolean;
   isVerified?: boolean;
+  // Ahmad fields — Google Auth
+  googleId?: string | null;
+  profilePicture?: string | null;
+  authProvider?: 'email' | 'google';
 }
 
 export interface IUserDocument extends IUser, Document {}
@@ -87,7 +91,7 @@ const UsersSchema = new Schema<IUser>(
     },
     SambunganDataId: {
       type: Schema.Types.ObjectId,
-      ref: 'ConnectionData',
+      ref: 'KoneksiData',
       default: null,
     },
     meteranId: {
@@ -107,6 +111,21 @@ const UsersSchema = new Schema<IUser>(
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    googleId: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+    },
+    profilePicture: {
+      type: String,
+      default: null,
+    },
+    authProvider: {
+      type: String,
+      enum: ['email', 'google'],
+      default: 'email',
     },
   },
   {

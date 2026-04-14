@@ -1,111 +1,50 @@
 import { gql } from 'graphql-tag';
 
-export const pemasanganTypeDefs = gql`
-  type DetailPemasangan {
-    diameterPipa: Float
-    lokasiPemasangan: String
-    koordinat: Geolocation
-    materialDigunakan: [String!]
-  }
+// Disesuaikan dengan Rafli (flowin-teknisi-graphql)
+// Semua model hanya punya field minimal — teknisi mengisi via app mereka
 
+export const pemasanganTypeDefs = gql`
+  # ─── Pemasangan (Rafli: idKoneksiData + 5 optional fields) ─────────────────
   type Pemasangan {
     _id: ID!
-    idKoneksiData: KoneksiData!
-    seriMeteran: String!
-    fotoRumah: String!
-    fotoMeteran: String!
-    fotoMeteranDanRumah: String!
+    idKoneksiData: KoneksiData
+    seriMeteran: String
+    fotoRumah: String
+    fotoMeteran: String
+    fotoMeteranDanRumah: String
     catatan: String
-    teknisiId: Teknisi!
-    tanggalPemasangan: String
-    statusVerifikasi: String!
-    diverifikasiOleh: Admin
-    tanggalVerifikasi: String
-    detailPemasangan: DetailPemasangan
     createdAt: String
     updatedAt: String
   }
 
-  type ChecklistPengawasan {
-    kualitasSambunganPipa: String
-    posisiMeteran: String
-    kebersihanPemasangan: String
-    kepatuhanK3: String
-  }
-
+  # ─── PengawasanPemasangan (Rafli: idPemasangan + urlGambar + catatan) ──────
   type PengawasanPemasangan {
     _id: ID!
-    idPemasangan: Pemasangan!
-    urlGambar: [String!]!
-    catatan: String!
-    supervisorId: Teknisi!
-    tanggalPengawasan: String
-    hasilPengawasan: String!
-    temuan: [String!]
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistPengawasan
+    idPemasangan: Pemasangan
+    urlGambar: [String]
+    catatan: String
     createdAt: String
     updatedAt: String
   }
 
-  type ChecklistSetelahPemasangan {
-    meteranBacaCorrect: Boolean
-    tidakAdaKebocoran: Boolean
-    sambunganAman: Boolean
-    mudahDibaca: Boolean
-    pelangganPuas: Boolean
-    dokumentasiLengkap: Boolean
-  }
-
-  type FeedbackPelanggan {
-    rating: Int
-    komentar: String
-  }
-
+  # ─── PengawasanSetelahPemasangan (Rafli: idPemasangan + urlGambar + catatan)
   type PengawasanSetelahPemasangan {
     _id: ID!
-    idPemasangan: Pemasangan!
-    urlGambar: [String!]!
-    catatan: String!
-    supervisorId: Teknisi!
-    tanggalPengawasan: String
-    hariSetelahPemasangan: Int
-    hasilPengawasan: String!
-    statusMeteran: String!
-    bacaanAwal: Float
-    masalahDitemukan: [String!]
-    tindakan: String
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistSetelahPemasangan
-    feedbackPelanggan: FeedbackPelanggan
+    idPemasangan: Pemasangan
+    urlGambar: [String]
+    catatan: String
     createdAt: String
     updatedAt: String
   }
 
-  type AverageRatingResult {
-    avgRating: Float!
-    count: Int!
-  }
-
-  input DetailPemasanganInput {
-    diameterPipa: Float
-    lokasiPemasangan: String
-    koordinat: GeolocationInput
-    materialDigunakan: [String!]
-  }
-
+  # ─── Inputs ────────────────────────────────────────────────────────────────
   input CreatePemasanganInput {
     idKoneksiData: ID!
-    seriMeteran: String!
-    fotoRumah: String!
-    fotoMeteran: String!
-    fotoMeteranDanRumah: String!
+    seriMeteran: String
+    fotoRumah: String
+    fotoMeteran: String
+    fotoMeteranDanRumah: String
     catatan: String
-    teknisiId: ID!
-    tanggalPemasangan: String
-    detailPemasangan: DetailPemasanganInput
   }
 
   input UpdatePemasanganInput {
@@ -114,114 +53,48 @@ export const pemasanganTypeDefs = gql`
     fotoMeteran: String
     fotoMeteranDanRumah: String
     catatan: String
-    teknisiId: ID
-    statusVerifikasi: String
-    detailPemasangan: DetailPemasanganInput
-  }
-
-  input ChecklistPengawasanInput {
-    kualitasSambunganPipa: String
-    posisiMeteran: String
-    kebersihanPemasangan: String
-    kepatuhanK3: String
   }
 
   input CreatePengawasanPemasanganInput {
     idPemasangan: ID!
-    urlGambar: [String!]!
-    catatan: String!
-    supervisorId: ID!
-    tanggalPengawasan: String
-    hasilPengawasan: String!
-    temuan: [String!]
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistPengawasanInput
+    urlGambar: [String]
+    catatan: String
   }
 
   input UpdatePengawasanPemasanganInput {
-    urlGambar: [String!]
+    urlGambar: [String]
     catatan: String
-    supervisorId: ID
-    tanggalPengawasan: String
-    hasilPengawasan: String
-    temuan: [String!]
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistPengawasanInput
-  }
-
-  input ChecklistSetelahPemasanganInput {
-    meteranBacaCorrect: Boolean
-    tidakAdaKebocoran: Boolean
-    sambunganAman: Boolean
-    mudahDibaca: Boolean
-    pelangganPuas: Boolean
-    dokumentasiLengkap: Boolean
-  }
-
-  input FeedbackPelangganInput {
-    rating: Int
-    komentar: String
   }
 
   input CreatePengawasanSetelahPemasanganInput {
     idPemasangan: ID!
-    urlGambar: [String!]!
-    catatan: String!
-    supervisorId: ID!
-    tanggalPengawasan: String
-    hasilPengawasan: String!
-    statusMeteran: String!
-    bacaanAwal: Float
-    masalahDitemukan: [String!]
-    tindakan: String
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistSetelahPemasanganInput
-    feedbackPelanggan: FeedbackPelangganInput
+    urlGambar: [String]
+    catatan: String
   }
 
   input UpdatePengawasanSetelahPemasanganInput {
-    urlGambar: [String!]
+    urlGambar: [String]
     catatan: String
-    supervisorId: ID
-    tanggalPengawasan: String
-    hasilPengawasan: String
-    statusMeteran: String
-    bacaanAwal: Float
-    masalahDitemukan: [String!]
-    tindakan: String
-    rekomendasi: String
-    perluTindakLanjut: Boolean
-    checklist: ChecklistSetelahPemasanganInput
-    feedbackPelanggan: FeedbackPelangganInput
   }
 
+  # ─── Queries ───────────────────────────────────────────────────────────────
   extend type Query {
     getPemasangan(id: ID!): Pemasangan
     getPemasanganByKoneksiData(idKoneksiData: ID!): Pemasangan
-    getPemasanganByTeknisi(teknisiId: ID!): [Pemasangan!]!
-    getPemasanganByStatus(statusVerifikasi: String!): [Pemasangan!]!
     getAllPemasangan: [Pemasangan!]!
     getPengawasanPemasangan(id: ID!): PengawasanPemasangan
     getPengawasanPemasanganByPemasangan(idPemasangan: ID!): [PengawasanPemasangan!]!
-    getPengawasanPemasanganBySupervisor(supervisorId: ID!): [PengawasanPemasangan!]!
-    getPengawasanPemasanganProblematic: [PengawasanPemasangan!]!
     getAllPengawasanPemasangan: [PengawasanPemasangan!]!
     getPengawasanSetelahPemasangan(id: ID!): PengawasanSetelahPemasangan
     getPengawasanSetelahPemasanganByPemasangan(idPemasangan: ID!): [PengawasanSetelahPemasangan!]!
-    getPengawasanSetelahPemasanganBySupervisor(supervisorId: ID!): [PengawasanSetelahPemasangan!]!
-    getPengawasanSetelahPemasanganProblematic: [PengawasanSetelahPemasangan!]!
     getAllPengawasanSetelahPemasangan: [PengawasanSetelahPemasangan!]!
-    getAverageCustomerRating: AverageRatingResult!
   }
 
+  # ─── Mutations ─────────────────────────────────────────────────────────────
   extend type Mutation {
     createPemasangan(input: CreatePemasanganInput!): Pemasangan!
     updatePemasangan(id: ID!, input: UpdatePemasanganInput!): Pemasangan!
     deletePemasangan(id: ID!): Boolean!
-    verifyPemasangan(id: ID!, statusVerifikasi: String!, catatan: String): Pemasangan!
     createPengawasanPemasangan(input: CreatePengawasanPemasanganInput!): PengawasanPemasangan!
     updatePengawasanPemasangan(id: ID!, input: UpdatePengawasanPemasanganInput!): PengawasanPemasangan!
     deletePengawasanPemasangan(id: ID!): Boolean!

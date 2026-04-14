@@ -27,10 +27,10 @@ export const kelompokPelangganResolvers = {
   Mutation: {
     createKelompokPelanggan: async (_, { input }, { token }) => {
       verifyAdminToken(token);
-      const { hargaDiBawah10mKubik, hargaDiAtas10mKubik, biayaBeban } = input;
-      if (hargaDiBawah10mKubik < 0 || !Number.isFinite(hargaDiBawah10mKubik)) throw new Error('hargaDiBawah10mKubik harus positif');
-      if (hargaDiAtas10mKubik < 0 || !Number.isFinite(hargaDiAtas10mKubik)) throw new Error('hargaDiAtas10mKubik harus positif');
-      if (biayaBeban != null && (biayaBeban < 0 || !Number.isFinite(biayaBeban))) throw new Error('biayaBeban harus positif');
+      const { TarifRendah, TarifTinggi, BiayaBeban } = input;
+      if (TarifRendah != null && (TarifRendah < 0 || !Number.isFinite(TarifRendah))) throw new Error('TarifRendah harus positif');
+      if (TarifTinggi != null && (TarifTinggi < 0 || !Number.isFinite(TarifTinggi))) throw new Error('TarifTinggi harus positif');
+      if (BiayaBeban != null && (BiayaBeban < 0 || !Number.isFinite(BiayaBeban))) throw new Error('BiayaBeban harus positif');
       const kelompok = new KelompokPelanggan(input);
       await kelompok.save();
       await deleteCacheByPattern('kelompok:*');
@@ -39,10 +39,10 @@ export const kelompokPelangganResolvers = {
 
     updateKelompokPelanggan: async (_, { id, input }, { token }) => {
       verifyAdminToken(token);
-      const { hargaDiBawah10mKubik, hargaDiAtas10mKubik, biayaBeban } = input;
-      if (hargaDiBawah10mKubik !== undefined && (hargaDiBawah10mKubik < 0 || !Number.isFinite(hargaDiBawah10mKubik))) throw new Error('hargaDiBawah10mKubik harus positif');
-      if (hargaDiAtas10mKubik !== undefined && (hargaDiAtas10mKubik < 0 || !Number.isFinite(hargaDiAtas10mKubik))) throw new Error('hargaDiAtas10mKubik harus positif');
-      if (biayaBeban != null && (biayaBeban < 0 || !Number.isFinite(biayaBeban))) throw new Error('biayaBeban harus positif');
+      const { TarifRendah, TarifTinggi, BiayaBeban } = input;
+      if (TarifRendah !== undefined && (TarifRendah < 0 || !Number.isFinite(TarifRendah))) throw new Error('TarifRendah harus positif');
+      if (TarifTinggi !== undefined && (TarifTinggi < 0 || !Number.isFinite(TarifTinggi))) throw new Error('TarifTinggi harus positif');
+      if (BiayaBeban != null && (BiayaBeban < 0 || !Number.isFinite(BiayaBeban))) throw new Error('BiayaBeban harus positif');
       const kelompok = await KelompokPelanggan.findByIdAndUpdate(id, input, { new: true });
       await deleteCacheByPattern('kelompok:*');
       return kelompok;

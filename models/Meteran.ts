@@ -1,10 +1,16 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Meter.ts)
+// Collection: meters — shared across systems
+// Field names PascalCase agar sinkron dengan Ahmad
+
 export interface IMeteran {
-  idKelompokPelanggan: Types.ObjectId;
-  idKoneksiData?: Types.ObjectId | null;
-  nomorMeteran: string;
-  nomorAkun: string;
+  // PascalCase FK — sesuai Ahmad
+  IdKelompokPelanggan: Types.ObjectId;
+  IdKoneksiData?: Types.ObjectId | null;
+  NomorMeteran: string;
+  NomorAkun: string;
+  // Eksklusif admin — untuk billing & IoT tracking (tidak ada di Ahmad)
   totalPemakaian?: number;
   /** Critical: incremented by IoT, decremented on payment — do NOT reset to 0 */
   pemakaianBelumTerbayar?: number;
@@ -15,21 +21,24 @@ export interface IMeteranDocument extends IMeteran, Document {}
 
 const MeteranSchema = new Schema<IMeteran>(
   {
-    idKelompokPelanggan: {
+    IdKelompokPelanggan: {
       type: Schema.Types.ObjectId,
       ref: 'KelompokPelanggan',
       required: true,
+      index: true,
     },
-    idKoneksiData: {
+    IdKoneksiData: {
       type: Schema.Types.ObjectId,
-      ref: 'ConnectionData',
+      ref: 'KoneksiData',
       default: null,
+      index: true,
     },
-    nomorMeteran: {
+    NomorMeteran: {
       type: String,
       required: true,
+      unique: true,
     },
-    nomorAkun: {
+    NomorAkun: {
       type: String,
       required: true,
       unique: true,
@@ -52,5 +61,7 @@ const MeteranSchema = new Schema<IMeteran>(
     collection: 'meters',
   }
 );
+
+MeteranSchema.index({ statusAktif: 1 });
 
 export default model<IMeteran>('Meteran', MeteranSchema);

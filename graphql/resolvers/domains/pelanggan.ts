@@ -69,9 +69,9 @@ export const pelangganResolvers = {
 
       const pendingBillings = await Billing.find({
         userId,
-        statusPembayaran: 'Pending',
+        StatusPembayaran: 'pending',
         jenisBilling: { $ne: 'denda' },
-      }).sort({ periode: 1 }).lean();
+      }).sort({ Periode: 1 }).lean();
 
       const jumlahBulanTunggak = pendingBillings.reduce((sum, b: any) => sum + (b.bulanCakupan ?? 1), 0);
       if (jumlahBulanTunggak < 3) throw new Error('Pelanggan belum memenuhi syarat pemutusan (minimal 3 bulan menunggak)');
@@ -82,20 +82,20 @@ export const pelangganResolvers = {
       if (meteranTagihan) {
         await Billing.create({
           userId,
-          idMeteran: meteranTagihan.idMeteran,
-          periode: new Date(),
-          penggunaanSebelum: 0,
-          penggunaanSekarang: 0,
-          totalPemakaian: 0,
-          biaya: 0,
-          biayaBeban: 0,
-          totalBiaya: dendaAmount,
-          statusPembayaran: 'Pending',
-          tenggatWaktu: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          menunggak: true,
+          IdMeteran: (meteranTagihan as any).IdMeteran,
+          Periode: new Date().toISOString().slice(0, 7),
+          PenggunaanSebelum: 0,
+          PenggunaanSekarang: 0,
+          TotalPemakaian: 0,
+          Biaya: 0,
+          BiayaBeban: 0,
+          TotalBiaya: dendaAmount,
+          StatusPembayaran: 'pending',
+          TenggatWaktu: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          Menunggak: true,
           jenisBilling: 'denda',
           bulanCakupan: 0,
-          catatan: `Denda pemutusan (${jumlahBulanTunggak} bulan menunggak): Rp${dendaAmount.toLocaleString('id-ID')}`,
+          Catatan: `Denda pemutusan (${jumlahBulanTunggak} bulan menunggak): Rp${dendaAmount.toLocaleString('id-ID')}`,
         });
       }
 
@@ -103,11 +103,11 @@ export const pelangganResolvers = {
       await user.save();
 
       await Notification.create({
-        idPelanggan: userId,
-        judul: 'ID Pelanggan Dinonaktifkan',
-        pesan: `ID pelanggan Anda telah dinonaktifkan karena menunggak ${jumlahBulanTunggak} bulan. Harap segera lunasi semua tunggakan beserta denda Rp${dendaAmount.toLocaleString('id-ID')} untuk mengaktifkan kembali.`,
-        kategori: 'Peringatan',
-        link: '/pembayaran',
+        IdPelanggan: userId,
+        Judul: 'ID Pelanggan Dinonaktifkan',
+        Pesan: `ID pelanggan Anda telah dinonaktifkan karena menunggak ${jumlahBulanTunggak} bulan. Harap segera lunasi semua tunggakan beserta denda Rp${dendaAmount.toLocaleString('id-ID')} untuk mengaktifkan kembali.`,
+        Kategori: 'PERINGATAN',
+        Link: '/pembayaran',
         isRead: false,
       }).catch(() => {});
 
@@ -121,19 +121,19 @@ export const pelangganResolvers = {
 
       const now = new Date();
       await Billing.updateMany(
-        { userId, statusPembayaran: 'Pending' },
-        { $set: { statusPembayaran: 'Settlement', tanggalPembayaran: now, metodePembayaran: 'Loket', menunggak: false } },
+        { userId, StatusPembayaran: 'pending' },
+        { $set: { StatusPembayaran: 'settlement', TanggalPembayaran: now, MetodePembayaran: 'Loket', Menunggak: false } },
       );
 
       user.accountStatus = 'active';
       await user.save();
 
       await Notification.create({
-        idPelanggan: userId,
-        judul: 'ID Pelanggan Aktif Kembali',
-        pesan: 'Pembayaran Anda telah dikonfirmasi. ID pelanggan Anda kini aktif kembali.',
-        kategori: 'Pembayaran',
-        link: '/riwayat-tagihan',
+        IdPelanggan: userId,
+        Judul: 'ID Pelanggan Aktif Kembali',
+        Pesan: 'Pembayaran Anda telah dikonfirmasi. ID pelanggan Anda kini aktif kembali.',
+        Kategori: 'PEMBAYARAN',
+        Link: '/riwayat-tagihan',
         isRead: false,
       }).catch(() => {});
 
@@ -146,11 +146,11 @@ export const pelangganResolvers = {
       const koneksiData = await ConnectionData.findById(koneksiDataId);
       if (!koneksiData) throw new Error('Data koneksi tidak ditemukan');
 
-      const userId = koneksiData.idPelanggan;
+      const userId = (koneksiData as any).IdPelanggan;
       const user = await User.findById(userId);
       if (!user) throw new Error('Pelanggan tidak ditemukan');
 
-      const meteran = await Meteran.findOne({ idKoneksiData: koneksiDataId });
+      const meteran = await Meteran.findOne({ IdKoneksiData: koneksiDataId });
       if (!meteran) throw new Error('Meteran tidak ditemukan untuk koneksi ini');
 
       // Activate user account and mark as verified
@@ -163,11 +163,11 @@ export const pelangganResolvers = {
 
       // Notify the customer
       await Notification.create({
-        idPelanggan: userId,
-        judul: 'Sambungan Air Aktif',
-        pesan: `Selamat! Sambungan air Anda telah resmi diaktifkan. Nomor meter Anda: ${meteran.nomorMeteran}. Anda sekarang dapat mulai menggunakan layanan air PERUMDAM Tirta Daroy.`,
-        kategori: 'Informasi',
-        link: '/dashboard',
+        IdPelanggan: userId,
+        Judul: 'Sambungan Air Aktif',
+        Pesan: `Selamat! Sambungan air Anda telah resmi diaktifkan. Nomor meter Anda: ${(meteran as any).NomorMeteran}. Anda sekarang dapat mulai menggunakan layanan air PERUMDAM Tirta Daroy.`,
+        Kategori: 'INFORMASI',
+        Link: '/dashboard',
         isRead: false,
       }).catch(() => {});
 

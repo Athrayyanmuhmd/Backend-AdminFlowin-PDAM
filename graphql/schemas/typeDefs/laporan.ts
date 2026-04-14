@@ -1,78 +1,59 @@
 import { gql } from 'graphql-tag';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Laporan.ts)
+// Enum values SCREAMING_SNAKE_CASE — sesuai Ahmad
+
 export const laporanTypeDefs = gql`
   type Laporan {
     _id: ID!
     idPengguna: Pengguna
-    namaLaporan: String
-    masalah: String
-    alamat: String
-    imageUrl: [String!]
-    jenisLaporan: EnumJenisLaporan
+    namaLaporan: String!
+    masalah: String!
+    alamat: String!
+    imageURL: [String!]
+    jenisLaporan: JenisLaporan!
     catatan: String
     koordinat: Geolocation
-    status: EnumWorkStatusPelanggan!
+    status: WorkStatusPelanggan!
     createdAt: String
     updatedAt: String
-  }
-
-  type PenyelesaianMetadata {
-    durasiPengerjaan: Float
-    materialDigunakan: [String!]
-    biaya: Float
   }
 
   type PenyelesaianLaporan {
     _id: ID!
-    idLaporan: Laporan!
-    urlGambar: [String!]!
-    catatan: String!
-    teknisiId: Teknisi
-    tanggalSelesai: String
-    metadata: PenyelesaianMetadata
+    idLaporan: Laporan
+    urlGambar: [String]
+    catatan: String
     createdAt: String
     updatedAt: String
   }
 
-  input PenyelesaianMetadataInput {
-    durasiPengerjaan: Float
-    materialDigunakan: [String!]
-    biaya: Float
-  }
-
   input CreatePenyelesaianLaporanInput {
     idLaporan: ID!
-    urlGambar: [String!]!
-    catatan: String!
-    teknisiId: ID
-    tanggalSelesai: String
-    metadata: PenyelesaianMetadataInput
+    urlGambar: [String]
+    catatan: String
   }
 
   input UpdatePenyelesaianLaporanInput {
-    urlGambar: [String!]
+    urlGambar: [String]
     catatan: String
-    teknisiId: ID
-    tanggalSelesai: String
-    metadata: PenyelesaianMetadataInput
   }
 
   extend type Query {
     getLaporan(id: ID!): Laporan
     getAllLaporan(limit: Int, offset: Int): [Laporan!]!
-    getLaporanByStatus(status: EnumWorkStatusPelanggan!): [Laporan!]!
+    getLaporanByStatus(status: WorkStatusPelanggan!): [Laporan!]!
     getLaporanByPelanggan(idPelanggan: ID!): [Laporan!]!
     getPenyelesaianLaporan(id: ID!): PenyelesaianLaporan
     getPenyelesaianLaporanByLaporan(idLaporan: ID!): [PenyelesaianLaporan!]!
-    getPenyelesaianLaporanByTeknisi(teknisiId: ID!): [PenyelesaianLaporan!]!
     getAllPenyelesaianLaporan: [PenyelesaianLaporan!]!
   }
 
   extend type Mutation {
-    updateLaporanStatus(id: ID!, status: EnumWorkStatusPelanggan!): Laporan!
-    createWorkOrderFromLaporan(idLaporan: ID!, teknisiIds: [ID!]!, catatan: String): PekerjaanTeknisi!
+    # Admin: update status laporan pelanggan
+    updateLaporanStatus(id: ID!, status: WorkStatusPelanggan!): Laporan!
     createPenyelesaianLaporan(input: CreatePenyelesaianLaporanInput!): PenyelesaianLaporan!
     updatePenyelesaianLaporan(id: ID!, input: UpdatePenyelesaianLaporanInput!): PenyelesaianLaporan!
-    deletePenyelesaianLaporan(id: ID!): Boolean!
+    deletePenyelesaianLaporan(id: ID!): DeleteResponse!
   }
 `;

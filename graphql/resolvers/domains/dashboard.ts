@@ -11,6 +11,12 @@ import { verifyAdminToken } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
+// Disesuaikan dengan Ahmad/Rafli — DB fields PascalCase
+// Billing: TotalBiaya, StatusPembayaran (lowercase: pending/settlement/cancel/etc.), Menunggak, IdMeteran
+// Report: Status (Ditunda/Ditugaskan/DitinjauAdmin/SedangDikerjakan/Selesai/Dibatalkan)
+// Meteran: IdKelompokPelanggan, NomorMeteran, NomorAkun — collection 'meterans'
+// KelompokPelanggan: NamaKelompok — collection 'kelompokpelanggans'
+
 const namaBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
 
 export const dashboardResolvers = {
@@ -38,13 +44,13 @@ export const dashboardResolvers = {
         User.countDocuments(),
         Technician.countDocuments(),
         Meteran.countDocuments(),
-        ConnectionData.countDocuments({ statusVerifikasi: 'Menunggu' }),
-        PekerjaanTeknisi.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
-        Billing.countDocuments({ menunggak: true }),
-        Report.countDocuments({ status: { $in: ['Diajukan', 'ProsesPerbaikan'] } }),
-        ConnectionData.countDocuments({ statusVerifikasi: 'Menunggu' }),
-        ConnectionData.countDocuments({ statusVerifikasi: 'Disetujui' }),
-        ConnectionData.countDocuments({ statusVerifikasi: 'Ditolak' }),
+        ConnectionData.countDocuments({ StatusPengajuan: 'PENDING' }),
+        PekerjaanTeknisi.countDocuments({ status: { $in: ['ditugaskan', 'sedang_dikerjakan'] } }),
+        Billing.countDocuments({ Menunggak: true }),
+        Report.countDocuments({ Status: { $in: ['Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan'] } }),
+        ConnectionData.countDocuments({ StatusPengajuan: 'PENDING' }),
+        ConnectionData.countDocuments({ StatusPengajuan: 'APPROVED' }),
+        ConnectionData.countDocuments({ StatusPengajuan: 'REJECTED' }),
       ]);
 
       const currentMonth = new Date();
@@ -52,7 +58,7 @@ export const dashboardResolvers = {
       currentMonth.setHours(0, 0, 0, 0);
       const tagihanBulanIni = await Billing.aggregate([
         { $match: { createdAt: { $gte: currentMonth } } },
-        { $group: { _id: null, total: { $sum: '$totalBiaya' } } },
+        { $group: { _id: null, total: { $sum: '$TotalBiaya' } } },
       ]);
 
       const stats = { totalPelanggan, totalTeknisi, totalMeteran, pendingKoneksi, activeWorkOrders, totalTagihanBulanIni: tagihanBulanIni[0]?.total || 0, tunggakanAktif, laporanTerbuka, koneksiMenunggu, koneksiDisetujui, koneksiDitolak };
@@ -69,7 +75,7 @@ export const dashboardResolvers = {
 
       const hasil = await Billing.aggregate([
         { $match: { createdAt: { $gte: enamBulanLalu } } },
-        { $group: { _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } }, totalTagihan: { $sum: '$totalBiaya' }, jumlahTagihan: { $count: {} } } },
+        { $group: { _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } }, totalTagihan: { $sum: '$TotalBiaya' }, jumlahTagihan: { $count: {} } } },
         { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
       ]);
       return hasil.map(item => ({ bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`, totalTagihan: item.totalTagihan, jumlahTagihan: item.jumlahTagihan }));
@@ -78,9 +84,9 @@ export const dashboardResolvers = {
     getDistribusiKelompokPelanggan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const hasil = await Meteran.aggregate([
-        { $lookup: { from: 'kelompokpelanggans', localField: 'idKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
+        { $lookup: { from: 'kelompokpelanggans', localField: 'IdKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
         { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: false } },
-        { $group: { _id: '$kelompok.namaKelompok', jumlahMeteran: { $count: {} } } },
+        { $group: { _id: '$kelompok.NamaKelompok', jumlahMeteran: { $count: {} } } },
         { $sort: { jumlahMeteran: -1 } },
       ]);
       return hasil.map(item => ({ namaKelompok: item._id, jumlahMeteran: item.jumlahMeteran }));
@@ -99,7 +105,7 @@ export const dashboardResolvers = {
 
       const hasil = await Billing.aggregate([
         { $match: { createdAt: { $gte: enamBulanLalu } } },
-        { $group: { _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } }, totalTagihan: { $sum: '$totalBiaya' }, jumlahTagihan: { $count: {} }, totalLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, '$totalBiaya', 0] } }, jumlahLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, 1, 0] } } } },
+        { $group: { _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } }, totalTagihan: { $sum: '$TotalBiaya' }, jumlahTagihan: { $count: {} }, totalLunas: { $sum: { $cond: [{ $eq: ['$StatusPembayaran', 'settlement'] }, '$TotalBiaya', 0] } }, jumlahLunas: { $sum: { $cond: [{ $eq: ['$StatusPembayaran', 'settlement'] }, 1, 0] } } } },
         { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
       ]);
       const result = hasil.map(item => ({ bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`, totalTagihan: item.totalTagihan, totalLunas: item.totalLunas, jumlahTagihan: item.jumlahTagihan, jumlahLunas: item.jumlahLunas }));
@@ -114,12 +120,12 @@ export const dashboardResolvers = {
       if (cached) return cached;
 
       const hasil = await Billing.aggregate([
-        { $match: { menunggak: true } },
-        { $lookup: { from: 'meters', localField: 'idMeteran', foreignField: '_id', as: 'meteran' } },
+        { $match: { Menunggak: true } },
+        { $lookup: { from: 'meterans', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
         { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
-        { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.idKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
+        { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.IdKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
         { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
-        { $group: { _id: { $ifNull: ['$kelompok.namaKelompok', 'Tidak Diketahui'] }, totalTunggakan: { $sum: '$totalBiaya' }, jumlahTunggakan: { $count: {} } } },
+        { $group: { _id: { $ifNull: ['$kelompok.NamaKelompok', 'Tidak Diketahui'] }, totalTunggakan: { $sum: '$TotalBiaya' }, jumlahTunggakan: { $count: {} } } },
         { $sort: { totalTunggakan: -1 } },
       ]);
       const result = hasil.map(item => ({ namaKelompok: item._id, totalTunggakan: item.totalTunggakan, jumlahTunggakan: item.jumlahTunggakan }));
@@ -130,13 +136,13 @@ export const dashboardResolvers = {
     getTagihanTertinggi: async (_, { limit = 10 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const hasil = await Billing.aggregate([
-        { $lookup: { from: 'meters', localField: 'idMeteran', foreignField: '_id', as: 'meteran' } },
+        { $lookup: { from: 'meterans', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
         { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
-        { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.idKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
+        { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.IdKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
         { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
-        { $sort: { totalBiaya: -1 } },
+        { $sort: { TotalBiaya: -1 } },
         { $limit: limit },
-        { $project: { nomorMeteran: '$meteran.nomorMeteran', nomorAkun: '$meteran.nomorAkun', namaKelompok: { $ifNull: ['$kelompok.namaKelompok', '-'] }, totalBiaya: 1, periode: { $dateToString: { format: '%Y-%m', date: '$periode' } }, statusPembayaran: 1 } },
+        { $project: { nomorMeteran: '$meteran.NomorMeteran', nomorAkun: '$meteran.NomorAkun', namaKelompok: { $ifNull: ['$kelompok.NamaKelompok', '-'] }, totalBiaya: '$TotalBiaya', periode: '$Periode', statusPembayaran: { $toUpper: '$StatusPembayaran' } } },
       ]);
       return hasil;
     },
@@ -148,7 +154,7 @@ export const dashboardResolvers = {
       if (cached) return cached;
 
       const hasil = await Billing.aggregate([
-        { $group: { _id: null, totalTagihan: { $count: {} }, nilaiTotal: { $sum: '$totalBiaya' }, totalLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, 1, 0] } }, nilaiLunas: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Settlement'] }, '$totalBiaya', 0] } }, totalTunggakan: { $sum: { $cond: ['$menunggak', 1, 0] } }, nilaiTunggakan: { $sum: { $cond: ['$menunggak', '$totalBiaya', 0] } }, totalPending: { $sum: { $cond: [{ $eq: ['$statusPembayaran', 'Pending'] }, 1, 0] } } } },
+        { $group: { _id: null, totalTagihan: { $count: {} }, nilaiTotal: { $sum: '$TotalBiaya' }, totalLunas: { $sum: { $cond: [{ $eq: ['$StatusPembayaran', 'settlement'] }, 1, 0] } }, nilaiLunas: { $sum: { $cond: [{ $eq: ['$StatusPembayaran', 'settlement'] }, '$TotalBiaya', 0] } }, totalTunggakan: { $sum: { $cond: ['$Menunggak', 1, 0] } }, nilaiTunggakan: { $sum: { $cond: ['$Menunggak', '$TotalBiaya', 0] } }, totalPending: { $sum: { $cond: [{ $eq: ['$StatusPembayaran', 'pending'] }, 1, 0] } } } },
       ]);
       if (hasil.length === 0) return { totalTagihan: 0, totalLunas: 0, totalTunggakan: 0, totalPending: 0, nilaiTotal: 0, nilaiLunas: 0, nilaiTunggakan: 0 };
       const result = { totalTagihan: hasil[0].totalTagihan, totalLunas: hasil[0].totalLunas, totalTunggakan: hasil[0].totalTunggakan, totalPending: hasil[0].totalPending, nilaiTotal: hasil[0].nilaiTotal, nilaiLunas: hasil[0].nilaiLunas, nilaiTunggakan: hasil[0].nilaiTunggakan };
@@ -166,9 +172,9 @@ export const dashboardResolvers = {
         Meteran.countDocuments(),
         User.countDocuments(),
         Report.countDocuments(),
-        Report.countDocuments({ status: 'Selesai' }),
-        PekerjaanTeknisi.countDocuments({ status: { $in: ['Ditugaskan', 'SedangDikerjakan'] } }),
-        PekerjaanTeknisi.countDocuments({ status: 'Selesai' }),
+        Report.countDocuments({ Status: 'Selesai' }),
+        PekerjaanTeknisi.countDocuments({ status: { $in: ['ditugaskan', 'sedang_dikerjakan'] } }),
+        PekerjaanTeknisi.countDocuments({ status: 'selesai' }),
         Technician.countDocuments(),
       ]);
 
@@ -196,7 +202,7 @@ export const dashboardResolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      const hasil = await Report.aggregate([{ $group: { _id: '$status', jumlah: { $count: {} } } }, { $sort: { jumlah: -1 } }]);
+      const hasil = await Report.aggregate([{ $group: { _id: '$Status', jumlah: { $count: {} } } }, { $sort: { jumlah: -1 } }]);
       const result = hasil.map(item => ({ status: item._id || 'Tidak Diketahui', jumlah: item.jumlah }));
       await setCache(cacheKey, result, 120);
       return result;

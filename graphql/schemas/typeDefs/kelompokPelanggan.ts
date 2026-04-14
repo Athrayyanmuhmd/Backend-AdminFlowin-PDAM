@@ -1,28 +1,46 @@
 import { gql } from 'graphql-tag';
 
+// Disesuaikan dengan Ahmad (flowin-backend/KelompokPelanggan.ts)
+// Fields PascalCase sesuai Ahmad
+
 export const kelompokPelangganTypeDefs = gql`
   type KelompokPelanggan {
     _id: ID!
-    namaKelompok: String
-    hargaDiBawah10mKubik: Float
-    hargaDiAtas10mKubik: Float
-    biayaBeban: Float
+    KodeKelompok: String
+    NamaKelompok: String
+    Kategori: String
+    Deskripsi: String
+    TarifRendah: Float
+    TarifTinggi: Float
+    BatasRendah: Float
+    BiayaBeban: Float
+    IsKesepakatan: Boolean
     createdAt: String
     updatedAt: String
   }
 
   input CreateKelompokPelangganInput {
-    namaKelompok: String!
-    hargaDiBawah10mKubik: Float!
-    hargaDiAtas10mKubik: Float!
-    biayaBeban: Float
+    KodeKelompok: String!
+    NamaKelompok: String!
+    Kategori: String!
+    Deskripsi: String
+    TarifRendah: Float!
+    TarifTinggi: Float!
+    BatasRendah: Float
+    BiayaBeban: Float!
+    IsKesepakatan: Boolean
   }
 
   input UpdateKelompokPelangganInput {
-    namaKelompok: String
-    hargaDiBawah10mKubik: Float
-    hargaDiAtas10mKubik: Float
-    biayaBeban: Float
+    KodeKelompok: String
+    NamaKelompok: String
+    Kategori: String
+    Deskripsi: String
+    TarifRendah: Float
+    TarifTinggi: Float
+    BatasRendah: Float
+    BiayaBeban: Float
+    IsKesepakatan: Boolean
   }
 
   extend type Query {

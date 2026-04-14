@@ -10,6 +10,7 @@ import { koneksiDataResolvers } from './domains/koneksiData.js';
 import { tagihanResolvers } from './domains/tagihan.js';
 import { laporanResolvers } from './domains/laporan.js';
 import { workOrderResolvers } from './domains/workOrder.js';
+import { teknisiResolvers } from './domains/teknisi.js';
 import { surveiResolvers } from './domains/survei.js';
 import { notifikasiResolvers } from './domains/notifikasi.js';
 import { pemasanganResolvers } from './domains/pemasangan.js';
@@ -25,6 +26,7 @@ const domainResolvers = [
   tagihanResolvers,
   laporanResolvers,
   workOrderResolvers,
+  teknisiResolvers,
   surveiResolvers,
   notifikasiResolvers,
   pemasanganResolvers,

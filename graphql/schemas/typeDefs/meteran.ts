@@ -1,12 +1,15 @@
 import { gql } from 'graphql-tag';
 
+// Disesuaikan dengan Ahmad (flowin-backend/Meter.ts)
+// Field names PascalCase untuk FK — sesuai Ahmad
+
 export const meteranTypeDefs = gql`
   type Meteran {
     _id: ID!
-    idKelompokPelanggan: KelompokPelanggan
-    idKoneksiData: KoneksiData
-    nomorMeteran: String
-    nomorAkun: String
+    IdKelompokPelanggan: KelompokPelanggan
+    IdKoneksiData: KoneksiData
+    NomorMeteran: String!
+    NomorAkun: String!
     totalPemakaian: Float
     pemakaianBelumTerbayar: Float
     statusAktif: Boolean
@@ -17,7 +20,6 @@ export const meteranTypeDefs = gql`
   type RiwayatPenggunaan {
     _id: ID!
     meteranId: Meteran
-    userId: Pengguna
     penggunaanAir: Float!
     createdAt: String
     updatedAt: String
@@ -27,6 +29,14 @@ export const meteranTypeDefs = gql`
     bulan: String!
     totalPemakaian: Float!
     jumlahRecord: Int!
+  }
+
+  # Ahmad's monthly aggregated usage (collection: riwayatpenggunaas)
+  type RiwayatBulananAhmad {
+    _id: ID
+    periode: String!          # Format YYYY-MM
+    totalPenggunaan: Float!   # Total liter in the month
+    createdAt: String
   }
 
   type EstimasiBiaya {
@@ -41,15 +51,29 @@ export const meteranTypeDefs = gql`
     getMeteran(id: ID!): Meteran
     getAllMeteran(limit: Int, offset: Int): [Meteran!]!
     getMeteranByPelanggan(idPelanggan: ID!): [Meteran!]!
-    getMeteranByKoneksiData(idKoneksiData: ID!): Meteran
+    getMeteranByKoneksiData(IdKoneksiData: ID!): Meteran
     getRiwayatPenggunaan(meteranId: ID!, limit: Int): [RiwayatPenggunaan!]!
     getRiwayatPenggunaanBulanan(meteranId: ID!): [RiwayatBulananData!]!
+    # Ahmad's monthly usage data (riwayatpenggunaas collection)
+    getRiwayatBulananAhmad(meteranId: ID!): [RiwayatBulananAhmad!]!
     getEstimasiBiaya(meteranId: ID!): EstimasiBiaya
   }
 
   extend type Mutation {
-    createMeteran(idKelompokPelanggan: ID!, nomorMeteran: String!, nomorAkun: String!, idKoneksiData: ID): Meteran!
-    updateMeteran(id: ID!, idKelompokPelanggan: ID, nomorMeteran: String, nomorAkun: String, idKoneksiData: ID, statusAktif: Boolean): Meteran!
-    deleteMeteran(id: ID!): Boolean!
+    createMeteran(
+      IdKelompokPelanggan: ID!
+      NomorMeteran: String!
+      NomorAkun: String!
+      IdKoneksiData: ID
+    ): Meteran!
+    updateMeteran(
+      id: ID!
+      IdKelompokPelanggan: ID
+      NomorMeteran: String
+      NomorAkun: String
+      IdKoneksiData: ID
+      statusAktif: Boolean
+    ): Meteran!
+    deleteMeteran(id: ID!): DeleteResponse!
   }
 `;
