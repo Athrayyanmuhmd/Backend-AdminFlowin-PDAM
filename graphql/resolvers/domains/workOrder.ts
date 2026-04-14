@@ -141,80 +141,105 @@ export const workOrderResolvers = {
   Mutation: {
     buatWorkOrder: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      const data = await rafliGraphQL(
-        `mutation BuatWorkOrder($input: BuatWorkOrderInput!) {
-          buatWorkOrder(input: $input) {
-            success message
-            workOrder {
-              id idKoneksiData jenisPekerjaan status statusRespon statusTim createdAt updatedAt
-              teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
-              tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+      try {
+        const data = await rafliGraphQL(
+          `mutation BuatWorkOrder($input: BuatWorkOrderInput!) {
+            buatWorkOrder(input: $input) {
+              success message
+              workOrder {
+                id idKoneksiData jenisPekerjaan status statusRespon statusTim createdAt updatedAt
+                teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+                tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
+              }
             }
-          }
-        }`,
-        { input },
-        getToken(ctx)
-      );
-      return (data as any).buatWorkOrder;
+          }`,
+          { input },
+          getToken(ctx)
+        );
+        return (data as any).buatWorkOrder;
+      } catch (err: any) {
+        console.error('[buatWorkOrder] Rafli backend error:', err.message);
+        return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}`, workOrder: null };
+      }
     },
 
     reviewPenolakan: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      const data = await rafliGraphQL(
-        `mutation ReviewPenolakan($input: ReviewPenolakanInput!) {
-          reviewPenolakan(input: $input) {
-            success message
-            workOrder { id status statusRespon riwayatRespon { aksi alasan tanggal oleh { id namaLengkap } } }
-          }
-        }`,
-        { input },
-        getToken(ctx)
-      );
-      return (data as any).reviewPenolakan;
+      try {
+        const data = await rafliGraphQL(
+          `mutation ReviewPenolakan($input: ReviewPenolakanInput!) {
+            reviewPenolakan(input: $input) {
+              success message
+              workOrder { id status statusRespon riwayatRespon { aksi alasan tanggal oleh { id namaLengkap } } }
+            }
+          }`,
+          { input },
+          getToken(ctx)
+        );
+        return (data as any).reviewPenolakan;
+      } catch (err: any) {
+        console.error('[reviewPenolakan] Rafli backend error:', err.message);
+        return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}`, workOrder: null };
+      }
     },
 
     reviewTim: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      const data = await rafliGraphQL(
-        `mutation ReviewTim($input: ReviewTimInput!) {
-          reviewTim(input: $input) {
-            success message
-            workOrder { id status statusTim tim { id namaLengkap } }
-          }
-        }`,
-        { input },
-        getToken(ctx)
-      );
-      return (data as any).reviewTim;
+      try {
+        const data = await rafliGraphQL(
+          `mutation ReviewTim($input: ReviewTimInput!) {
+            reviewTim(input: $input) {
+              success message
+              workOrder { id status statusTim tim { id namaLengkap } }
+            }
+          }`,
+          { input },
+          getToken(ctx)
+        );
+        return (data as any).reviewTim;
+      } catch (err: any) {
+        console.error('[reviewTim] Rafli backend error:', err.message);
+        return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}`, workOrder: null };
+      }
     },
 
     reviewHasil: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      const data = await rafliGraphQL(
-        `mutation ReviewHasil($input: ReviewHasilInput!) {
-          reviewHasil(input: $input) {
-            success message
-            workOrder { id status riwayatReview { status catatan tanggal oleh { id namaLengkap } } }
-          }
-        }`,
-        { input },
-        getToken(ctx)
-      );
-      return (data as any).reviewHasil;
+      try {
+        const data = await rafliGraphQL(
+          `mutation ReviewHasil($input: ReviewHasilInput!) {
+            reviewHasil(input: $input) {
+              success message
+              workOrder { id status riwayatReview { status catatan tanggal oleh { id namaLengkap } } }
+            }
+          }`,
+          { input },
+          getToken(ctx)
+        );
+        return (data as any).reviewHasil;
+      } catch (err: any) {
+        console.error('[reviewHasil] Rafli backend error:', err.message);
+        return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}`, workOrder: null };
+      }
     },
 
     batalkanWorkOrder: async (_: any, { id, catatan }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      const data = await rafliGraphQL(
-        `mutation BatalkanWorkOrder($id: ID!, $catatan: String) {
-          batalkanWorkOrder(id: $id, catatan: $catatan) {
-            success message
-          }
-        }`,
-        { id, catatan },
-        getToken(ctx)
-      );
-      return (data as any).batalkanWorkOrder;
+      try {
+        const data = await rafliGraphQL(
+          `mutation BatalkanWorkOrder($id: ID!, $catatan: String) {
+            batalkanWorkOrder(id: $id, catatan: $catatan) {
+              success message
+            }
+          }`,
+          { id, catatan },
+          getToken(ctx)
+        );
+        return (data as any).batalkanWorkOrder;
+      } catch (err: any) {
+        console.error('[batalkanWorkOrder] Rafli backend error:', err.message);
+        return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}` };
+      }
     },
   },
 };
