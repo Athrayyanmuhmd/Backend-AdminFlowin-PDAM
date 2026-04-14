@@ -3,11 +3,31 @@
  * Setiap request otomatis menyertakan x-api-key (INTERNAL_API_SECRET).
  *
  * Rafli's system: port 4000, endpoint /graphql
- * Auth: x-api-key header (wajib) + Authorization Bearer token (jika ada user JWT)
+ * Auth: x-api-key header (wajib) + x-signature HMAC-SHA256 dari payload variables
  */
+
+import crypto from 'crypto';
 
 const BASE_URL = process.env.RAFLI_BACKEND_URL ?? 'http://localhost:4000';
 const API_KEY = process.env.INTERNAL_API_SECRET ?? '';
+
+// ─── Payload signature (mirror Rafli's signatureHash.ts) ─────────────────────
+
+const canonicalize = (obj: unknown): string => {
+  if (obj === null || obj === undefined) return 'null';
+  if (typeof obj !== 'object') return JSON.stringify(obj);
+  if (Array.isArray(obj)) return '[' + (obj as unknown[]).map(canonicalize).join(',') + ']';
+  const sorted = Object.keys(obj as Record<string, unknown>).sort().reduce((acc, key) => {
+    (acc as Record<string, unknown>)[key] = (obj as Record<string, unknown>)[key];
+    return acc;
+  }, {} as Record<string, unknown>);
+  const entries = Object.entries(sorted).map(([k, v]) => `${JSON.stringify(k)}:${canonicalize(v)}`);
+  return '{' + entries.join(',') + '}';
+};
+
+const generateSignature = (payload: unknown): string => {
+  return crypto.createHmac('sha256', API_KEY).update(canonicalize(payload)).digest('hex');
+};
 
 // ─── GraphQL client ────────────────────────────────────────────────────────────
 
@@ -25,15 +45,19 @@ interface GraphQLResponse<T = any> {
 export async function rafliGraphQL<T = any>(
   query: string,
   variables?: Record<string, any>,
-  adminToken?: string
+  _adminToken?: string
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-api-key': API_KEY,
   };
 
-  if (adminToken) {
-    headers['Authorization'] = `Bearer ${adminToken}`;
+  // Tambahkan x-signature dari payload variables agar Rafli's verifyPayloadSignature lolos
+  // Signature dihitung dari variables (bukan seluruh body) — mirror Rafli's signatureHash.ts
+  if (variables && Object.keys(variables).length > 0) {
+    // Rafli verifies signature against the first-level variable value (e.g. variables.input or variables.id)
+    const payloadToSign = variables.input ?? variables;
+    headers['x-signature'] = generateSignature(payloadToSign);
   }
 
   const res = await fetch(`${BASE_URL}/graphql`, {
