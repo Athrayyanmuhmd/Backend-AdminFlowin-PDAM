@@ -1,7 +1,7 @@
 // @ts-nocheck
 import Report from '../../../models/Report.js';
 import PenyelesaianLaporan from '../../../models/PenyelesaianLaporan.js';
-import { verifyAdminToken, notifikasiSemuaAdmin } from '../helpers.js';
+import { verifyAdminToken, notifikasiSemuaAdmin, notifikasiUntukPelanggan } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 // Disesuaikan dengan Ahmad — Report model fields PascalCase (IdPengguna, Status, etc.)
@@ -65,17 +65,49 @@ export const laporanResolvers = {
   },
 
   Mutation: {
-    updateLaporanStatus: async (_, { id, status }) => {
+    updateLaporanStatus: async (_, { id, status }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       const dbStatus = statusGqlToDb[status] || status;
       const updated = await Report.findByIdAndUpdate(id, { Status: dbStatus }, { new: true }).populate('IdPengguna');
-      // Notifikasi admin saat laporan ditugaskan
-      if (dbStatus === 'Ditugaskan') {
-        await notifikasiSemuaAdmin(
-          'Laporan Pelanggan Diproses',
-          'Status laporan telah diperbarui.',
-          'INFORMASI',
-          '/operations/laporan',
-        );
+      if (updated) {
+        const idPelanggan = updated.IdPengguna?._id?.toString() ?? updated.IdPengguna?.toString();
+        if (dbStatus === 'Ditugaskan') {
+          await notifikasiSemuaAdmin(
+            'Laporan Pelanggan Diproses',
+            'Status laporan telah diperbarui.',
+            'INFORMASI',
+            '/operations/laporan',
+          );
+          if (idPelanggan) {
+            await notifikasiUntukPelanggan(
+              idPelanggan,
+              'Laporan Sedang Diproses',
+              `Laporan "${updated.NamaLaporan}" Anda telah ditugaskan ke teknisi.`,
+              'INFORMASI',
+              '/laporan',
+            );
+          }
+        } else if (dbStatus === 'Selesai') {
+          if (idPelanggan) {
+            await notifikasiUntukPelanggan(
+              idPelanggan,
+              'Laporan Selesai',
+              `Laporan "${updated.NamaLaporan}" Anda telah diselesaikan. Terima kasih telah menghubungi kami.`,
+              'INFORMASI',
+              '/laporan',
+            );
+          }
+        } else if (dbStatus === 'Dibatalkan') {
+          if (idPelanggan) {
+            await notifikasiUntukPelanggan(
+              idPelanggan,
+              'Laporan Dibatalkan',
+              `Laporan "${updated.NamaLaporan}" Anda telah dibatalkan oleh admin.`,
+              'INFORMASI',
+              '/laporan',
+            );
+          }
+        }
       }
       return updated;
     },

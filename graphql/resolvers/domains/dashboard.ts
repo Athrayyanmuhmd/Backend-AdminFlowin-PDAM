@@ -121,7 +121,7 @@ export const dashboardResolvers = {
 
       const hasil = await Billing.aggregate([
         { $match: { Menunggak: true } },
-        { $lookup: { from: 'meterans', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
+        { $lookup: { from: 'meters', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
         { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
         { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.IdKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
         { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
@@ -136,7 +136,7 @@ export const dashboardResolvers = {
     getTagihanTertinggi: async (_, { limit = 10 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const hasil = await Billing.aggregate([
-        { $lookup: { from: 'meterans', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
+        { $lookup: { from: 'meters', localField: 'IdMeteran', foreignField: '_id', as: 'meteran' } },
         { $unwind: { path: '$meteran', preserveNullAndEmptyArrays: false } },
         { $lookup: { from: 'kelompokpelanggans', localField: 'meteran.IdKelompokPelanggan', foreignField: '_id', as: 'kelompok' } },
         { $unwind: { path: '$kelompok', preserveNullAndEmptyArrays: true } },
