@@ -7,6 +7,7 @@ import Notification from "../models/Notification.js";
 import Meteran from "../models/Meteran.js";
 import User from "../models/User.js";
 import KoneksiData from "../models/ConnectionData.js";
+import { deleteCacheByPattern } from "../utils/redis.js";
 
 // ─── Helper: cek dan reaktivasi pelanggan jika semua tagihan lunas ────────────
 async function checkAndReactivateUser(userId: any): Promise<void> {
@@ -131,6 +132,12 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
     console.log(`📋 Current RAB status: rabId=${rab._id}, statusPembayaran=${rab.statusPembayaran}`);
     console.log(`📊 Transaction status received: "${transactionStatus}"`);
 
+    // Idempotency: jangan proses ulang jika sudah settlement
+    if (rab.statusPembayaran === 'settlement' && (transactionStatus === 'settlement' || transactionStatus === 'capture')) {
+      console.log(`⚠️ [idempotency] RAB ${rabId} sudah settlement, skip duplicate event`);
+      return;
+    }
+
     let notificationTitle = "";
     let notificationMessage = "";
 
@@ -199,6 +206,12 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
 
     if (!billing) {
       console.error("❌ Billing not found:", billingId);
+      return;
+    }
+
+    // Idempotency: jangan proses ulang jika sudah settlement (pemakaianBelumTerbayar sudah dikurangi)
+    if ((billing as any).StatusPembayaran === 'settlement' && (transactionStatus === 'settlement' || transactionStatus === 'capture')) {
+      console.log(`⚠️ [idempotency] Billing ${billingId} sudah settlement, skip duplicate event`);
       return;
     }
 
@@ -274,6 +287,9 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
 
     if (shouldResetMeteran) {
       await checkAndReactivateUser(pelangganId);
+      // Invalidasi cache dashboard yang bergantung pada data tagihan
+      deleteCacheByPattern('laporan:*').catch(() => {});
+      deleteCacheByPattern('dashboard:*').catch(() => {});
     }
 
     console.log(`✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`);
@@ -301,7 +317,17 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
     }).populate("IdMeteran");
 
     if (unpaidBillings.length === 0) {
-      console.error("❌ No unpaid billings found for user:", userId);
+      // Idempotency: semua tagihan sudah di-settle — kemungkinan duplicate event
+      console.log(`⚠️ [idempotency] Semua billing user ${userId} sudah settlement, skip duplicate event`);
+      return;
+    }
+
+    // Hanya proses tagihan yang belum settlement (guard tambahan)
+    const billingsToProcess = unpaidBillings.filter(
+      (b: any) => b.StatusPembayaran !== 'settlement'
+    );
+    if (billingsToProcess.length === 0) {
+      console.log(`⚠️ [idempotency] Tidak ada billing yang perlu diupdate untuk user ${userId}`);
       return;
     }
 
@@ -322,20 +348,20 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
           Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')}`,
         };
         notificationTitle = 'Pembayaran Semua Tagihan Berhasil';
-        notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Terima kasih!`;
+        notificationMessage = `Pembayaran ${billingsToProcess.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Terima kasih!`;
         shouldUpdateMeteran = true;
         break;
 
       case "pending":
         notificationTitle = 'Pembayaran Tagihan Sedang Diproses';
-        notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sedang diproses. Mohon selesaikan pembayaran Anda.`;
+        notificationMessage = `Pembayaran ${billingsToProcess.length} tagihan air sedang diproses. Mohon selesaikan pembayaran Anda.`;
         break;
 
       case "deny":
       case "cancel":
       case "expire":
         notificationTitle = 'Pembayaran Tagihan Gagal';
-        notificationMessage = `Pembayaran ${unpaidBillings.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} gagal atau dibatalkan. Silakan coba lagi.`;
+        notificationMessage = `Pembayaran ${billingsToProcess.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} gagal atau dibatalkan. Silakan coba lagi.`;
         break;
 
       default:
@@ -347,7 +373,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
       // Group by meteran untuk kurangi pemakaianBelumTerbayar
       const meteranTotalMap = new Map<string, number>();
 
-      for (const billing of unpaidBillings) {
+      for (const billing of billingsToProcess) {
         await Billing.findByIdAndUpdate(billing._id, updateData);
 
         if (shouldUpdateMeteran) {
@@ -392,9 +418,12 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
 
     if (shouldUpdateMeteran) {
       await checkAndReactivateUser(userId);
+      // Invalidasi cache dashboard yang bergantung pada data tagihan
+      deleteCacheByPattern('laporan:*').catch(() => {});
+      deleteCacheByPattern('dashboard:*').catch(() => {});
     }
 
-    console.log(`✅ Multiple billing payment updated for user ${userId}: ${unpaidBillings.length} bills - Status: ${transactionStatus}`);
+    console.log(`✅ Multiple billing payment updated for user ${userId}: ${billingsToProcess.length} bills - Status: ${transactionStatus}`);
   } catch (error) {
     logger.error({ err: error }, "Multi-billing payment webhook error");
     throw error;

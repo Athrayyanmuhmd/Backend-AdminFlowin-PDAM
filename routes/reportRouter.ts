@@ -7,13 +7,15 @@ import {
   editReport,
   getByReporterID,
 } from "../controllers/reportController.js";
+import { verifyAdminOrTechnician } from "../middleware/adminOrTechnicianAuth.js";
 
 const reportRouter = express.Router();
 
-reportRouter.get("/", getAllReports);
-reportRouter.post("/create", createReport);
-reportRouter.put("/edit/:id", editReport);
-reportRouter.delete("/delete/:id", deleteReport);
-reportRouter.get("/getByReporterID/:reporterID", getByReporterID);
+// Semua route laporan wajib auth admin atau teknisi
+reportRouter.get("/", verifyAdminOrTechnician, getAllReports);
+reportRouter.post("/create", verifyAdminOrTechnician, createReport);
+reportRouter.put("/edit/:id", verifyAdminOrTechnician, editReport);
+reportRouter.delete("/delete/:id", verifyAdminOrTechnician, deleteReport);
+reportRouter.get("/getByReporterID/:reporterID", verifyAdminOrTechnician, getByReporterID);
 
 export default reportRouter;

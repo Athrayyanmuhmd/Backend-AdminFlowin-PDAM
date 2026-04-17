@@ -7,13 +7,42 @@ import logger from '../../utils/logger.js';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-export function verifyAdminToken(token: string | undefined) {
+export function verifyAdminToken(token: string | undefined): Record<string, any> {
   if (!token) throw new Error('Token tidak ditemukan. Silakan login terlebih dahulu.');
+  let decoded: any;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET as string);
-  } catch {
-    throw new Error('Token tidak valid atau sudah kadaluarsa.');
+    decoded = jwt.verify(token, process.env.JWT_SECRET as string);
+  } catch (err: any) {
+    const isExpired = err?.name === 'TokenExpiredError';
+    throw new Error(isExpired ? 'Token sudah kadaluarsa. Silakan login ulang.' : 'Token tidak valid.');
   }
+  // Role check — dua format token yang beredar:
+  // Format baru (GraphQL login + REST login yang sudah dipatch): { id, role: 'admin'|'technician', email }
+  // Format lama (REST login sebelum patch):                      { userId, email } — tanpa role, tanpa id
+  // Token Ahmad (pelanggan):                                     { userId, email } — tapi disimpan di sistem berbeda
+  //
+  // Strategi: terima jika role eksplisit admin/teknisi, ATAU jika ada userId/id (legacy admin).
+  // Token user Ahmad tidak harusnya sampai di sini karena dikirim ke backend Ahmad (port 3001), bukan admin (5000).
+  const hasValidRole = decoded.role === 'admin' || decoded.role === 'technician';
+  const hasId = !!(decoded.id || decoded.userId); // legacy REST token pakai userId, bukan id
+  if (!hasValidRole && !hasId) {
+    throw new Error('Akses ditolak: token tidak memiliki hak akses admin.');
+  }
+  return decoded;
+}
+
+/** Verifikasi token dan pastikan hanya role 'admin' (bukan teknisi). */
+export function verifyAdminOnlyToken(token: string | undefined): Record<string, any> {
+  const decoded = verifyAdminToken(token);
+  if (decoded.role === 'technician') {
+    throw new Error('Akses ditolak: hanya administrator yang dapat melakukan operasi ini.');
+  }
+  return decoded;
+}
+
+/** Extract ID dari token — handle format baru (id) dan lama (userId). */
+export function extractTokenId(decoded: Record<string, any>): string | null {
+  return decoded.id?.toString() ?? decoded.userId?.toString() ?? null;
 }
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
@@ -41,8 +70,8 @@ export async function catatAuditLog({
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
-        idAdmin = decoded.id;
-        const admin = await AdminAccount.findById(decoded.id, 'namaLengkap');
+        idAdmin = decoded.id ?? decoded.userId; // handle REST token lama (userId)
+        const admin = await AdminAccount.findById(idAdmin, 'namaLengkap');
         if (admin) namaAdmin = admin.namaLengkap;
       } catch (_) {}
     }

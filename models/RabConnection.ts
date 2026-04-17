@@ -21,6 +21,8 @@ export interface IRabConnection {
   paymentUrl?: string | null;  // Snap redirect URL
   urlRab?: string | null;
   catatan?: string | null;
+  statusKonfirmasiPembayaran?: 'belum_dikonfirmasi' | 'dikonfirmasi';
+  catatanKonfirmasi?: string | null;
 }
 
 export interface IRabConnectionDocument extends IRabConnection, Document {}
@@ -43,6 +45,12 @@ const RabConnectionSchema = new Schema<IRabConnection>(
     paymentUrl: { type: String, default: null },
     urlRab: { type: String, default: null },
     catatan: { type: String, default: null },
+    statusKonfirmasiPembayaran: {
+      type: String,
+      enum: ['belum_dikonfirmasi', 'dikonfirmasi'],
+      default: 'belum_dikonfirmasi',
+    },
+    catatanKonfirmasi: { type: String, default: null },
   },
   {
     timestamps: true,

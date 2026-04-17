@@ -205,7 +205,6 @@ const PekerjaanTeknisiSchema = new Schema<IPekerjaanTeknisiDocument>(
       type: Schema.Types.ObjectId,
       ref: 'PekerjaanTeknisi',
       default: null,
-      index: true,
     },
 
     // ─── Respon awal teknisi ───────────────────────────────────────────

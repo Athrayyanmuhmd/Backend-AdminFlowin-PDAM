@@ -79,7 +79,7 @@ const UsersSchema = new Schema<IUser>(
     accountStatus: {
       type: String,
       enum: ['active', 'inactive', 'suspended'],
-      default: 'active',
+      default: 'inactive',
     },
     password: {
       type: String,

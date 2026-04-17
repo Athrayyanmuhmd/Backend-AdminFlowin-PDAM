@@ -89,6 +89,7 @@ export const authResolvers = {
     },
 
     deleteAdmin: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
       const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
       await catatAuditLog({

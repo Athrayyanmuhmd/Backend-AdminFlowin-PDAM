@@ -38,6 +38,7 @@
     "uuid": "^11.0.5"
   },
   "scripts": {
+    "prestart": "node -e \"const {execSync}=require('child_process');try{execSync('cmd /c for /f \\\"tokens=5\\\" %a in (\\\"netstat -aon ^| findstr :5000 ^| findstr LISTENING\\\") do taskkill /f /pid %a',{stdio:'ignore'})}catch(e){}\"",
     "start": "nodemon --exec tsx server.ts",
     "build": "tsc --noEmit",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",

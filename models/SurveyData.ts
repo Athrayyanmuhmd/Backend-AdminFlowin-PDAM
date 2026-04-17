@@ -3,6 +3,7 @@ import { Schema, model, Types, Document } from 'mongoose';
 // Disesuaikan dengan Rafli (flowin-teknisi-graphql/Survey.ts)
 // Collection: surveis — shared with Rafli
 // jumlahPenghuni: Number (bukan String) — sesuai Rafli
+// idTeknisi dihapus — tidak ada di ERD dan tidak ada di model Rafli
 
 export interface ISurveyData {
   idKoneksiData: Types.ObjectId;
@@ -17,6 +18,9 @@ export interface ISurveyData {
   jumlahPenghuni?: number | null;  // Number — sesuai Rafli (bukan String)
   standar?: boolean | null;
   catatan?: string | null;
+  statusAdmin?: 'menunggu_review' | 'disetujui' | 'ditolak';
+  catatanAdmin?: string | null;
+  isDraft?: boolean;
 }
 
 export interface ISurveyDataDocument extends ISurveyData, Document {}
@@ -46,10 +50,18 @@ const SurveyDataSchema = new Schema<ISurveyData>(
     jumlahPenghuni: { type: Number, default: null },
     standar: { type: Boolean, default: null },
     catatan: { type: String, default: null },
+    statusAdmin: {
+      type: String,
+      enum: ['menunggu_review', 'disetujui', 'ditolak'],
+      default: 'menunggu_review',
+    },
+    catatanAdmin: { type: String, default: null },
+    isDraft: { type: Boolean, default: false },
   },
   {
     timestamps: true,
     collection: 'surveis',
+    strict: false, // Rafli owns this collection — agar field Rafli yang belum didefinisikan tetap terbaca
   }
 );
 

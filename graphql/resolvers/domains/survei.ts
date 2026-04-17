@@ -22,12 +22,18 @@ export const surveiResolvers = {
 
     getAllSurvei: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await SurveyData.find().sort({ createdAt: -1 }).populate(SURVEI_POPULATE as any);
+      // Hanya tampilkan data yang sudah disubmit (bukan draft)
+      return await SurveyData.find({ $or: [{ isDraft: false }, { isDraft: { $exists: false } }] })
+        .sort({ createdAt: -1 }).populate(SURVEI_POPULATE as any);
     },
 
     getSurveiByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await SurveyData.findOne({ idKoneksiData }).populate(SURVEI_POPULATE as any);
+      // Hanya tampilkan survei yang sudah disubmit (bukan draft)
+      return await SurveyData.findOne({
+        idKoneksiData,
+        $or: [{ isDraft: false }, { isDraft: { $exists: false } }],
+      }).populate(SURVEI_POPULATE as any);
     },
 
     getRABConnection: async (_, { id }, { token }: GraphQLContext) => {
@@ -117,6 +123,41 @@ export const surveiResolvers = {
       if (!rab) throw new Error('RAB Connection tidak ditemukan');
       await RabConnection.findByIdAndDelete(id);
       return { success: true, message: 'RAB Connection berhasil dihapus' };
+    },
+
+    reviewSurvei: async (_, { id, disetujui, catatan }, { token }) => {
+      verifyAdminToken(token);
+      const survei = await SurveyData.findById(id);
+      if (!survei) throw new Error('Survei tidak ditemukan');
+      (survei as any).statusAdmin = disetujui ? 'disetujui' : 'ditolak';
+      (survei as any).catatanAdmin = catatan ?? null;
+      await survei.save();
+      return await SurveyData.findById(id).populate(SURVEI_POPULATE as any);
+    },
+
+    konfirmasiPembayaranRAB: async (_, { id, catatan }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB Connection tidak ditemukan');
+      if (rab.statusPembayaran !== 'settlement') {
+        throw new Error('Pembayaran belum settlement — tidak dapat dikonfirmasi');
+      }
+      (rab as any).statusKonfirmasiPembayaran = 'dikonfirmasi';
+      (rab as any).catatanKonfirmasi = catatan ?? null;
+      await rab.save();
+      return await RabConnection.findById(id).populate(RAB_POPULATE as any);
+    },
+
+    tandaiLunasRAB: async (_, { id, catatan }, { token }) => {
+      verifyAdminToken(token);
+      const rab = await RabConnection.findById(id);
+      if (!rab) throw new Error('RAB Connection tidak ditemukan');
+      // Loket/cash payment — mark both payment and confirmation
+      (rab as any).statusPembayaran = 'settlement';
+      (rab as any).statusKonfirmasiPembayaran = 'dikonfirmasi';
+      (rab as any).catatanKonfirmasi = catatan ?? 'Dibayar tunai di loket';
+      await rab.save();
+      return await RabConnection.findById(id).populate(RAB_POPULATE as any);
     },
   },
 };

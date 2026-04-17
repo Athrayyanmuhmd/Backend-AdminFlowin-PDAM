@@ -25,10 +25,21 @@ router.get("/connection-status", verifyToken, getConnectionStatus);
 router.post("/disconnect", verifyToken, disconnectDevice);
 
 /**
- * IoT Device routes (public)
+ * IoT Device routes — dilindungi device secret
  */
 
+// Middleware: cek x-device-secret header sebelum heartbeat
+const verifyDeviceSecret = (req, res, next) => {
+  const secret = req.headers['x-device-secret'];
+  const expected = process.env.IOT_DEVICE_SECRET;
+  if (!expected) return next(); // secret belum dikonfigurasi → skip (dev mode)
+  if (!secret || secret !== expected) {
+    return res.status(401).json({ status: 401, pesan: 'Device tidak dikenal.' });
+  }
+  next();
+};
+
 // IoT heartbeat/sync
-router.post("/heartbeat", iotHeartbeat);
+router.post("/heartbeat", verifyDeviceSecret, iotHeartbeat);
 
 export default router;

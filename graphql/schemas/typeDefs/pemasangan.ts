@@ -13,6 +13,8 @@ export const pemasanganTypeDefs = gql`
     fotoMeteran: String
     fotoMeteranDanRumah: String
     catatan: String
+    statusAdmin: String    # menunggu_review | disetujui | ditolak
+    catatanAdmin: String
     createdAt: String
     updatedAt: String
   }
@@ -23,6 +25,8 @@ export const pemasanganTypeDefs = gql`
     idPemasangan: Pemasangan
     urlGambar: [String]
     catatan: String
+    statusAdmin: String    # menunggu_review | disetujui | ditolak
+    catatanAdmin: String
     createdAt: String
     updatedAt: String
   }
@@ -33,6 +37,8 @@ export const pemasanganTypeDefs = gql`
     idPemasangan: Pemasangan
     urlGambar: [String]
     catatan: String
+    statusAdmin: String    # menunggu_review | disetujui | ditolak
+    catatanAdmin: String
     createdAt: String
     updatedAt: String
   }
@@ -95,11 +101,15 @@ export const pemasanganTypeDefs = gql`
     createPemasangan(input: CreatePemasanganInput!): Pemasangan!
     updatePemasangan(id: ID!, input: UpdatePemasanganInput!): Pemasangan!
     deletePemasangan(id: ID!): Boolean!
+    # Admin review: approve / reject each installation stage
+    reviewPemasangan(id: ID!, disetujui: Boolean!, catatan: String): Pemasangan!
     createPengawasanPemasangan(input: CreatePengawasanPemasanganInput!): PengawasanPemasangan!
     updatePengawasanPemasangan(id: ID!, input: UpdatePengawasanPemasanganInput!): PengawasanPemasangan!
     deletePengawasanPemasangan(id: ID!): Boolean!
+    reviewPengawasanPemasangan(id: ID!, disetujui: Boolean!, catatan: String): PengawasanPemasangan!
     createPengawasanSetelahPemasangan(input: CreatePengawasanSetelahPemasanganInput!): PengawasanSetelahPemasangan!
     updatePengawasanSetelahPemasangan(id: ID!, input: UpdatePengawasanSetelahPemasanganInput!): PengawasanSetelahPemasangan!
     deletePengawasanSetelahPemasangan(id: ID!): Boolean!
+    reviewPengawasanSetelahPemasangan(id: ID!, disetujui: Boolean!, catatan: String): PengawasanSetelahPemasangan!
   }
 `;

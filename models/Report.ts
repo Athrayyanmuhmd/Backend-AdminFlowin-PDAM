@@ -29,6 +29,8 @@ export interface IReport {
   Catatan?: string | null;
   Koordinat?: Types.ObjectId | null;
   Status: StatusLaporan;
+  IdTeknisi?: Types.ObjectId | null; // teknisi yang ditugaskan (Rafli's teknisiperumdams)
+  CatatanAdmin?: string | null;       // catatan admin saat menugaskan
 }
 
 export interface IReportDocument extends IReport, Document {}
@@ -68,6 +70,15 @@ const ReportSchema = new Schema<IReport>(
     Koordinat: {
       type: Schema.Types.ObjectId,
       ref: 'GeoLokasi',
+      default: null,
+    },
+    IdTeknisi: {
+      type: Schema.Types.ObjectId,
+      ref: 'TeknisiPerumdam',
+      default: null,
+    },
+    CatatanAdmin: {
+      type: String,
       default: null,
     },
     Status: {

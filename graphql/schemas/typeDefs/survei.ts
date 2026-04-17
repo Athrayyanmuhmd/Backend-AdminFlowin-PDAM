@@ -21,6 +21,9 @@ export const surveiTypeDefs = gql`
     jumlahPenghuni: Int
     standar: Boolean
     catatan: String
+    statusAdmin: String
+    catatanAdmin: String
+    isDraft: Boolean
     createdAt: String
     updatedAt: String
   }
@@ -29,11 +32,14 @@ export const surveiTypeDefs = gql`
     _id: ID!
     idKoneksiData: KoneksiData
     totalBiaya: Float
-    statusPembayaran: PaymentStatus!
+    # Disimpan lowercase di DB ('pending','settlement') — pakai String agar tidak gagal serialize enum
+    statusPembayaran: String!
     orderId: String
     paymentUrl: String
     urlRab: String
     catatan: String
+    statusKonfirmasiPembayaran: String
+    catatanKonfirmasi: String
     createdAt: String
     updatedAt: String
   }
@@ -92,9 +98,14 @@ export const surveiTypeDefs = gql`
       totalBiaya: Float
       urlRab: String
       catatan: String
-      statusPembayaran: PaymentStatus
+      statusPembayaran: String
     ): RABConnection!
 
     deleteRABConnection(id: ID!): DeleteResponse!
+
+    # Admin review mutations
+    reviewSurvei(id: ID!, disetujui: Boolean!, catatan: String): Survei!
+    konfirmasiPembayaranRAB(id: ID!, catatan: String): RABConnection!
+    tandaiLunasRAB(id: ID!, catatan: String): RABConnection!
   }
 `;

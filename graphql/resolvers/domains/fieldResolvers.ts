@@ -13,6 +13,34 @@ import { getCache, setCache } from '../../../utils/redis.js';
 // Helper: serialize date → ISO string (null-safe)
 const iso = (v: any): string | null => (v ? new Date(v).toISOString() : null);
 
+// Helper: safe _id → string conversion
+// Handles ObjectId (.toHexString), Buffer (UUID binary from MongoDB), and plain strings
+const toId = (val: any): string | null => {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val.toHexString === 'function') return val.toHexString(); // ObjectId
+  if (Buffer.isBuffer(val)) return val.toString('hex');               // Binary/Buffer
+  // BSON Binary serialized as {type:'Buffer',data:[...]} (e.g. lean() on some drivers)
+  if (val && val.type === 'Buffer' && Array.isArray(val.data)) return Buffer.from(val.data).toString('hex');
+  return String(val);
+};
+
+// Helper: safe ISO — handles epoch-ms strings (e.g. "1718000000000") from Rafli backend
+// new Date("1718000000000") → Invalid Date in Node.js; must convert to Number first
+const safeIso = (v: any): string | null => {
+  if (!v) return null;
+  try {
+    if (typeof v === 'number' || (typeof v === 'string' && /^\d+$/.test(v))) {
+      const d = new Date(Number(v));
+      return isNaN(d.getTime()) ? null : d.toISOString();
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch {
+    return null;
+  }
+};
+
 // Helper: normalize status pembayaran ke UPPERCASE enum (DB stores lowercase, GQL expects UPPERCASE)
 const normalizePaymentStatus = (v: string | undefined | null): string => {
   if (!v) return 'PENDING';
@@ -78,6 +106,8 @@ export const fieldResolvers = {
 
   // ─── Laporan — DB PascalCase → GQL mapping ──────────────────────────────────
   Laporan: {
+    // Explicit _id converter: some Ahmad docs use UUID Binary _id → would throw "ID cannot represent Buffer"
+    _id: (parent) => toId(parent._id),
     idPengguna: async (parent) => {
       const ref = parent.IdPengguna || parent.idPengguna;
       if (!ref) return null;
@@ -98,35 +128,59 @@ export const fieldResolvers = {
         KebocoranPipa: 'KEBOCORAN_PIPA',
         MeteranBermasalah: 'METERAN_BERMASALAH',
         KendalaLainnya: 'KENDALA_LAINNYA',
+        // Already GQL format (idempotent)
+        AIR_TIDAK_MENGALIR: 'AIR_TIDAK_MENGALIR',
+        AIR_KERUH: 'AIR_KERUH',
+        KEBOCORAN_PIPA: 'KEBOCORAN_PIPA',
+        METERAN_BERMASALAH: 'METERAN_BERMASALAH',
+        KENDALA_LAINNYA: 'KENDALA_LAINNYA',
       };
-      return map[v] ?? v;
+      return map[v] ?? 'KENDALA_LAINNYA'; // unknown → fallback to safe enum value
     },
     catatan: (parent) => parent.Catatan || parent.catatan || null,
     status: (parent) => {
       const v = parent.Status || parent.status;
       if (!v) return 'DITUNDA';
       // Map Ahmad DB PascalCase → GQL SCREAMING_SNAKE_CASE
+      // Includes legacy Ahmad values (Diajukan, ProsesPerbaikan) from older data
       const map: Record<string, string> = {
         Ditunda: 'DITUNDA',
+        Diajukan: 'DITUNDA',          // legacy Ahmad — treat as menunggu tindakan
         Ditugaskan: 'DITUGASKAN',
         DitinjauAdmin: 'DITINJAU_ADMIN',
         SedangDikerjakan: 'SEDANG_DIKERJAKAN',
+        ProsesPerbaikan: 'SEDANG_DIKERJAKAN', // legacy Ahmad — in-progress
         Selesai: 'SELESAI',
         Dibatalkan: 'DIBATALKAN',
+        // Also handle if already in GQL format (idempotent)
+        DITUNDA: 'DITUNDA',
+        DITUGASKAN: 'DITUGASKAN',
+        DITINJAU_ADMIN: 'DITINJAU_ADMIN',
+        SEDANG_DIKERJAKAN: 'SEDANG_DIKERJAKAN',
+        SELESAI: 'SELESAI',
+        DIBATALKAN: 'DIBATALKAN',
       };
-      return map[v] ?? v.toUpperCase().replace(/ /g, '_');
+      return map[v] ?? 'DITUNDA'; // unknown status → default DITUNDA, never throw
     },
     koordinat: async (parent) => {
       // Koordinat is ObjectId ref to GeoLokasi model
       const ref = parent.Koordinat || parent.koordinat;
       if (!ref) return null;
       if (typeof ref === 'object' && ref.Latitude != null) {
-        return { _id: ref._id, latitude: ref.Latitude, longitude: ref.Longitude };
+        // Convert _id to string — Buffer/Binary from MongoDB would cause "ID cannot represent Buffer" error
+        return { _id: ref._id?.toString() ?? null, latitude: ref.Latitude, longitude: ref.Longitude };
       }
       const geo = await GeoLokasi.findById(ref);
       if (!geo) return null;
-      return { _id: geo._id, latitude: geo.Latitude, longitude: geo.Longitude };
+      return { _id: geo._id?.toString() ?? null, latitude: geo.Latitude, longitude: geo.Longitude };
     },
+    idTeknisi: async (parent) => {
+      const ref = parent.IdTeknisi || parent.idTeknisi;
+      if (!ref) return null;
+      if (typeof ref === 'object' && ref._id) return ref;
+      return await Technician.findById(ref);
+    },
+    catatanAdmin: (parent) => parent.CatatanAdmin || parent.catatanAdmin || null,
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
@@ -143,7 +197,7 @@ export const fieldResolvers = {
       const ref = parent.idKoneksiData;
       if (!ref) return null;
       if (typeof ref === 'object' && ref._id) return ref;
-      return await ConnectionData.findById(ref).lean();
+      return await ConnectionData.findById(ref).populate('IdPelanggan').lean();
     },
     koordinat: (parent) => {
       const k = parent.koordinat;
@@ -162,8 +216,10 @@ export const fieldResolvers = {
     idKoneksiData: async (parent) => {
       const ref = parent.idKoneksiData;
       if (!ref) return null;
+      // Already populated as Mongoose document — return as-is
       if (typeof ref === 'object' && ref._id) return ref;
-      return await ConnectionData.findById(ref).lean();
+      // Fallback: fetch from DB, populate IdPelanggan so KoneksiData.IdPelanggan resolver has a User object
+      return await ConnectionData.findById(ref).populate('IdPelanggan').lean();
     },
     statusPembayaran: (parent) => normalizePaymentStatus(parent.statusPembayaran),
     createdAt: (parent) => iso(parent.createdAt),
@@ -196,6 +252,7 @@ export const fieldResolvers = {
 
   // ─── Pengguna ──────────────────────────────────────────────────────────────────
   Pengguna: {
+    _id: (parent) => toId(parent._id),
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
@@ -207,8 +264,21 @@ export const fieldResolvers = {
   },
 
   Teknisi: {
-    createdAt: (parent) => iso(parent.createdAt),
-    updatedAt: (parent) => iso(parent.updatedAt),
+    // `id` field: bson v6 ObjectId.id returns a raw Buffer (12 bytes). If the default
+    // resolver reads parent.id from a plain ObjectId object, Buffer.toJSON() returns
+    // { type: "Buffer", data: [...] } which the ID scalar rejects. Use toId() to normalize.
+    id: (parent) => toId(parent.id) ?? toId(parent._id) ?? null,
+    // namaLengkap: String! — non-nullable; fallback to '—' to prevent null propagation crash.
+    // Some Teknisi documents from Rafli backend may use different casing or missing values.
+    namaLengkap: (parent) => parent.namaLengkap ?? parent.NamaLengkap ?? parent.nama ?? '—',
+    nip: (parent) => parent.nip ?? parent.NIP ?? parent.Nip ?? null,
+    email: (parent) => parent.email ?? parent.Email ?? null,
+    noHp: (parent) => parent.noHp ?? parent.noHP ?? parent.NoHp ?? parent.no_hp ?? null,
+    divisi: (parent) => parent.divisi ?? parent.Divisi ?? null,
+    isActive: (parent) => parent.isActive ?? null,
+    // safeIso: Rafli serializes Date via String(epochMs) → "1718000000000"
+    createdAt: (parent) => safeIso(parent.createdAt),
+    updatedAt: (parent) => safeIso(parent.updatedAt),
   },
 
   // ─── KelompokPelanggan ────────────────────────────────────────────────────────
@@ -290,8 +360,10 @@ export const fieldResolvers = {
     idKoneksiData: async (parent) => {
       const ref = parent.idKoneksiData;
       if (!ref) return null;
+      // Already populated (deep populate from resolver) — return as-is
       if (typeof ref === 'object' && ref._id) return ref;
-      return await ConnectionData.findById(ref).lean();
+      // Fallback: fetch and deep-populate IdPelanggan
+      return await ConnectionData.findById(ref).populate('IdPelanggan').lean();
     },
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),

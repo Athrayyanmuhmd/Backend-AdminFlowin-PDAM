@@ -10,6 +10,13 @@ export const koneksiDataResolvers = {
       return await KoneksiData.findById(id).populate('IdPelanggan');
     },
 
+    getKoneksiDataByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      return await KoneksiData.findOne({ IdPelanggan: idPelanggan })
+        .sort({ createdAt: -1 })
+        .populate('IdPelanggan');
+    },
+
     getAllKoneksiData: async (_, { limit = 50, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       return await KoneksiData.find()

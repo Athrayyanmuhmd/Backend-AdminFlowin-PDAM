@@ -7,51 +7,69 @@ import type { GraphQLContext } from '../../../types/index.js';
 
 // Disesuaikan dengan Rafli — model simplified, no teknisiId/supervisorId/statusVerifikasi
 
+// Deep populate: Pemasangan → KoneksiData → Pengguna (IdPelanggan)
+const PEMASANGAN_KONEKSI_POPULATE = {
+  path: 'idKoneksiData',
+  model: 'KoneksiData',
+  populate: { path: 'IdPelanggan', model: 'Pengguna' },
+};
+
+// Deep populate: Pengawasan → Pemasangan → KoneksiData → Pengguna
+const PENGAWASAN_DEEP_POPULATE = {
+  path: 'idPemasangan',
+  model: 'Pemasangan',
+  populate: {
+    path: 'idKoneksiData',
+    model: 'KoneksiData',
+    populate: { path: 'IdPelanggan', model: 'Pengguna' },
+  },
+};
+
 export const pemasanganResolvers = {
   Query: {
     getPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.findById(id).populate('idKoneksiData');
+      return await Pemasangan.findById(id).populate(PEMASANGAN_KONEKSI_POPULATE);
     },
 
     getPemasanganByKoneksiData: async (_, { idKoneksiData }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.findOne({ idKoneksiData }).populate('idKoneksiData');
+      return await Pemasangan.findOne({ idKoneksiData }).populate(PEMASANGAN_KONEKSI_POPULATE);
     },
 
     getAllPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Pemasangan.find().limit(500).populate('idKoneksiData').sort({ createdAt: -1 });
+      return await Pemasangan.find().limit(500).populate(PEMASANGAN_KONEKSI_POPULATE).sort({ createdAt: -1 });
     },
 
     getPengawasanPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.findById(id).populate('idPemasangan');
+      return await PengawasanPemasangan.findById(id).populate(PENGAWASAN_DEEP_POPULATE);
     },
 
     getPengawasanPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.find({ idPemasangan }).sort({ createdAt: -1 });
+      return await PengawasanPemasangan.find({ idPemasangan }).populate(PENGAWASAN_DEEP_POPULATE).sort({ createdAt: -1 });
     },
 
     getAllPengawasanPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanPemasangan.find().limit(500).populate('idPemasangan').sort({ createdAt: -1 });
+      return await PengawasanPemasangan.find().limit(500).populate(PENGAWASAN_DEEP_POPULATE).sort({ createdAt: -1 });
     },
 
     getPengawasanSetelahPemasangan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.findById(id).populate('idPemasangan');
+      return await PengawasanSetelahPemasangan.findById(id).populate(PENGAWASAN_DEEP_POPULATE);
     },
 
     getPengawasanSetelahPemasanganByPemasangan: async (_, { idPemasangan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find({ idPemasangan }).sort({ createdAt: -1 });
+      return await PengawasanSetelahPemasangan.find({ idPemasangan }).populate(PENGAWASAN_DEEP_POPULATE).sort({ createdAt: -1 });
     },
 
     getAllPengawasanSetelahPemasangan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PengawasanSetelahPemasangan.find().limit(500).populate('idPemasangan').sort({ createdAt: -1 });
+      return await PengawasanSetelahPemasangan.find().limit(500).populate(PENGAWASAN_DEEP_POPULATE).sort({ createdAt: -1 });
     },
   },
 
@@ -72,6 +90,15 @@ export const pemasanganResolvers = {
       return true;
     },
 
+    reviewPemasangan: async (_, { id, disetujui, catatan }, { token }) => {
+      verifyAdminToken(token);
+      return await Pemasangan.findByIdAndUpdate(
+        id,
+        { statusAdmin: disetujui ? 'disetujui' : 'ditolak', catatanAdmin: catatan || null },
+        { new: true }
+      ).populate(PEMASANGAN_KONEKSI_POPULATE);
+    },
+
     createPengawasanPemasangan: async (_, { input }, { token }) => {
       verifyAdminToken(token);
       return await new PengawasanPemasangan(input).save();
@@ -88,6 +115,15 @@ export const pemasanganResolvers = {
       return true;
     },
 
+    reviewPengawasanPemasangan: async (_, { id, disetujui, catatan }, { token }) => {
+      verifyAdminToken(token);
+      return await PengawasanPemasangan.findByIdAndUpdate(
+        id,
+        { statusAdmin: disetujui ? 'disetujui' : 'ditolak', catatanAdmin: catatan || null },
+        { new: true }
+      );
+    },
+
     createPengawasanSetelahPemasangan: async (_, { input }, { token }) => {
       verifyAdminToken(token);
       return await new PengawasanSetelahPemasangan(input).save();
@@ -102,6 +138,15 @@ export const pemasanganResolvers = {
       verifyAdminToken(token);
       await PengawasanSetelahPemasangan.findByIdAndDelete(id);
       return true;
+    },
+
+    reviewPengawasanSetelahPemasangan: async (_, { id, disetujui, catatan }, { token }) => {
+      verifyAdminToken(token);
+      return await PengawasanSetelahPemasangan.findByIdAndUpdate(
+        id,
+        { statusAdmin: disetujui ? 'disetujui' : 'ditolak', catatanAdmin: catatan || null },
+        { new: true }
+      );
     },
   },
 };

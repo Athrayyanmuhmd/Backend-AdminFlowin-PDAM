@@ -7,6 +7,8 @@ export interface IPengawasanSetelahPemasangan {
   idPemasangan: Types.ObjectId;
   urlGambar?: string[] | null;
   catatan?: string | null;
+  statusAdmin?: 'menunggu_review' | 'disetujui' | 'ditolak';
+  catatanAdmin?: string | null;
 }
 
 export interface IPengawasanSetelahPemasanganDocument extends IPengawasanSetelahPemasangan, Document {}
@@ -22,10 +24,13 @@ const PengawasanSetelahPemasanganSchema = new Schema<IPengawasanSetelahPemasanga
       type: [String],
       default: null,
     },
-    catatan: {
+    catatan: { type: String, default: null },
+    statusAdmin: {
       type: String,
-      default: null,
+      enum: ['menunggu_review', 'disetujui', 'ditolak'],
+      default: 'menunggu_review',
     },
+    catatanAdmin: { type: String, default: null },
   },
   {
     timestamps: true,

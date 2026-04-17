@@ -1,3 +1,6 @@
+import { configDotenv } from 'dotenv';
+configDotenv(); // Harus dipanggil PERTAMA sebelum import lain agar env vars tersedia
+
 import express, { type Request, type Response, type NextFunction } from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -5,7 +8,6 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import pinoHttpPkg from 'pino-http';
 const pinoHttp = (pinoHttpPkg as any).default ?? pinoHttpPkg;
-import { configDotenv } from 'dotenv';
 import logger from './utils/logger.js';
 import userRouter from './routes/userRouter.js';
 import reportRouter from './routes/reportRouter.js';
@@ -40,8 +42,6 @@ import { setupApolloServer } from './graphql/apolloServer.js';
 
 const app = express();
 const port = 5000;
-
-configDotenv();
 
 // Validate required environment variables before anything else
 const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY', 'JWT_ACCESS_SECRET', 'INTERNAL_API_SECRET'];
@@ -87,18 +87,26 @@ app.use(pinoHttp({
 }));
 
 // CORS Configuration
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3002',
+  'http://localhost:3003',
+];
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
+    // Allow localhost in development
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);
     }
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:3002',
-      'http://localhost:3003',
-    ];
+    // Allow Vercel preview/production deployments
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -191,10 +199,20 @@ process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'Unhandled Promise Rejection');
 });
 
-connectDB()
+// Initialization promise — runs once on cold start (Vercel) or on startup (local)
+const initPromise = connectDB()
   .then(async () => {
     await setupApolloServer(app);
+    logger.info('Server initialized (DB + Apollo ready)');
+  })
+  .catch((err) => {
+    logger.fatal({ err }, 'Server initialization failed');
+    throw err;
+  });
 
+// Local development: listen on port + setup cron jobs
+if (!process.env.VERCEL) {
+  initPromise.then(() => {
     const server = app.listen(port, () => {
       logger.info(`Server running on port ${port}`);
       logger.info(`GraphQL endpoint: http://localhost:${port}/graphql`);
@@ -226,5 +244,11 @@ connectDB()
     };
     process.on('SIGTERM', () => shutdown('SIGTERM'));
     process.on('SIGINT', () => shutdown('SIGINT'));
-  })
-  .catch((err) => logger.fatal({ err }, "Server startup failed"));
+  }).catch((err) => logger.fatal({ err }, 'Server startup failed'));
+}
+
+// Vercel serverless handler — wait for init, then delegate to Express
+export default async function handler(req: any, res: any) {
+  await initPromise;
+  return app(req, res);
+}

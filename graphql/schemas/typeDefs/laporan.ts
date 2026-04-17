@@ -15,6 +15,8 @@ export const laporanTypeDefs = gql`
     catatan: String
     koordinat: Geolocation
     status: WorkStatusPelanggan!
+    idTeknisi: Teknisi       # teknisi yang ditugaskan (dari Rafli via TeknisiPerumdam)
+    catatanAdmin: String     # catatan admin saat menugaskan
     createdAt: String
     updatedAt: String
   }
@@ -50,8 +52,8 @@ export const laporanTypeDefs = gql`
   }
 
   extend type Mutation {
-    # Admin: update status laporan pelanggan
-    updateLaporanStatus(id: ID!, status: WorkStatusPelanggan!): Laporan!
+    # Admin: update status laporan pelanggan (idTeknisi wajib saat status=DITUGASKAN)
+    updateLaporanStatus(id: ID!, status: WorkStatusPelanggan!, idTeknisi: ID, catatanAdmin: String): Laporan!
     createPenyelesaianLaporan(input: CreatePenyelesaianLaporanInput!): PenyelesaianLaporan!
     updatePenyelesaianLaporan(id: ID!, input: UpdatePenyelesaianLaporanInput!): PenyelesaianLaporan!
     deletePenyelesaianLaporan(id: ID!): DeleteResponse!

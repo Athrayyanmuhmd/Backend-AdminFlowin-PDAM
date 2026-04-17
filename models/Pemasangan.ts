@@ -4,6 +4,8 @@ import { Schema, model, Types, Document } from 'mongoose';
 // Collection: pemasangans — shared across systems
 // Semua field opsional kecuali idKoneksiData
 
+export type StatusAdminReview = 'menunggu_review' | 'disetujui' | 'ditolak';
+
 export interface IPemasangan {
   idKoneksiData: Types.ObjectId;
   seriMeteran?: string | null;
@@ -11,6 +13,8 @@ export interface IPemasangan {
   fotoMeteran?: string | null;
   fotoMeteranDanRumah?: string | null;
   catatan?: string | null;
+  statusAdmin?: StatusAdminReview;
+  catatanAdmin?: string | null;
 }
 
 export interface IPemasanganDocument extends IPemasangan, Document {}
@@ -42,6 +46,12 @@ const PemasanganSchema = new Schema<IPemasangan>(
       type: String,
       default: null,
     },
+    statusAdmin: {
+      type: String,
+      enum: ['menunggu_review', 'disetujui', 'ditolak'],
+      default: 'menunggu_review',
+    },
+    catatanAdmin: { type: String, default: null },
   },
   {
     timestamps: true,

@@ -50,6 +50,7 @@ export const koneksiDataTypeDefs = gql`
 
   extend type Query {
     getKoneksiData(id: ID!): KoneksiData
+    getKoneksiDataByPelanggan(idPelanggan: ID!): KoneksiData
     getAllKoneksiData(limit: Int, offset: Int): [KoneksiData!]!
     getPendingKoneksiData: [KoneksiData!]!
     getApprovedKoneksiData: [KoneksiData!]!
