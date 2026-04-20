@@ -141,7 +141,7 @@ export const pelangganResolvers = {
       return user;
     },
 
-    aktivasiPelanggan: async (_, { koneksiDataId, catatan }, { token }) => {
+    aktivasiPelanggan: async (_, { koneksiDataId }, { token }) => {
       verifyAdminToken(token);
 
       const koneksiData = await ConnectionData.findById(koneksiDataId);
@@ -161,12 +161,6 @@ export const pelangganResolvers = {
 
       // Activate the meter
       await Meteran.findByIdAndUpdate(meteran._id, { statusAktif: true });
-
-      // Simpan catatan & tanggal aktivasi ke ConnectionData
-      await ConnectionData.findByIdAndUpdate(koneksiDataId, {
-        catatanAktivasi: catatan || null,
-        tanggalAktivasi: new Date(),
-      });
 
       // Ambil nama kelompok tarif untuk info notifikasi
       const kelompok = await KelompokPelanggan.findById((meteran as any).IdKelompokPelanggan).catch(() => null);

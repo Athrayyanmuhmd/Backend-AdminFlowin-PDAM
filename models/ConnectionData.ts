@@ -23,8 +23,6 @@ export interface IConnectionData {
   LuasBangunan: number;
   // Field eksklusif admin (tidak ada di Ahmad/Rafli)
   catatan?: string | null;
-  catatanAktivasi?: string | null;
-  tanggalAktivasi?: Date | null;
 }
 
 export interface IConnectionDataDocument extends IConnectionData, Document {}
@@ -60,8 +58,6 @@ const KoneksiDataSchema = new Schema<IConnectionData>(
     Kecamatan: { type: String, required: [true, 'Kecamatan wajib diisi'] },
     LuasBangunan: { type: Number, required: [true, 'Luas Bangunan wajib diisi'] },
     catatan: { type: String, default: null },
-    catatanAktivasi: { type: String, default: null },
-    tanggalAktivasi: { type: Date, default: null },
   },
   {
     timestamps: true,
