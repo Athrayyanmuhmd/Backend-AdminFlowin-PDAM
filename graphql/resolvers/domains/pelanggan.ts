@@ -151,10 +151,10 @@ export const pelangganResolvers = {
       const user = await User.findById(userId);
       if (!user) throw new Error('Pelanggan tidak ditemukan');
 
-      // Activate user account (mandatory — always runs first)
+      // Activate user account — use findByIdAndUpdate to bypass full-document validation
+      await User.findByIdAndUpdate(userId, { $set: { isVerified: true, accountStatus: 'active' } });
       user.isVerified = true;
       user.accountStatus = 'active';
-      await user.save();
 
       // Activate meter if found — tolerate absence (meter may be linked via different field)
       const meteran = await Meteran.findOne({ IdKoneksiData: koneksiDataId }).catch(() => null);
