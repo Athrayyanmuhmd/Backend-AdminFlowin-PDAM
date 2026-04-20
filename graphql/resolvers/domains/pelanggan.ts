@@ -2,6 +2,7 @@
 import bcrypt from 'bcryptjs';
 import User from '../../../models/User.js';
 import Meteran from '../../../models/Meteran.js';
+import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import Notification from '../../../models/Notification.js';
@@ -140,7 +141,7 @@ export const pelangganResolvers = {
       return user;
     },
 
-    aktivasiPelanggan: async (_, { koneksiDataId }, { token }) => {
+    aktivasiPelanggan: async (_, { koneksiDataId, catatan }, { token }) => {
       verifyAdminToken(token);
 
       const koneksiData = await ConnectionData.findById(koneksiDataId);
@@ -161,11 +162,29 @@ export const pelangganResolvers = {
       // Activate the meter
       await Meteran.findByIdAndUpdate(meteran._id, { statusAktif: true });
 
-      // Notify the customer
+      // Simpan catatan & tanggal aktivasi ke ConnectionData
+      await ConnectionData.findByIdAndUpdate(koneksiDataId, {
+        catatanAktivasi: catatan || null,
+        tanggalAktivasi: new Date(),
+      });
+
+      // Ambil nama kelompok tarif untuk info notifikasi
+      const kelompok = await KelompokPelanggan.findById((meteran as any).IdKelompokPelanggan).catch(() => null);
+      const tanggalAktif = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+      // Notify the customer dengan informasi lengkap
       await Notification.create({
         IdPelanggan: userId,
-        Judul: 'Sambungan Air Aktif',
-        Pesan: `Selamat! Sambungan air Anda telah resmi diaktifkan. Nomor meter Anda: ${(meteran as any).NomorMeteran}. Anda sekarang dapat mulai menggunakan layanan air PERUMDAM Tirta Daroy.`,
+        Judul: 'Sambungan Air Resmi Aktif',
+        Pesan: [
+          `Selamat! Sambungan air Anda telah resmi diaktifkan per ${tanggalAktif}.`,
+          ``,
+          `No. Pelanggan : ${(meteran as any).NomorAkun}`,
+          `Seri Meteran  : ${(meteran as any).NomorMeteran}`,
+          kelompok ? `Kelompok Tarif: ${(kelompok as any).NamaKelompok}` : null,
+          ``,
+          `Tagihan pertama akan muncul pada awal bulan berikutnya. Pantau pemakaian air Anda di halaman Dashboard.`,
+        ].filter(Boolean).join('\n'),
         Kategori: 'INFORMASI',
         Link: '/dashboard',
         isRead: false,
