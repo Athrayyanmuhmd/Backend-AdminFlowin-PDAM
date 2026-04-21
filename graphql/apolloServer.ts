@@ -54,6 +54,7 @@ async function validateSessionInDB(token: string, operationName?: string): Promi
 const loginRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  validate: { xForwardedForHeader: false },
   skip: (req: Request) => {
     const body = req.body;
     if (!body || !body.query) return true;
@@ -95,11 +96,15 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
         if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
           return callback(null, true);
         }
+        if (origin.endsWith('.vercel.app')) {
+          return callback(null, true);
+        }
         const allowedOrigins = [
           'http://localhost:3000',
           'http://localhost:3001',
           'http://localhost:3002',
           'http://localhost:3003',
+          ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
         ];
         if (allowedOrigins.includes(origin)) {
           callback(null, true);
