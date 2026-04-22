@@ -743,6 +743,7 @@ export const createPayment = async (req, res) => {
           process.env.FRONTEND_URL || "http://localhost:3000"
         }/payment/pending`,
       },
+      notification_url: "https://aqualink-backend.vercel.app/webhook/payment",
     };
 
     // Add denda if exists
@@ -893,6 +894,7 @@ export const createPaymentForAllBills = async (req, res) => {
           process.env.FRONTEND_URL || "http://localhost:3000"
         }/payment/pending`,
       },
+      notification_url: "https://aqualink-backend.vercel.app/webhook/payment",
       custom_field1: JSON.stringify(billingIds), // Store billing IDs for webhook
     };
 
