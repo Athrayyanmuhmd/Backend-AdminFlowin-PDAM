@@ -113,6 +113,7 @@ export const workOrderTypeDefs = gql`
     idPengawasanPemasangan: ID
     idPengawasanSetelahPemasangan: ID
     idPenyelesaianLaporan: ID
+    pelangganLaporan: Pelanggan
     catatanReview: String
     riwayatReview: [RiwayatReviewWO]
     createdAt: String

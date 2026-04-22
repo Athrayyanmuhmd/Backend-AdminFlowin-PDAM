@@ -8,6 +8,8 @@ import RabConnection from '../../../models/RabConnection.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import User from '../../../models/User.js';
 import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
+import PenyelesaianLaporan from '../../../models/PenyelesaianLaporan.js';
+import Report from '../../../models/Report.js';
 import midtransClient from '../../../middleware/midtrans.js';
 import mongoose from 'mongoose';
 
@@ -55,6 +57,17 @@ function normalizeWorkOrder(wo: any): any {
     idPengawasanPemasangan: wo.idPengawasanPemasangan?.toString() ?? null,
     idPengawasanSetelahPemasangan: wo.idPengawasanSetelahPemasangan?.toString() ?? null,
     idPenyelesaianLaporan: wo.idPenyelesaianLaporan?.toString() ?? null,
+    pelangganLaporan: (() => {
+      const pengguna = wo.idPenyelesaianLaporan?.idLaporan?.IdPengguna;
+      if (!pengguna?._id) return null;
+      return {
+        id: pengguna._id.toString(),
+        namaLengkap: pengguna.namaLengkap ?? null,
+        email: pengguna.email ?? null,
+        noHp: pengguna.noHP ?? null,
+        alamat: pengguna.address ?? null,
+      };
+    })(),
     workOrderSebelumnya: wo.workOrderSebelumnya ? { id: wo.workOrderSebelumnya._id?.toString() ?? wo.workOrderSebelumnya.toString() } : null,
     teknisiPenanggungJawab: wo.teknisiPenanggungJawab ? {
       id: wo.teknisiPenanggungJawab._id?.toString() ?? wo.teknisiPenanggungJawab.toString(),
@@ -131,6 +144,15 @@ async function fallbackWorkOrdersFromMongo(filter?: any, pagination?: any): Prom
         path: 'idKoneksiData',
         model: 'KoneksiData',
         populate: { path: 'IdPelanggan', model: 'Pengguna' },
+      })
+      .populate({
+        path: 'idPenyelesaianLaporan',
+        model: 'PenyelesaianLaporan',
+        populate: {
+          path: 'idLaporan',
+          model: 'Laporan',
+          populate: { path: 'IdPengguna', model: 'Pengguna' },
+        },
       })
       .lean(),
     PekerjaanTeknisi.countDocuments(mongoFilter),
