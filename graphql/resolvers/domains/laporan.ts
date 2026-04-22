@@ -6,11 +6,12 @@ import { verifyAdminToken, notifikasiSemuaAdmin, notifikasiUntukPelanggan } from
 import type { GraphQLContext } from '../../../types/index.js';
 
 // Disesuaikan dengan Ahmad — Report model fields PascalCase (IdPengguna, Status, etc.)
-// DB status values: Ditunda, Ditugaskan, DitinjauAdmin, SedangDikerjakan, Selesai, Dibatalkan
+// DB status values: Diajukan, Ditunda, Ditugaskan, DitinjauAdmin, SedangDikerjakan, Selesai, Dibatalkan
 // GQL enum maps these via fieldResolvers (DITUNDA, DITUGASKAN, etc.)
 
 // Map GQL SCREAMING_SNAKE status → DB PascalCase
 const statusGqlToDb: Record<string, string> = {
+  DIAJUKAN: 'Diajukan',
   DITUNDA: 'Ditunda',
   DITUGASKAN: 'Ditugaskan',
   DITINJAU_ADMIN: 'DitinjauAdmin',

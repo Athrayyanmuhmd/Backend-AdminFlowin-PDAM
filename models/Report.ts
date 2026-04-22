@@ -12,6 +12,7 @@ export type JenisLaporan =
   | 'KendalaLainnya';
 
 export type StatusLaporan =
+  | 'Diajukan'
   | 'Ditunda'
   | 'Ditugaskan'
   | 'DitinjauAdmin'
@@ -83,9 +84,9 @@ const ReportSchema = new Schema<IReport>(
     },
     Status: {
       type: String,
-      enum: ['Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan', 'Selesai', 'Dibatalkan'],
+      enum: ['Diajukan', 'Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan', 'Selesai', 'Dibatalkan'],
       required: true,
-      default: 'Ditunda',
+      default: 'Diajukan',
     },
   },
   { timestamps: true }
