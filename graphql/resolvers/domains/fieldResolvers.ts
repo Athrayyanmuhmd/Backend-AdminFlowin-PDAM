@@ -140,12 +140,12 @@ export const fieldResolvers = {
     catatan: (parent) => parent.Catatan || parent.catatan || null,
     status: (parent) => {
       const v = parent.Status || parent.status;
-      if (!v) return 'DITUNDA';
+      if (!v) return 'DIAJUKAN';
       // Map Ahmad DB PascalCase → GQL SCREAMING_SNAKE_CASE
       // Includes legacy Ahmad values (Diajukan, ProsesPerbaikan) from older data
       const map: Record<string, string> = {
-        Ditunda: 'DITUNDA',
         Diajukan: 'DIAJUKAN',
+        Ditunda: 'DIAJUKAN',   // legacy — Ditunda diperlakukan sama dengan Diajukan
         Ditugaskan: 'DITUGASKAN',
         DitinjauAdmin: 'DITINJAU_ADMIN',
         SedangDikerjakan: 'SEDANG_DIKERJAKAN',
@@ -154,14 +154,13 @@ export const fieldResolvers = {
         Dibatalkan: 'DIBATALKAN',
         // Also handle if already in GQL format (idempotent)
         DIAJUKAN: 'DIAJUKAN',
-        DITUNDA: 'DITUNDA',
         DITUGASKAN: 'DITUGASKAN',
         DITINJAU_ADMIN: 'DITINJAU_ADMIN',
         SEDANG_DIKERJAKAN: 'SEDANG_DIKERJAKAN',
         SELESAI: 'SELESAI',
         DIBATALKAN: 'DIBATALKAN',
       };
-      return map[v] ?? 'DITUNDA'; // unknown status → default DITUNDA, never throw
+      return map[v] ?? 'DIAJUKAN'; // unknown status → default DIAJUKAN
     },
     koordinat: async (parent) => {
       // Koordinat is ObjectId ref to GeoLokasi model

@@ -17,7 +17,6 @@ export const baseTypeDefs = gql`
   # Ahmad (flowin-backend/Laporan.ts) — status laporan pelanggan
   enum WorkStatusPelanggan {
     DIAJUKAN
-    DITUNDA
     DITUGASKAN
     DITINJAU_ADMIN
     SEDANG_DIKERJAKAN

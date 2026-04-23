@@ -12,7 +12,6 @@ import type { GraphQLContext } from '../../../types/index.js';
 // Map GQL SCREAMING_SNAKE status → DB PascalCase
 const statusGqlToDb: Record<string, string> = {
   DIAJUKAN: 'Diajukan',
-  DITUNDA: 'Ditunda',
   DITUGASKAN: 'Ditugaskan',
   DITINJAU_ADMIN: 'DitinjauAdmin',
   SEDANG_DIKERJAKAN: 'SedangDikerjakan',
