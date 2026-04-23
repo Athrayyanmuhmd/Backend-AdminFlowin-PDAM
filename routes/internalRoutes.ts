@@ -164,4 +164,112 @@ router.post('/rab-selesai', verifyInternalSecret, async (req: Request, res: Resp
   }
 });
 
+/**
+ * POST /internal/wo-ditolak
+ *
+ * Dipanggil oleh backend Rafli saat teknisi menolak work order yang ditugaskan.
+ *
+ * Body:
+ *   workOrderId    — ID PekerjaanTeknisi
+ *   teknisiId      — ID teknisi yang menolak
+ *   jenisPekerjaan — jenis pekerjaan (survei, rab, pemasangan, dll)
+ *   alasanPenolakan — alasan penolakan dari teknisi
+ *   koneksiDataId  — ID KoneksiData terkait (opsional, untuk laporan)
+ *   idLaporan      — ID Laporan terkait (opsional, untuk penyelesaian_laporan)
+ */
+router.post('/wo-ditolak', verifyInternalSecret, async (req: Request, res: Response) => {
+  const { workOrderId, teknisiId, jenisPekerjaan, alasanPenolakan, koneksiDataId, idLaporan } = req.body;
+
+  if (!workOrderId || !teknisiId || !jenisPekerjaan) {
+    res.status(400).json({ success: false, message: 'workOrderId, teknisiId, dan jenisPekerjaan wajib diisi' });
+    return;
+  }
+
+  try {
+    const teknisi = await Technician.findById(teknisiId);
+    const namaTeknisi = teknisi?.namaLengkap || `Teknisi (${teknisiId})`;
+
+    const jenisLabel = (jenisPekerjaan as string).replace(/_/g, ' ');
+    const alasan = alasanPenolakan ? ` Alasan: ${alasanPenolakan}.` : '';
+
+    // Tentukan link navigasi sesuai konteks
+    let linkNotif = '/operations/work-orders';
+    if (koneksiDataId) linkNotif = `/operations/connection-data/${koneksiDataId}`;
+
+    await notifikasiSemuaAdmin(
+      'Work Order Ditolak Teknisi',
+      `Teknisi ${namaTeknisi} menolak pekerjaan "${jenisLabel}" (WO: ${workOrderId}).${alasan} Silakan review dan tugaskan ulang.`,
+      'PERINGATAN',
+      linkNotif,
+    );
+
+    // Update PekerjaanTeknisi lokal jika ada (sinkronisasi status)
+    await PekerjaanTeknisi.findByIdAndUpdate(workOrderId, {
+      statusRespon: 'ditolak',
+      alasanPenolakan: alasanPenolakan || null,
+    }).catch(() => {}); // non-fatal — Rafli yang jadi source of truth
+
+    logger.info({ workOrderId, teknisiId, jenisPekerjaan, alasanPenolakan }, 'WO ditolak teknisi — notifikasi admin terkirim');
+
+    res.status(200).json({ success: true, message: 'Notifikasi penolakan berhasil dikirim ke admin.' });
+  } catch (err) {
+    logger.error({ err }, 'Gagal memproses wo-ditolak dari backend Rafli');
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /internal/pekerjaan-selesai
+ *
+ * Dipanggil oleh backend Rafli saat teknisi menandai pekerjaan sebagai selesai
+ * dan menunggu review admin.
+ *
+ * Body:
+ *   workOrderId    — ID PekerjaanTeknisi
+ *   teknisiId      — ID teknisi yang menyelesaikan
+ *   jenisPekerjaan — jenis pekerjaan (survei, rab, pemasangan, penyelesaian_laporan, dll)
+ *   koneksiDataId  — ID KoneksiData terkait (opsional)
+ *   idLaporan      — ID Laporan terkait (opsional, untuk penyelesaian_laporan)
+ *   catatan        — Catatan penyelesaian dari teknisi (opsional)
+ */
+router.post('/pekerjaan-selesai', verifyInternalSecret, async (req: Request, res: Response) => {
+  const { workOrderId, teknisiId, jenisPekerjaan, koneksiDataId, idLaporan, catatan } = req.body;
+
+  if (!workOrderId || !teknisiId || !jenisPekerjaan) {
+    res.status(400).json({ success: false, message: 'workOrderId, teknisiId, dan jenisPekerjaan wajib diisi' });
+    return;
+  }
+
+  try {
+    const teknisi = await Technician.findById(teknisiId);
+    const namaTeknisi = teknisi?.namaLengkap || `Teknisi (${teknisiId})`;
+
+    const jenisLabel = (jenisPekerjaan as string).replace(/_/g, ' ');
+    const catatanTeks = catatan ? ` Catatan: ${catatan}.` : '';
+
+    let linkNotif = '/operations/work-orders';
+    if (koneksiDataId) linkNotif = `/operations/connection-data/${koneksiDataId}`;
+
+    await notifikasiSemuaAdmin(
+      'Pekerjaan Teknisi Menunggu Review',
+      `Teknisi ${namaTeknisi} telah menyelesaikan pekerjaan "${jenisLabel}" (WO: ${workOrderId}).${catatanTeks} Silakan review hasilnya.`,
+      'INFORMASI',
+      linkNotif,
+    );
+
+    // Sinkronisasi status lokal
+    await PekerjaanTeknisi.findByIdAndUpdate(workOrderId, {
+      statusTim: 'selesai',
+      catatanTim: catatan || null,
+    }).catch(() => {});
+
+    logger.info({ workOrderId, teknisiId, jenisPekerjaan }, 'Pekerjaan selesai dari teknisi — notifikasi admin terkirim');
+
+    res.status(200).json({ success: true, message: 'Notifikasi penyelesaian berhasil dikirim ke admin.' });
+  } catch (err) {
+    logger.error({ err }, 'Gagal memproses pekerjaan-selesai dari backend Rafli');
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;

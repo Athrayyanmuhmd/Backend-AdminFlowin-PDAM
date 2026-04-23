@@ -606,13 +606,46 @@ export const workOrderResolvers = {
         );
         const result = (data as any).reviewHasil;
 
-        // Jika admin menyetujui WO jenis 'rab', auto-generate Midtrans payment
-        // dan kirim notifikasi ke pelanggan Ahmad — non-fatal (tidak menggagalkan reviewHasil)
-        if (result?.success && input.disetujui && result.workOrder?.jenisPekerjaan === 'rab') {
-          const idKoneksiData: string = result.workOrder.idKoneksiData;
-          generateRABPayment(idKoneksiData).catch((paymentErr: any) => {
-            console.error('[reviewHasil] Auto-payment RAB gagal (non-fatal):', paymentErr.message);
-          });
+        // Non-blocking: notifikasi pelanggan + generate RAB payment jika disetujui
+        if (result?.success) {
+          (async () => {
+            try {
+              const wo = result.workOrder;
+              const jenis = wo?.jenisPekerjaan ?? '';
+              const idKoneksiData: string | null = wo?.idKoneksiData ?? null;
+
+              if (jenis === 'rab' && input.disetujui && idKoneksiData) {
+                // RAB disetujui → buat Midtrans payment + notifikasi pelanggan
+                await generateRABPayment(idKoneksiData);
+              } else if (idKoneksiData) {
+                // Pekerjaan lain (survei, pemasangan, dll) → notifikasi pelanggan
+                const koneksi = await ConnectionData.findById(idKoneksiData).lean() as any;
+                const idPelanggan = koneksi?.IdPelanggan?.toString();
+                if (idPelanggan) {
+                  const jenisLabel = jenis.replace(/_/g, ' ');
+                  if (input.disetujui) {
+                    await notifikasiUntukPelanggan(
+                      idPelanggan,
+                      'Tahap Pekerjaan Disetujui',
+                      `Tahap "${jenisLabel}" untuk sambungan air Anda telah disetujui oleh admin. Proses akan dilanjutkan ke tahap berikutnya.`,
+                      'INFORMASI',
+                      '/',
+                    );
+                  } else {
+                    await notifikasiUntukPelanggan(
+                      idPelanggan,
+                      'Tahap Pekerjaan Perlu Perbaikan',
+                      `Tahap "${jenisLabel}" untuk sambungan air Anda memerlukan perbaikan. Tim teknisi akan menghubungi Anda.${input.catatan ? ` Catatan admin: ${input.catatan}` : ''}`,
+                      'INFORMASI',
+                      '/',
+                    );
+                  }
+                }
+              }
+            } catch (notifErr: any) {
+              console.error('[reviewHasil] notifikasi gagal (non-fatal):', notifErr.message);
+            }
+          })();
         }
 
         return result;
