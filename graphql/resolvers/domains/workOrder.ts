@@ -57,6 +57,7 @@ function normalizeWorkOrder(wo: any): any {
     idPengawasanPemasangan: wo.idPengawasanPemasangan?.toString() ?? null,
     idPengawasanSetelahPemasangan: wo.idPengawasanSetelahPemasangan?.toString() ?? null,
     idPenyelesaianLaporan: wo.idPenyelesaianLaporan?.toString() ?? null,
+    idLaporan: wo.idLaporan?.toString() ?? null,
     pelangganLaporan: (() => {
       const pengguna = wo.idPenyelesaianLaporan?.idLaporan?.IdPengguna;
       if (!pengguna?._id) return null;
@@ -250,6 +251,7 @@ export const workOrderResolvers = {
               data {
                 id idKoneksiData jenisPekerjaan statusTim status statusRespon
                 alasanPenolakan catatanTim catatanReview createdAt updatedAt
+                idLaporan idPenyelesaianLaporan
                 teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
                 tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
                 koneksiData {
@@ -267,7 +269,39 @@ export const workOrderResolvers = {
           { filter, pagination },
           getToken(ctx)
         );
-        return (data as any).workOrders ?? { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
+        const result = (data as any).workOrders ?? { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
+
+        // Enrich work orders penyelesaian_laporan dengan data pelanggan dari MongoDB lokal.
+        // Rafli tidak punya akses ke collection laporans (milik Aqualink), jadi lookup harus dilakukan di sini.
+        const laporanIds = result.data
+          .filter((wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && wo.idLaporan && !wo.koneksiData?.pelanggan)
+          .map((wo: any) => wo.idLaporan);
+
+        if (laporanIds.length > 0) {
+          const laporans = await Report.find({ _id: { $in: laporanIds } })
+            .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
+            .lean();
+          const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
+
+          result.data = result.data.map((wo: any) => {
+            if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || !wo.idLaporan) return wo;
+            const laporan = laporanMap.get(wo.idLaporan.toString());
+            const pengguna = (laporan as any)?.IdPengguna;
+            if (!pengguna?._id) return wo;
+            return {
+              ...wo,
+              pelangganLaporan: {
+                id: pengguna._id.toString(),
+                namaLengkap: pengguna.namaLengkap ?? null,
+                email: pengguna.email ?? null,
+                noHp: pengguna.noHP ?? null,
+                alamat: null,
+              },
+            };
+          });
+        }
+
+        return result;
       } catch (err: any) {
         console.error('[workOrders] Rafli backend tidak tersedia, fallback ke MongoDB:', err.message);
         try {
