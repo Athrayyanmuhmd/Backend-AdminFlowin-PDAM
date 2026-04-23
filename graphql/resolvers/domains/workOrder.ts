@@ -486,7 +486,47 @@ export const workOrderResolvers = {
           { input },
           getToken(ctx)
         );
-        return (data as any).buatWorkOrder;
+        const result = (data as any).buatWorkOrder;
+
+        // Kirim notifikasi ke pelanggan — non-blocking, tidak gagalkan mutation
+        if (result?.success) {
+          (async () => {
+            try {
+              if (input.idLaporan) {
+                // penyelesaian_laporan: notifikasi ke pelapor
+                const laporan = await Report.findById(input.idLaporan).lean() as any;
+                const idPelanggan = laporan?.IdPengguna?.toString();
+                if (idPelanggan) {
+                  await notifikasiUntukPelanggan(
+                    idPelanggan,
+                    'Laporan Sedang Ditangani Teknisi',
+                    `Laporan "${laporan?.NamaLaporan || 'Anda'}" kini sedang ditangani oleh teknisi kami. Kami akan segera menyelesaikannya.`,
+                    'INFORMASI',
+                    '/laporan',
+                  );
+                }
+              } else if (input.idKoneksiData) {
+                // Workflow koneksi (survei/rab/pemasangan/dll): notifikasi ke pemilik koneksi
+                const koneksi = await ConnectionData.findById(input.idKoneksiData).lean() as any;
+                const idPelanggan = koneksi?.IdPelanggan?.toString();
+                if (idPelanggan) {
+                  const jenisLabel = (input.jenisPekerjaan as string)?.replace(/_/g, ' ') ?? 'pekerjaan';
+                  await notifikasiUntukPelanggan(
+                    idPelanggan,
+                    'Proses Sambungan Air Diperbarui',
+                    `Tahap ${jenisLabel} untuk sambungan air Anda telah ditugaskan ke teknisi kami.`,
+                    'INFORMASI',
+                    '/',
+                  );
+                }
+              }
+            } catch (notifErr: any) {
+              console.error('[buatWorkOrder] notifikasi gagal (non-fatal):', notifErr.message);
+            }
+          })();
+        }
+
+        return result;
       } catch (err: any) {
         console.error('[buatWorkOrder] Rafli backend tidak tersedia, fallback ke MongoDB:', err.message);
         try {
