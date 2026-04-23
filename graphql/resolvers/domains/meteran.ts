@@ -6,6 +6,7 @@ import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, catatAuditLog } from '../helpers.js';
+import { getCache, setCache } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 const namaBulan = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -72,6 +73,10 @@ export const meteranResolvers = {
 
     getRiwayatPenggunaanBulanan: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
+      const cacheKey = `meteran:${meteranId}:bulanan`;
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const mongoose = await import('mongoose');
       const hasil = await HistoryUsage.aggregate([
         { $match: { meteranId: new mongoose.default.Types.ObjectId(meteranId) } },
@@ -83,11 +88,13 @@ export const meteranResolvers = {
         { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
         { $limit: 12 },
       ]);
-      return hasil.map(item => ({
+      const result = hasil.map(item => ({
         bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
         totalPemakaian: item.totalPemakaian,
         jumlahRecord: item.jumlahRecord,
       }));
+      await setCache(cacheKey, result, 300);
+      return result;
     },
 
     getRiwayatBulananAhmad: async (_, { meteranId }, { token }: GraphQLContext) => {
@@ -108,6 +115,10 @@ export const meteranResolvers = {
 
     getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
+      const cacheKey = `meteran:${meteranId}:estimasi`;
+      const cached = await getCache(cacheKey);
+      if (cached) return cached;
+
       const meteran = await Meteran.findById(meteranId).populate('IdKelompokPelanggan');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const kelompok = (meteran as any).IdKelompokPelanggan as any;
@@ -117,13 +128,15 @@ export const meteranResolvers = {
         ? pemakaian * (kelompok?.TarifRendah ?? 1500)
         : batasRendah * (kelompok?.TarifRendah ?? 1500) + (pemakaian - batasRendah) * (kelompok?.TarifTinggi ?? 2000);
       const biayaBeban = kelompok?.BiayaBeban ?? 5000;
-      return {
+      const result = {
         pemakaianBelumTerbayar: pemakaian,
         estimasiBiaya: biaya,
         biayaBeban,
         totalEstimasi: biaya + biayaBeban,
         namaKelompok: kelompok?.NamaKelompok || null,
       };
+      await setCache(cacheKey, result, 3600);
+      return result;
     },
   },
 

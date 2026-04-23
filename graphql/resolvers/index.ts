@@ -15,6 +15,7 @@ import { surveiResolvers } from './domains/survei.js';
 import { notifikasiResolvers } from './domains/notifikasi.js';
 import { pemasanganResolvers } from './domains/pemasangan.js';
 import { dashboardResolvers } from './domains/dashboard.js';
+import { monitoringResolvers } from './domains/monitoring.js';
 import { fieldResolvers } from './domains/fieldResolvers.js';
 
 const domainResolvers = [
@@ -31,6 +32,7 @@ const domainResolvers = [
   notifikasiResolvers,
   pemasanganResolvers,
   dashboardResolvers,
+  monitoringResolvers,
 ];
 
 // Merge Query and Mutation from all domain resolvers
