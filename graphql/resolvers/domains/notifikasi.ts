@@ -39,16 +39,15 @@ export const notifikasiResolvers = {
     },
 
     // Returns [] instead of throwing when token invalid — polled every 30s
+    // Returns ALL notifications (admin oversight: sent to pelanggan, teknisi, or admin)
     getAllNotifikasiAdmin: async (_, __, { token }) => {
       try { verifyAdminToken(token); } catch { return []; }
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
-      const adminId = decoded.id || decoded.userId;
-      return await Notification.find({ IdAdmin: adminId })
+      return await Notification.find({})
         .populate('IdAdmin', 'namaLengkap')
         .populate('IdPelanggan', 'namaLengkap email')
         .populate('IdTeknisi', 'namaLengkap')
         .sort({ createdAt: -1 })
-        .limit(50);
+        .limit(200);
     },
   },
 
