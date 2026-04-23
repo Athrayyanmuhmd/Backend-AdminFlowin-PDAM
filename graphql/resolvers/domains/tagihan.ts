@@ -228,6 +228,8 @@ export const tagihanResolvers = {
       if (status === 'settlement' && tagihan.StatusPembayaran !== 'settlement') {
         updateData.TanggalPembayaran = new Date();
         updateData.MetodePembayaran = 'manual_admin';
+        // Tandai sebagai sudah diproses agar billingCron tidak double-decrement
+        updateData.Catatan = '[pemakaian_applied]';
         const pemakaian = tagihan.TotalPemakaian ?? 0;
         if (pemakaian > 0) {
           const meteran = await Meteran.findById(tagihan.IdMeteran);

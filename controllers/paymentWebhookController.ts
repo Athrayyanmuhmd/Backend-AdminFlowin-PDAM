@@ -99,8 +99,10 @@ export const handlePaymentWebhook = async (req, res) => {
 
     res.status(200).json({ status: "success", pesan: "Notification processed successfully" });
   } catch (error) {
+    // Selalu return 200 agar Midtrans tidak retry — retry bisa menyebabkan double-process.
+    // Error sudah di-log di dalam handler masing-masing (handleBillingPayment, dll).
     console.error("❌ Error processing webhook:", error);
-    res.status(500).json({ status: "error", pesan: "Internal server error" });
+    res.status(200).json({ status: "error", pesan: "Webhook processing failed, logged for review" });
   }
 };
 
@@ -230,7 +232,8 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
           StatusPembayaran: 'settlement',
           TanggalPembayaran: new Date(),
           MetodePembayaran: notification.payment_type,
-          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')}`,
+          // [pemakaian_applied] — marker untuk billingCron agar tidak double-decrement
+          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')} [pemakaian_applied]`,
         };
         notificationTitle = 'Pembayaran Tagihan Air Berhasil';
         notificationMessage = `Pembayaran tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} untuk periode ${(billing as any).Periode} telah berhasil. Terima kasih!`;
@@ -345,7 +348,8 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
           StatusPembayaran: 'settlement',
           TanggalPembayaran: new Date(),
           MetodePembayaran: notification.payment_type,
-          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')}`,
+          // [pemakaian_applied] — marker untuk billingCron agar tidak double-decrement
+          Catatan: `Dibayar via ${notification.payment_type} pada ${new Date().toLocaleString('id-ID')} [pemakaian_applied]`,
         };
         notificationTitle = 'Pembayaran Semua Tagihan Berhasil';
         notificationMessage = `Pembayaran ${billingsToProcess.length} tagihan air sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Terima kasih!`;
