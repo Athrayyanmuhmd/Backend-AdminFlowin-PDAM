@@ -218,8 +218,28 @@ export const tagihanResolvers = {
       verifyAdminToken(token);
       const tagihan = await Billing.findById(id);
       if (!tagihan) throw new Error('Tagihan tidak ditemukan');
+
       const updateData: Record<string, any> = { StatusPembayaran: status };
-      if (status === 'settlement') updateData.TanggalPembayaran = new Date();
+
+      // Jika admin manual set settlement dan sebelumnya BUKAN settlement,
+      // decrement pemakaianBelumTerbayar pada meteran.
+      // Guard "bukan settlement sebelumnya" mencegah double-decrement kalau webhook
+      // Midtrans sudah jalan lebih dulu (misal: admin update terlambat).
+      if (status === 'settlement' && tagihan.StatusPembayaran !== 'settlement') {
+        updateData.TanggalPembayaran = new Date();
+        updateData.MetodePembayaran = 'manual_admin';
+        const pemakaian = tagihan.TotalPemakaian ?? 0;
+        if (pemakaian > 0) {
+          const meteran = await Meteran.findById(tagihan.IdMeteran);
+          if (meteran) {
+            const current = meteran.pemakaianBelumTerbayar ?? 0;
+            await Meteran.findByIdAndUpdate(tagihan.IdMeteran, {
+              pemakaianBelumTerbayar: Math.max(0, current - pemakaian),
+            });
+          }
+        }
+      }
+
       return await Billing.findByIdAndUpdate(id, updateData, { new: true }).populate(TAGIHAN_POPULATE);
     },
   },
