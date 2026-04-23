@@ -273,32 +273,60 @@ export const workOrderResolvers = {
 
         // Enrich work orders penyelesaian_laporan dengan data pelanggan dari MongoDB lokal.
         // Rafli tidak punya akses ke collection laporans (milik Aqualink), jadi lookup harus dilakukan di sini.
-        const laporanIds = result.data
-          .filter((wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && wo.idLaporan && !wo.koneksiData?.pelanggan)
-          .map((wo: any) => wo.idLaporan);
+        // Rafli's schema mungkin tidak expose idLaporan — fallback ke PekerjaanTeknisi lokal untuk dapat idLaporan.
+        const penyelesaianWOs = result.data.filter(
+          (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.koneksiData?.pelanggan
+        );
 
-        if (laporanIds.length > 0) {
-          const laporans = await Report.find({ _id: { $in: laporanIds } })
-            .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
-            .lean();
-          const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
+        if (penyelesaianWOs.length > 0) {
+          // WOs yang sudah punya idLaporan dari Rafli
+          const directLaporanIds = penyelesaianWOs
+            .filter((wo: any) => wo.idLaporan)
+            .map((wo: any) => wo.idLaporan);
 
-          result.data = result.data.map((wo: any) => {
-            if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || !wo.idLaporan) return wo;
-            const laporan = laporanMap.get(wo.idLaporan.toString());
-            const pengguna = (laporan as any)?.IdPengguna;
-            if (!pengguna?._id) return wo;
-            return {
-              ...wo,
-              pelangganLaporan: {
-                id: pengguna._id.toString(),
-                namaLengkap: pengguna.namaLengkap ?? null,
-                email: pengguna.email ?? null,
-                noHp: pengguna.noHP ?? null,
-                alamat: null,
-              },
-            };
-          });
+          // WOs yang perlu lookup lokal untuk dapat idLaporan
+          const woIdsNeedingLookup = penyelesaianWOs
+            .filter((wo: any) => !wo.idLaporan)
+            .map((wo: any) => wo.id);
+
+          const woToLaporanMap = new Map<string, string>(); // woId → laporanId
+          if (woIdsNeedingLookup.length > 0) {
+            const localWOs = await PekerjaanTeknisi.find(
+              { _id: { $in: woIdsNeedingLookup } },
+              { idLaporan: 1 }
+            ).lean();
+            for (const localWO of localWOs) {
+              const laporanRef = (localWO as any).idLaporan;
+              if (laporanRef) woToLaporanMap.set(localWO._id.toString(), laporanRef.toString());
+            }
+          }
+
+          const allLaporanIds = [...directLaporanIds, ...Array.from(woToLaporanMap.values())];
+          if (allLaporanIds.length > 0) {
+            const laporans = await Report.find({ _id: { $in: allLaporanIds } })
+              .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
+              .lean();
+            const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
+
+            result.data = result.data.map((wo: any) => {
+              if (wo.jenisPekerjaan !== 'penyelesaian_laporan') return wo;
+              const laporanId = wo.idLaporan ?? woToLaporanMap.get(wo.id);
+              if (!laporanId) return wo;
+              const laporan = laporanMap.get(laporanId.toString());
+              const pengguna = (laporan as any)?.IdPengguna;
+              if (!pengguna?._id) return wo;
+              return {
+                ...wo,
+                pelangganLaporan: {
+                  id: pengguna._id.toString(),
+                  namaLengkap: pengguna.namaLengkap ?? null,
+                  email: pengguna.email ?? null,
+                  noHp: pengguna.noHP ?? null,
+                  alamat: null,
+                },
+              };
+            });
+          }
         }
 
         return result;

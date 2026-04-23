@@ -145,7 +145,7 @@ export const fieldResolvers = {
       // Includes legacy Ahmad values (Diajukan, ProsesPerbaikan) from older data
       const map: Record<string, string> = {
         Ditunda: 'DITUNDA',
-        Diajukan: 'DITUNDA',          // legacy Ahmad — treat as menunggu tindakan
+        Diajukan: 'DIAJUKAN',
         Ditugaskan: 'DITUGASKAN',
         DitinjauAdmin: 'DITINJAU_ADMIN',
         SedangDikerjakan: 'SEDANG_DIKERJAKAN',
@@ -153,6 +153,7 @@ export const fieldResolvers = {
         Selesai: 'SELESAI',
         Dibatalkan: 'DIBATALKAN',
         // Also handle if already in GQL format (idempotent)
+        DIAJUKAN: 'DIAJUKAN',
         DITUNDA: 'DITUNDA',
         DITUGASKAN: 'DITUGASKAN',
         DITINJAU_ADMIN: 'DITINJAU_ADMIN',
