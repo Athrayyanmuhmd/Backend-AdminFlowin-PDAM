@@ -1,5 +1,13 @@
 // @ts-nocheck
 import KoneksiData from '../../../models/ConnectionData.js';
+import SurveyData from '../../../models/SurveyData.js';
+import RabConnection from '../../../models/RabConnection.js';
+import Meteran from '../../../models/Meteran.js';
+import Pemasangan from '../../../models/Pemasangan.js';
+import PengawasanPemasangan from '../../../models/PengawasanPemasangan.js';
+import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasangan.js';
+import { teknisiGraphQL } from '../../../utils/teknisiClient.js';
+import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
 import { verifyAdminToken, catatAuditLog, notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
@@ -58,6 +66,75 @@ export const koneksiDataResolvers = {
           { statusVerifikasi: 'ditolak' },
         ],
       }).sort({ createdAt: -1 }).populate('IdPelanggan');
+    },
+
+    getDetailSambungan: async (_, { id }, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+
+      // First fetch koneksiData — needed to determine if APPROVED before fetching children
+      const koneksiData = await KoneksiData.findById(id).populate('IdPelanggan');
+      if (!koneksiData) throw new Error('Data sambungan tidak ditemukan');
+
+      const isApproved = koneksiData.StatusPengajuan === 'APPROVED'
+        || koneksiData.statusPengajuan === 'approved'
+        || koneksiData.statusVerifikasi === 'disetujui';
+
+      if (!isApproved) {
+        return { koneksiData, survei: null, rab: null, meteran: null, pemasangan: null, pengawasan: null, pengawasanSetelah: null, workOrders: [] };
+      }
+
+      // Fetch all sub-documents in parallel — single server-side round
+      const [survei, rab, meteran, pemasangan, workOrders] = await Promise.all([
+        SurveyData.findOne({ idKoneksiData: id, isDraft: { $ne: true } })
+          .populate({ path: 'idKoneksiData', populate: { path: 'IdPelanggan' } }),
+        RabConnection.findOne({ idKoneksiData: id })
+          .populate({ path: 'idKoneksiData', populate: { path: 'IdPelanggan' } }),
+        Meteran.findOne({ $or: [{ IdKoneksiData: id }, { idKoneksiData: id }] })
+          .populate('IdKelompokPelanggan')
+          .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap email noHP' } }),
+        Pemasangan.findOne({ idKoneksiData: id })
+          .populate({ path: 'idKoneksiData', model: 'KoneksiData', populate: { path: 'IdPelanggan', model: 'Pengguna' } }),
+        (async () => {
+          try {
+            const data = await teknisiGraphQL(
+              `query WorkOrdersByKoneksiData($idKoneksiData: ID!) {
+                workOrdersByKoneksiData(idKoneksiData: $idKoneksiData) {
+                  id idKoneksiData jenisPekerjaan status statusRespon statusTim createdAt updatedAt
+                  teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive }
+                  tim { id namaLengkap email nip divisi noHp isActive }
+                }
+              }`,
+              { idKoneksiData: id },
+              ctx.token
+            );
+            return (data as any).workOrdersByKoneksiData ?? [];
+          } catch {
+            try {
+              const docs = await PekerjaanTeknisi.find({ idKoneksiData: id })
+                .populate({ path: 'teknisiPenanggungJawab', model: 'TeknisiPerumdam' })
+                .populate({ path: 'tim', model: 'TeknisiPerumdam' })
+                .lean();
+              return docs.map((d: any) => ({ ...d, id: d._id?.toString() }));
+            } catch { return []; }
+          }
+        })(),
+      ]);
+
+      // Pengawasan requires pemasangan._id — fetch after pemasangan resolves
+      let pengawasan = null;
+      let pengawasanSetelah = null;
+      if (pemasangan?._id) {
+        const [pw, ps] = await Promise.all([
+          PengawasanPemasangan.findOne({ idPemasangan: pemasangan._id })
+            .populate({ path: 'idPemasangan', model: 'Pemasangan', populate: { path: 'idKoneksiData', model: 'KoneksiData', populate: { path: 'IdPelanggan', model: 'Pengguna' } } }),
+          PengawasanSetelahPemasangan.findOne({ idPemasangan: pemasangan._id })
+            .populate({ path: 'idPemasangan', model: 'Pemasangan', populate: { path: 'idKoneksiData', model: 'KoneksiData', populate: { path: 'IdPelanggan', model: 'Pengguna' } } }),
+        ]);
+        pengawasan = pw;
+        pengawasanSetelah = ps;
+      }
+
+      return { koneksiData, survei, rab, meteran, pemasangan, pengawasan, pengawasanSetelah, workOrders };
     },
   },
 

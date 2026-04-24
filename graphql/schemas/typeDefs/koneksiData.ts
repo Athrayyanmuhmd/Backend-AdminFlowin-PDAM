@@ -48,6 +48,18 @@ export const koneksiDataTypeDefs = gql`
     catatan: String
   }
 
+  # Combined type for detail page — single round trip
+  type DetailSambungan {
+    koneksiData: KoneksiData!
+    survei: Survei
+    rab: RABConnection
+    meteran: Meteran
+    pemasangan: Pemasangan
+    pengawasan: PengawasanPemasangan
+    pengawasanSetelah: PengawasanSetelahPemasangan
+    workOrders: [WorkOrder!]!
+  }
+
   extend type Query {
     getKoneksiData(id: ID!): KoneksiData
     getKoneksiDataByPelanggan(idPelanggan: ID!): KoneksiData
@@ -55,6 +67,7 @@ export const koneksiDataTypeDefs = gql`
     getPendingKoneksiData: [KoneksiData!]!
     getApprovedKoneksiData: [KoneksiData!]!
     getRejectedKoneksiData: [KoneksiData!]!
+    getDetailSambungan(id: ID!): DetailSambungan
   }
 
   extend type Mutation {
