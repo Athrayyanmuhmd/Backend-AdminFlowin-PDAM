@@ -68,9 +68,9 @@ export const fieldResolvers = {
       if (typeof ref === 'object' && ref._id) return ref;
       return await User.findById(ref);
     },
-    judul: (parent) => parent.Judul || parent.judul,
-    pesan: (parent) => parent.Pesan || parent.pesan,
-    kategori: (parent) => parent.Kategori || parent.kategori,
+    judul: (parent) => parent.Judul || parent.judul || '(tanpa judul)',
+    pesan: (parent) => parent.Pesan || parent.pesan || '',
+    kategori: (parent) => parent.Kategori || parent.kategori || 'INFORMASI',
     link: (parent) => parent.Link || parent.link || null,
     // isRead: dokumen dari Ahmad tidak punya field ini → default false
     isRead: (parent) => parent.isRead ?? false,
