@@ -334,24 +334,30 @@ export const workOrderResolvers = {
 
           const woToLaporanMap = new Map<string, string>();
           if (woIdsNeedingLookup.length > 0) {
+            // Lookup idLaporan langsung dari PekerjaanTeknisi (disimpan saat buatWorkOrder)
             const localWOs = await PekerjaanTeknisi.find(
               { _id: { $in: woIdsNeedingLookup } },
-              { idPenyelesaianLaporan: 1 }
+              { idLaporan: 1, idPenyelesaianLaporan: 1 }
             ).lean();
+
+            // Kumpulkan penyelesaianLaporan ids untuk fallback (WO lama sebelum mapping disimpan)
             const penyelesaianIds = localWOs.map((w: any) => w.idPenyelesaianLaporan).filter(Boolean);
+            const penyelesaianToLaporan = new Map<string, string>();
             if (penyelesaianIds.length > 0) {
               const penyelesaians = await PenyelesaianLaporan.find(
-                { _id: { $in: penyelesaianIds } },
-                { idLaporan: 1 }
+                { _id: { $in: penyelesaianIds } }, { idLaporan: 1 }
               ).lean();
-              const penyelesaianToLaporan = new Map(
-                penyelesaians.map((p: any) => [p._id.toString(), p.idLaporan?.toString()])
-              );
-              for (const localWO of localWOs) {
-                const penyelesaianId = (localWO as any).idPenyelesaianLaporan?.toString();
-                const laporanId = penyelesaianId && penyelesaianToLaporan.get(penyelesaianId);
-                if (laporanId) woToLaporanMap.set(localWO._id.toString(), laporanId);
-              }
+              penyelesaians.forEach((p: any) => {
+                if (p.idLaporan) penyelesaianToLaporan.set(p._id.toString(), p.idLaporan.toString());
+              });
+            }
+
+            for (const localWO of localWOs) {
+              const woId = localWO._id.toString();
+              // Prioritas: idLaporan langsung (baru) → via idPenyelesaianLaporan (lama)
+              const laporanId = (localWO as any).idLaporan?.toString()
+                ?? penyelesaianToLaporan.get((localWO as any).idPenyelesaianLaporan?.toString());
+              if (laporanId) woToLaporanMap.set(woId, laporanId);
             }
           }
 
@@ -514,16 +520,19 @@ export const workOrderResolvers = {
   Mutation: {
     buatWorkOrder: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      // Validasi idKoneksiData sebelum proxy ke Rafli — fail-fast dengan pesan yang jelas
-      if (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData)) {
-        return { success: false, message: 'idKoneksiData tidak valid', workOrder: null };
-      }
-      const koneksi = await ConnectionData.findById(input.idKoneksiData, 'StatusPengajuan').lean();
-      if (!koneksi) {
-        return { success: false, message: 'KoneksiData tidak ditemukan', workOrder: null };
-      }
-      if ((koneksi as any).StatusPengajuan !== 'APPROVED') {
-        return { success: false, message: 'Work Order hanya dapat dibuat untuk KoneksiData yang berstatus APPROVED', workOrder: null };
+      // penyelesaian_laporan tidak wajib idKoneksiData — cukup idLaporan
+      const isPenyelesaianLaporan = input.jenisPekerjaan === 'penyelesaian_laporan';
+      if (!isPenyelesaianLaporan) {
+        if (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData)) {
+          return { success: false, message: 'idKoneksiData tidak valid', workOrder: null };
+        }
+        const koneksi = await ConnectionData.findById(input.idKoneksiData, 'StatusPengajuan').lean();
+        if (!koneksi) {
+          return { success: false, message: 'KoneksiData tidak ditemukan', workOrder: null };
+        }
+        if ((koneksi as any).StatusPengajuan !== 'APPROVED') {
+          return { success: false, message: 'Work Order hanya dapat dibuat untuk KoneksiData yang berstatus APPROVED', workOrder: null };
+        }
       }
       try {
         const data = await teknisiGraphQL(
@@ -541,6 +550,15 @@ export const workOrderResolvers = {
           getToken(ctx)
         );
         const result = (data as any).buatWorkOrder;
+
+        // Simpan mapping lokal rafliWoId → idLaporan agar enrichment workOrders bisa lookup nama pelanggan
+        if (result?.success && result.workOrder?.id && input.idLaporan && mongoose.Types.ObjectId.isValid(result.workOrder.id)) {
+          PekerjaanTeknisi.collection.updateOne(
+            { _id: new mongoose.Types.ObjectId(result.workOrder.id) },
+            { $set: { idLaporan: new mongoose.Types.ObjectId(input.idLaporan), jenisPekerjaan: 'penyelesaian_laporan' } },
+            { upsert: true }
+          ).catch(() => {});
+        }
 
         // Kirim notifikasi ke pelanggan — non-blocking, tidak gagalkan mutation
         if (result?.success) {

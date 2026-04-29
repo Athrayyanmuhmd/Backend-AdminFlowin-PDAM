@@ -131,6 +131,7 @@ export interface IPekerjaanTeknisi {
   idPengawasanPemasangan?: Types.ObjectId | null;
   idPengawasanSetelahPemasangan?: Types.ObjectId | null;
   idPenyelesaianLaporan?: Types.ObjectId | null;
+  idLaporan?: Types.ObjectId | null;
   // Review
   catatanReview?: string | null;
   riwayatReview: IRiwayatReview[];
@@ -283,6 +284,12 @@ const PekerjaanTeknisiSchema = new Schema<IPekerjaanTeknisiDocument>(
       type: Schema.Types.ObjectId,
       ref: 'PenyelesaianLaporan',
       default: null,
+    },
+    idLaporan: {
+      type: Schema.Types.ObjectId,
+      ref: 'Laporan',
+      default: null,
+      index: true,
     },
 
     // ─── Review ────────────────────────────────────────────────────────
