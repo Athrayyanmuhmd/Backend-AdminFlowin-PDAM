@@ -28,11 +28,11 @@ export const koneksiDataTypeDefs = gql`
   input CreateKoneksiDataInput {
     IdPelanggan: ID!
     NIK: String!
-    NIKUrl: String!
+    NIKUrl: String
     NoKK: String!
-    KKUrl: String!
+    KKUrl: String
     IMB: String!
-    IMBUrl: String!
+    IMBUrl: String
     Alamat: String!
     Kelurahan: String!
     Kecamatan: String!
