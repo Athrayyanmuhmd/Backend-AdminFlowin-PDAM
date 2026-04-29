@@ -285,6 +285,7 @@ export const workOrderResolvers = {
             .map((wo: any) => wo.idLaporan);
 
           // WOs yang perlu lookup lokal untuk dapat idLaporan
+          // Rantai: PekerjaanTeknisi.idPenyelesaianLaporan → PenyelesaianLaporan.idLaporan
           const woIdsNeedingLookup = penyelesaianWOs
             .filter((wo: any) => !wo.idLaporan)
             .map((wo: any) => wo.id);
@@ -293,11 +294,24 @@ export const workOrderResolvers = {
           if (woIdsNeedingLookup.length > 0) {
             const localWOs = await PekerjaanTeknisi.find(
               { _id: { $in: woIdsNeedingLookup } },
-              { idLaporan: 1 }
+              { idPenyelesaianLaporan: 1 }
             ).lean();
-            for (const localWO of localWOs) {
-              const laporanRef = (localWO as any).idLaporan;
-              if (laporanRef) woToLaporanMap.set(localWO._id.toString(), laporanRef.toString());
+            const penyelesaianIds = localWOs
+              .map((w: any) => w.idPenyelesaianLaporan)
+              .filter(Boolean);
+            if (penyelesaianIds.length > 0) {
+              const penyelesaians = await PenyelesaianLaporan.find(
+                { _id: { $in: penyelesaianIds } },
+                { idLaporan: 1 }
+              ).lean();
+              const penyelesaianToLaporan = new Map(
+                penyelesaians.map((p: any) => [p._id.toString(), p.idLaporan?.toString()])
+              );
+              for (const localWO of localWOs) {
+                const penyelesaianId = (localWO as any).idPenyelesaianLaporan?.toString();
+                const laporanId = penyelesaianId && penyelesaianToLaporan.get(penyelesaianId);
+                if (laporanId) woToLaporanMap.set(localWO._id.toString(), laporanId);
+              }
             }
           }
 
