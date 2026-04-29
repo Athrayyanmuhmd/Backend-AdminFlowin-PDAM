@@ -271,17 +271,18 @@ export const workOrderResolvers = {
         );
         const result = (data as any).workOrders ?? { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
 
-        // ── Enrichment Block 1: survei/rab/pemasangan/dll — isi pelanggan dari KoneksiData lokal ──
-        // Rafli tidak punya akses ke collection Pengguna milik Aqualink,
-        // jadi koneksiData.pelanggan dari Rafli selalu null. Lookup manual di sini.
-        const koneksiWOs = result.data.filter(
-          (wo: any) => wo.jenisPekerjaan !== 'penyelesaian_laporan'
-            && wo.idKoneksiData
-            && !wo.koneksiData?.pelanggan?.namaLengkap
-        );
+        // ── Enrichment: semua WO — isi pelanggan dari KoneksiData lokal ──────────────────────
+        // Rafli tidak punya akses ke Pengguna Aqualink, jadi koneksiData.pelanggan selalu null.
+        // Untuk penyelesaian_laporan: backend mewajibkan idKoneksiData (validasi line ~478),
+        // jadi WO ini juga punya idKoneksiData dan bisa di-lookup sama. Hasilnya masuk ke
+        // pelangganLaporan (bukan koneksiData.pelanggan) agar frontend menampilkannya dengan benar.
+        const wosMissingPelanggan = result.data.filter((wo: any) => {
+          if (wo.jenisPekerjaan === 'penyelesaian_laporan') return !wo.pelangganLaporan?.namaLengkap && wo.idKoneksiData;
+          return wo.idKoneksiData && !wo.koneksiData?.pelanggan?.namaLengkap;
+        });
 
-        if (koneksiWOs.length > 0) {
-          const koneksiIds = [...new Set(koneksiWOs.map((wo: any) => wo.idKoneksiData))];
+        if (wosMissingPelanggan.length > 0) {
+          const koneksiIds = [...new Set(wosMissingPelanggan.map((wo: any) => wo.idKoneksiData))];
           const koneksiDatas = await ConnectionData.find(
             { _id: { $in: koneksiIds } },
             { IdPelanggan: 1 }
@@ -293,21 +294,24 @@ export const workOrderResolvers = {
           );
 
           result.data = result.data.map((wo: any) => {
-            if (wo.jenisPekerjaan === 'penyelesaian_laporan' || !wo.idKoneksiData) return wo;
-            if (wo.koneksiData?.pelanggan?.namaLengkap) return wo;
+            if (!wo.idKoneksiData) return wo;
             const pengguna = koneksiToPelanggan.get(wo.idKoneksiData?.toString());
             if (!pengguna?._id) return wo;
+            const penggunaObj = {
+              id: (pengguna as any)._id.toString(),
+              namaLengkap: (pengguna as any).namaLengkap ?? null,
+              email: (pengguna as any).email ?? null,
+              noHp: (pengguna as any).noHP ?? null,
+            };
+
+            if (wo.jenisPekerjaan === 'penyelesaian_laporan') {
+              if (wo.pelangganLaporan?.namaLengkap) return wo;
+              return { ...wo, pelangganLaporan: penggunaObj };
+            }
+            if (wo.koneksiData?.pelanggan?.namaLengkap) return wo;
             return {
               ...wo,
-              koneksiData: {
-                ...(wo.koneksiData ?? {}),
-                pelanggan: {
-                  id: pengguna._id.toString(),
-                  namaLengkap: (pengguna as any).namaLengkap ?? null,
-                  email: (pengguna as any).email ?? null,
-                  noHp: (pengguna as any).noHP ?? null,
-                },
-              },
+              koneksiData: { ...(wo.koneksiData ?? {}), pelanggan: penggunaObj },
             };
           });
         }
