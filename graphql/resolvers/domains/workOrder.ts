@@ -280,11 +280,71 @@ export const workOrderResolvers = {
         );
         const result = (data as any).workOrders ?? { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0, hasNextPage: false } };
 
-        // ── Enrichment: semua WO — isi pelanggan dari KoneksiData lokal ──────────────────────
-        // Rafli tidak punya akses ke Pengguna Aqualink, jadi koneksiData.pelanggan selalu null.
-        // Untuk penyelesaian_laporan: backend mewajibkan idKoneksiData (validasi line ~478),
-        // jadi WO ini juga punya idKoneksiData dan bisa di-lookup sama. Hasilnya masuk ke
-        // pelangganLaporan (bukan koneksiData.pelanggan) agar frontend menampilkannya dengan benar.
+        // ── Pre-patch: isi idKoneksiData untuk penyelesaian_laporan dari local DB ──────────────
+        // Rafli menyimpan idKoneksiData:null untuk WO lama (sebelum fix auto-populate).
+        // Ambil dari local PekerjaanTeknisi (di-set saat buatWorkOrder atau via Atlas backfill).
+        // Jika local juga null tapi ada idLaporan, resolve via laporan→user→KoneksiData
+        // dan backfill ke local DB agar request berikutnya langsung pakai Block 1.
+        const penyelesaianNullKoneksi = result.data.filter(
+          (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.idKoneksiData
+        );
+        if (penyelesaianNullKoneksi.length > 0) {
+          const woIds = penyelesaianNullKoneksi.map((wo: any) => wo.id);
+          const localDocs = await PekerjaanTeknisi.find(
+            { _id: { $in: woIds } }, { idKoneksiData: 1, idLaporan: 1 }
+          ).lean();
+
+          const localMap = new Map(localDocs.map((d: any) => [d._id.toString(), d]));
+
+          // WO yang local punya idLaporan tapi belum punya idKoneksiData → resolve sekarang
+          const needResolve = localDocs.filter(
+            (d: any) => d.idLaporan && !d.idKoneksiData
+          );
+          if (needResolve.length > 0) {
+            const laporanIds = needResolve.map((d: any) => d.idLaporan.toString());
+            const laporans = await Report.find(
+              { _id: { $in: laporanIds } }, { IdPengguna: 1 }
+            ).lean();
+            const laporanUserMap = new Map(
+              laporans.map((l: any) => [l._id.toString(), l.IdPengguna?.toString()])
+            );
+            const userIds = [...new Set(Array.from(laporanUserMap.values()).filter(Boolean))];
+            const koneksiDocs = await ConnectionData.find(
+              { IdPelanggan: { $in: userIds }, StatusPengajuan: 'APPROVED' },
+              { IdPelanggan: 1 }
+            ).lean();
+            const userToKoneksi = new Map(
+              koneksiDocs.map((k: any) => [k.IdPelanggan.toString(), k._id.toString()])
+            );
+
+            for (const d of needResolve) {
+              const uid = laporanUserMap.get(d.idLaporan.toString());
+              if (!uid) continue;
+              const koneksiId = userToKoneksi.get(uid);
+              if (!koneksiId) continue;
+              // Backfill local DB (fire-and-forget)
+              PekerjaanTeknisi.collection.updateOne(
+                { _id: d._id },
+                { $set: { idKoneksiData: new mongoose.Types.ObjectId(koneksiId) } }
+              ).catch(() => {});
+              // Patch in-memory untuk request ini
+              localMap.set(d._id.toString(), { ...d, idKoneksiData: koneksiId });
+            }
+          }
+
+          // Terapkan patch idKoneksiData ke result.data
+          result.data = result.data.map((wo: any) => {
+            if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.idKoneksiData) return wo;
+            const localDoc = localMap.get(wo.id);
+            const koneksiId = (localDoc as any)?.idKoneksiData?.toString();
+            if (!koneksiId) return wo;
+            return { ...wo, idKoneksiData: koneksiId };
+          });
+        }
+
+        // ── Enrichment Block 1: isi pelanggan dari KoneksiData lokal ─────────────────────────
+        // Rafli tidak punya akses Pengguna Aqualink, jadi koneksiData.pelanggan selalu null.
+        // Untuk penyelesaian_laporan: hasil masuk ke pelangganLaporan (bukan koneksiData.pelanggan).
         const wosMissingPelanggan = result.data.filter((wo: any) => {
           if (wo.jenisPekerjaan === 'penyelesaian_laporan') return !wo.pelangganLaporan?.namaLengkap && wo.idKoneksiData;
           return wo.idKoneksiData && !wo.koneksiData?.pelanggan?.namaLengkap;
@@ -293,8 +353,7 @@ export const workOrderResolvers = {
         if (wosMissingPelanggan.length > 0) {
           const koneksiIds = [...new Set(wosMissingPelanggan.map((wo: any) => wo.idKoneksiData))];
           const koneksiDatas = await ConnectionData.find(
-            { _id: { $in: koneksiIds } },
-            { IdPelanggan: 1 }
+            { _id: { $in: koneksiIds } }, { IdPelanggan: 1 }
           ).populate({ path: 'IdPelanggan', model: 'Pengguna', select: 'namaLengkap email noHP' })
             .lean();
 
@@ -312,82 +371,53 @@ export const workOrderResolvers = {
               email: (pengguna as any).email ?? null,
               noHp: (pengguna as any).noHP ?? null,
             };
-
             if (wo.jenisPekerjaan === 'penyelesaian_laporan') {
               if (wo.pelangganLaporan?.namaLengkap) return wo;
               return { ...wo, pelangganLaporan: penggunaObj };
             }
             if (wo.koneksiData?.pelanggan?.namaLengkap) return wo;
-            return {
-              ...wo,
-              koneksiData: { ...(wo.koneksiData ?? {}), pelanggan: penggunaObj },
-            };
+            return { ...wo, koneksiData: { ...(wo.koneksiData ?? {}), pelanggan: penggunaObj } };
           });
         }
 
-        // ── Enrichment Block 2: penyelesaian_laporan — isi pelanggan dari Laporan lokal ──
-        // Rafli tidak expose idLaporan di schema-nya. Dua jalur lookup:
-        // Path A: idPenyelesaianLaporan (dari Rafli) → PenyelesaianLaporan.idLaporan
-        // Path B: PekerjaanTeknisi lokal (disimpan via upsert saat buatWorkOrder) → idLaporan
-        const penyelesaianWOs = result.data.filter(
+        // ── Enrichment Block 2: penyelesaian_laporan tanpa idKoneksiData sama sekali ─────────
+        // Safety net untuk WO yang tidak ada di local DB (tidak pernah lewat buatWorkOrder kita).
+        // Path A: idPenyelesaianLaporan dari Rafli → PenyelesaianLaporan.idLaporan → IdPengguna
+        const penyelesaianStillMissing = result.data.filter(
           (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap
         );
-
-        if (penyelesaianWOs.length > 0) {
-          const woToLaporanMap = new Map<string, string>();
-
-          // Path A: via idPenyelesaianLaporan dari Rafli (jika pekerjaan sudah dikirim teknisi)
-          const wosWithPenyelesaian = penyelesaianWOs.filter((wo: any) => wo.idPenyelesaianLaporan);
+        if (penyelesaianStillMissing.length > 0) {
+          const wosWithPenyelesaian = penyelesaianStillMissing.filter((wo: any) => wo.idPenyelesaianLaporan);
           if (wosWithPenyelesaian.length > 0) {
-            const penyelesaianIds = wosWithPenyelesaian.map((wo: any) => wo.idPenyelesaianLaporan);
             const pls = await PenyelesaianLaporan.find(
-              { _id: { $in: penyelesaianIds } }, { idLaporan: 1 }
-            ).lean();
-            const plMap = new Map(pls.map((p: any) => [p._id.toString(), (p as any).idLaporan?.toString()]));
-            for (const wo of wosWithPenyelesaian) {
-              const laporanId = plMap.get(wo.idPenyelesaianLaporan?.toString());
-              if (laporanId) woToLaporanMap.set(wo.id, laporanId);
-            }
-          }
-
-          // Path B: local PekerjaanTeknisi.idLaporan (upsert saat buatWorkOrder)
-          const stillMissing = penyelesaianWOs.filter((wo: any) => !woToLaporanMap.has(wo.id));
-          if (stillMissing.length > 0) {
-            const localWOs = await PekerjaanTeknisi.find(
-              { _id: { $in: stillMissing.map((wo: any) => wo.id) } },
+              { _id: { $in: wosWithPenyelesaian.map((wo: any) => wo.idPenyelesaianLaporan) } },
               { idLaporan: 1 }
             ).lean();
-            for (const lw of localWOs) {
-              const lid = (lw as any).idLaporan?.toString();
-              if (lid) woToLaporanMap.set(lw._id.toString(), lid);
+            const plMap = new Map(pls.map((p: any) => [p._id.toString(), (p as any).idLaporan?.toString()]));
+            const laporanIds = [...new Set(Array.from(plMap.values()).filter(Boolean))];
+            if (laporanIds.length > 0) {
+              const laporans = await Report.find({ _id: { $in: laporanIds } })
+                .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
+                .lean();
+              const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
+              result.data = result.data.map((wo: any) => {
+                if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
+                const laporanId = plMap.get(wo.idPenyelesaianLaporan?.toString());
+                if (!laporanId) return wo;
+                const pengguna = (laporanMap.get(laporanId) as any)?.IdPengguna;
+                if (!pengguna?._id) return wo;
+                return {
+                  ...wo,
+                  pelangganLaporan: {
+                    id: pengguna._id.toString(),
+                    namaLengkap: pengguna.namaLengkap ?? null,
+                    email: pengguna.email ?? null,
+                    noHp: pengguna.noHP ?? null,
+                    alamat: null,
+                  },
+                };
+              });
             }
-          }
-
-          if (woToLaporanMap.size > 0) {
-            const allLaporanIds = [...new Set(Array.from(woToLaporanMap.values()))];
-            const laporans = await Report.find({ _id: { $in: allLaporanIds } })
-              .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
-              .lean();
-            const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
-
-            result.data = result.data.map((wo: any) => {
-              if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
-              const laporanId = woToLaporanMap.get(wo.id);
-              if (!laporanId) return wo;
-              const laporan = laporanMap.get(laporanId);
-              const pengguna = (laporan as any)?.IdPengguna;
-              if (!pengguna?._id) return wo;
-              return {
-                ...wo,
-                pelangganLaporan: {
-                  id: pengguna._id.toString(),
-                  namaLengkap: (pengguna as any).namaLengkap ?? null,
-                  email: (pengguna as any).email ?? null,
-                  noHp: (pengguna as any).noHP ?? null,
-                  alamat: null,
-                },
-              };
-            });
           }
         }
 
@@ -565,11 +595,18 @@ export const workOrderResolvers = {
         );
         const result = (data as any).buatWorkOrder;
 
-        // Simpan mapping lokal rafliWoId → idLaporan agar enrichment workOrders bisa lookup nama pelanggan
+        // Simpan mapping lokal rafliWoId → idLaporan + idKoneksiData agar enrichment bisa lookup nama pelanggan
         if (result?.success && result.workOrder?.id && input.idLaporan && mongoose.Types.ObjectId.isValid(result.workOrder.id)) {
+          const upsertFields: Record<string, any> = {
+            idLaporan: new mongoose.Types.ObjectId(input.idLaporan),
+            jenisPekerjaan: 'penyelesaian_laporan',
+          };
+          if (input.idKoneksiData && mongoose.Types.ObjectId.isValid(input.idKoneksiData)) {
+            upsertFields.idKoneksiData = new mongoose.Types.ObjectId(input.idKoneksiData);
+          }
           PekerjaanTeknisi.collection.updateOne(
             { _id: new mongoose.Types.ObjectId(result.workOrder.id) },
-            { $set: { idLaporan: new mongoose.Types.ObjectId(input.idLaporan), jenisPekerjaan: 'penyelesaian_laporan' } },
+            { $set: upsertFields },
             { upsert: true }
           ).catch(() => {});
         }
