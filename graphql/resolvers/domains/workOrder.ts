@@ -520,9 +520,21 @@ export const workOrderResolvers = {
   Mutation: {
     buatWorkOrder: async (_: any, { input }: any, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
-      // penyelesaian_laporan tidak wajib idKoneksiData — cukup idLaporan
       const isPenyelesaianLaporan = input.jenisPekerjaan === 'penyelesaian_laporan';
-      if (!isPenyelesaianLaporan) {
+
+      if (isPenyelesaianLaporan) {
+        // Auto-populate idKoneksiData dari user yang lapor (pasti punya KoneksiData APPROVED)
+        if (input.idLaporan && (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData))) {
+          const laporan = await Report.findById(input.idLaporan, 'IdPengguna').lean() as any;
+          if (laporan?.IdPengguna) {
+            const koneksi = await ConnectionData.findOne(
+              { IdPelanggan: laporan.IdPengguna, StatusPengajuan: 'APPROVED' },
+              '_id'
+            ).lean();
+            if (koneksi) input.idKoneksiData = koneksi._id.toString();
+          }
+        }
+      } else {
         if (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData)) {
           return { success: false, message: 'idKoneksiData tidak valid', workOrder: null };
         }
