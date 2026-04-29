@@ -214,6 +214,14 @@ export const tagihanResolvers = {
       return { berhasil, gagal, pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal`, detailGagal };
     },
 
+    // DEBUG ONLY — hapus setelah selesai testing
+    triggerMergeTunggakan: async (_, __, { token }) => {
+      verifyAdminToken(token);
+      const { runMergeTunggakan } = await import('../../../utils/billingCron.js');
+      await runMergeTunggakan();
+      return 'Merge tunggakan selesai dijalankan — cek koleksi tagihans di Atlas.';
+    },
+
     updateStatusPembayaran: async (_, { id, status }, { token }) => {
       verifyAdminToken(token);
       const tagihan = await Billing.findById(id);

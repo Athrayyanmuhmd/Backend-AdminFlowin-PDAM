@@ -165,6 +165,8 @@ export const setupBillingCron = (): void => {
 
 // ─── Helper: Deteksi 3 bulan menunggak & merge tagihan bulan ke-1 + ke-2 ──────
 
+export const runMergeTunggakan = async (): Promise<void> => detectAndMergeTunggakan();
+
 const detectAndMergeTunggakan = async (): Promise<void> => {
   logger.info('Running tunggakan merge detection...');
   try {
