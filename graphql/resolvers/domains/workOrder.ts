@@ -59,7 +59,11 @@ function normalizeWorkOrder(wo: any): any {
     idPenyelesaianLaporan: wo.idPenyelesaianLaporan?.toString() ?? null,
     idLaporan: wo.idLaporan?.toString() ?? null,
     pelangganLaporan: (() => {
-      const pengguna = wo.idPenyelesaianLaporan?.idLaporan?.IdPengguna;
+      // idLaporan populated directly (fallback path, stored via upsert on creation)
+      const penggunaViaDirect = (wo.idLaporan as any)?.IdPengguna;
+      // idPenyelesaianLaporan → idLaporan → IdPengguna (if work already submitted)
+      const penggunaViaPenyelesaian = wo.idPenyelesaianLaporan?.idLaporan?.IdPengguna;
+      const pengguna = penggunaViaDirect?._id ? penggunaViaDirect : penggunaViaPenyelesaian;
       if (!pengguna?._id) return null;
       return {
         id: pengguna._id.toString(),
@@ -145,6 +149,11 @@ async function fallbackWorkOrdersFromMongo(filter?: any, pagination?: any): Prom
         path: 'idKoneksiData',
         model: 'KoneksiData',
         populate: { path: 'IdPelanggan', model: 'Pengguna' },
+      })
+      .populate({
+        path: 'idLaporan',
+        model: 'Laporan',
+        populate: { path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' },
       })
       .populate({
         path: 'idPenyelesaianLaporan',
@@ -251,7 +260,7 @@ export const workOrderResolvers = {
               data {
                 id idKoneksiData jenisPekerjaan statusTim status statusRespon
                 alasanPenolakan catatanTim catatanReview createdAt updatedAt
-                idLaporan idPenyelesaianLaporan
+                idPenyelesaianLaporan
                 teknisiPenanggungJawab { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
                 tim { id namaLengkap email nip divisi noHp isActive createdAt updatedAt }
                 koneksiData {
@@ -317,62 +326,55 @@ export const workOrderResolvers = {
         }
 
         // ── Enrichment Block 2: penyelesaian_laporan — isi pelanggan dari Laporan lokal ──
-        // Rafli tidak punya idLaporan di schema-nya; fallback via PekerjaanTeknisi lokal.
-        // Rantai: PekerjaanTeknisi._id → .idPenyelesaianLaporan → PenyelesaianLaporan.idLaporan → Report.IdPengguna
+        // Rafli tidak expose idLaporan di schema-nya. Dua jalur lookup:
+        // Path A: idPenyelesaianLaporan (dari Rafli) → PenyelesaianLaporan.idLaporan
+        // Path B: PekerjaanTeknisi lokal (disimpan via upsert saat buatWorkOrder) → idLaporan
         const penyelesaianWOs = result.data.filter(
           (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap
         );
 
         if (penyelesaianWOs.length > 0) {
-          const directLaporanIds = penyelesaianWOs
-            .filter((wo: any) => wo.idLaporan)
-            .map((wo: any) => wo.idLaporan);
-
-          const woIdsNeedingLookup = penyelesaianWOs
-            .filter((wo: any) => !wo.idLaporan)
-            .map((wo: any) => wo.id);
-
           const woToLaporanMap = new Map<string, string>();
-          if (woIdsNeedingLookup.length > 0) {
-            // Lookup idLaporan langsung dari PekerjaanTeknisi (disimpan saat buatWorkOrder)
-            const localWOs = await PekerjaanTeknisi.find(
-              { _id: { $in: woIdsNeedingLookup } },
-              { idLaporan: 1, idPenyelesaianLaporan: 1 }
+
+          // Path A: via idPenyelesaianLaporan dari Rafli (jika pekerjaan sudah dikirim teknisi)
+          const wosWithPenyelesaian = penyelesaianWOs.filter((wo: any) => wo.idPenyelesaianLaporan);
+          if (wosWithPenyelesaian.length > 0) {
+            const penyelesaianIds = wosWithPenyelesaian.map((wo: any) => wo.idPenyelesaianLaporan);
+            const pls = await PenyelesaianLaporan.find(
+              { _id: { $in: penyelesaianIds } }, { idLaporan: 1 }
             ).lean();
-
-            // Kumpulkan penyelesaianLaporan ids untuk fallback (WO lama sebelum mapping disimpan)
-            const penyelesaianIds = localWOs.map((w: any) => w.idPenyelesaianLaporan).filter(Boolean);
-            const penyelesaianToLaporan = new Map<string, string>();
-            if (penyelesaianIds.length > 0) {
-              const penyelesaians = await PenyelesaianLaporan.find(
-                { _id: { $in: penyelesaianIds } }, { idLaporan: 1 }
-              ).lean();
-              penyelesaians.forEach((p: any) => {
-                if (p.idLaporan) penyelesaianToLaporan.set(p._id.toString(), p.idLaporan.toString());
-              });
-            }
-
-            for (const localWO of localWOs) {
-              const woId = localWO._id.toString();
-              // Prioritas: idLaporan langsung (baru) → via idPenyelesaianLaporan (lama)
-              const laporanId = (localWO as any).idLaporan?.toString()
-                ?? penyelesaianToLaporan.get((localWO as any).idPenyelesaianLaporan?.toString());
-              if (laporanId) woToLaporanMap.set(woId, laporanId);
+            const plMap = new Map(pls.map((p: any) => [p._id.toString(), (p as any).idLaporan?.toString()]));
+            for (const wo of wosWithPenyelesaian) {
+              const laporanId = plMap.get(wo.idPenyelesaianLaporan?.toString());
+              if (laporanId) woToLaporanMap.set(wo.id, laporanId);
             }
           }
 
-          const allLaporanIds = [...directLaporanIds, ...Array.from(woToLaporanMap.values())];
-          if (allLaporanIds.length > 0) {
+          // Path B: local PekerjaanTeknisi.idLaporan (upsert saat buatWorkOrder)
+          const stillMissing = penyelesaianWOs.filter((wo: any) => !woToLaporanMap.has(wo.id));
+          if (stillMissing.length > 0) {
+            const localWOs = await PekerjaanTeknisi.find(
+              { _id: { $in: stillMissing.map((wo: any) => wo.id) } },
+              { idLaporan: 1 }
+            ).lean();
+            for (const lw of localWOs) {
+              const lid = (lw as any).idLaporan?.toString();
+              if (lid) woToLaporanMap.set(lw._id.toString(), lid);
+            }
+          }
+
+          if (woToLaporanMap.size > 0) {
+            const allLaporanIds = [...new Set(Array.from(woToLaporanMap.values()))];
             const laporans = await Report.find({ _id: { $in: allLaporanIds } })
               .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
               .lean();
             const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
 
             result.data = result.data.map((wo: any) => {
-              if (wo.jenisPekerjaan !== 'penyelesaian_laporan') return wo;
-              const laporanId = wo.idLaporan ?? woToLaporanMap.get(wo.id);
+              if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
+              const laporanId = woToLaporanMap.get(wo.id);
               if (!laporanId) return wo;
-              const laporan = laporanMap.get(laporanId.toString());
+              const laporan = laporanMap.get(laporanId);
               const pengguna = (laporan as any)?.IdPengguna;
               if (!pengguna?._id) return wo;
               return {
