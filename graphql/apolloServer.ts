@@ -70,11 +70,147 @@ const loginRateLimiter = rateLimit({
   },
 });
 
+// ─── GraphiQL Explorer HTML ───────────────────────────────────────────────────
+const GRAPHIQL_HTML = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <title>Aqualink GraphQL Explorer</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/graphiql@3.7.1/graphiql.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; display: flex; flex-direction: column; font-family: system-ui, sans-serif; }
+    #topbar { background: #1c2333; color: #e6edf3; padding: 8px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; border-bottom: 1px solid #30363d; }
+    #topbar h1 { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: 0.3px; }
+    .badge { background: #238636; color: #fff; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .badge.warn { background: #9e6a03; }
+    #token-section { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+    #token-input { background: #0d1117; border: 1px solid #30363d; color: #e6edf3; padding: 5px 10px; border-radius: 6px; font-size: 12px; width: 300px; font-family: monospace; outline: none; }
+    #token-input:focus { border-color: #58a6ff; }
+    #token-input::placeholder { color: #484f58; }
+    .btn { border: none; padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 500; transition: opacity .15s; }
+    .btn:hover { opacity: .85; }
+    .btn-green { background: #238636; color: #fff; }
+    .btn-ghost { background: transparent; color: #8b949e; border: 1px solid #30363d; }
+    #status { font-size: 11px; white-space: nowrap; }
+    #status.ok { color: #3fb950; }
+    #status.off { color: #6e7681; }
+    #graphiql { flex: 1; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="topbar">
+    <h1>🚰 Aqualink GraphQL Explorer</h1>
+    <span class="badge">Production</span>
+    <div id="token-section">
+      <span id="status" class="off">● Belum login</span>
+      <input id="token-input" type="password" placeholder="Paste token JWT setelah login…" autocomplete="off" />
+      <button class="btn btn-green" onclick="saveToken()">Simpan Token</button>
+      <button class="btn btn-ghost" onclick="clearToken()">Hapus</button>
+    </div>
+  </div>
+  <div id="graphiql"></div>
+
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/graphiql@3.7.1/graphiql.min.js" type="application/javascript"></script>
+  <script>
+    const STORAGE_KEY = 'aqualink_jwt_token';
+    const GRAPHQL_URL = window.location.origin + '/graphql';
+    let token = localStorage.getItem(STORAGE_KEY) || '';
+    let gqlRoot = null;
+
+    const DEFAULT_QUERY = \`# =====================================================
+# 🔐 LANGKAH 1: Jalankan query login di bawah ini
+#    Klik tombol  ▶  atau tekan Ctrl+Enter
+# =====================================================
+
+query LoginAdmin {
+  loginAdmin(email: "admin@test.com", password: "admin123") {
+    token
+    admin {
+      namaLengkap
+      email
+    }
+  }
+}
+
+# =====================================================
+# Setelah login:
+#   1. Copy nilai "token" dari panel kanan
+#   2. Paste ke kotak Token JWT di header atas
+#   3. Klik "Simpan Token"
+#   4. Ganti query ini dengan query yang kamu butuhkan
+#   5. Jelajahi schema di panel kiri (klik buku 📚)
+# =====================================================
+\`;
+
+    function updateStatus() {
+      const el = document.getElementById('status');
+      const inp = document.getElementById('token-input');
+      if (token) {
+        const preview = token.substring(0, 12) + '…';
+        el.textContent = '● Login aktif (' + preview + ')';
+        el.className = 'ok';
+        inp.value = token;
+      } else {
+        el.textContent = '● Belum login';
+        el.className = 'off';
+        inp.value = '';
+      }
+    }
+
+    function makeFetcher() {
+      return GraphiQL.createFetcher({
+        url: GRAPHQL_URL,
+        headers: token ? { Authorization: 'Bearer ' + token } : {},
+      });
+    }
+
+    function render() {
+      if (!gqlRoot) gqlRoot = ReactDOM.createRoot(document.getElementById('graphiql'));
+      gqlRoot.render(React.createElement(GraphiQL, {
+        fetcher: makeFetcher(),
+        defaultQuery: DEFAULT_QUERY,
+        shouldPersistHeaders: true,
+        isHeadersEditorEnabled: true,
+        defaultEditorToolsVisibility: 'docs',
+      }));
+    }
+
+    function saveToken() {
+      const val = document.getElementById('token-input').value.trim().replace(/^Bearer\\s+/i, '');
+      if (!val) { alert('Token tidak boleh kosong'); return; }
+      token = val;
+      localStorage.setItem(STORAGE_KEY, token);
+      updateStatus();
+      render();
+      // brief flash notification
+      const s = document.getElementById('status');
+      s.textContent = '✅ Token disimpan!';
+      setTimeout(() => updateStatus(), 2000);
+    }
+
+    function clearToken() {
+      token = '';
+      localStorage.removeItem(STORAGE_KEY);
+      updateStatus();
+      render();
+    }
+
+    updateStatus();
+    render();
+  </script>
+</body>
+</html>`;
+
 export async function setupApolloServer(app: Express): Promise<ApolloServer<any>> {
   const server = new ApolloServer<any>({
     typeDefs,
     resolvers,
-    introspection: process.env.NODE_ENV !== 'production',
+    // Introspection selalu aktif agar GraphiQL Explorer dan Apollo Studio bisa membaca schema
+    introspection: true,
     formatError: (error: any) => {
       console.error('GraphQL Error:', error);
       return {
@@ -100,10 +236,8 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           return callback(null, true);
         }
         const allowedOrigins = [
-          'http://localhost:3000',
-          'http://localhost:3001',
-          'http://localhost:3002',
-          'http://localhost:3003',
+          'https://studio.apollographql.com', // Apollo Studio / Sandbox Explorer
+          'https://sandbox.embed.apollographql.com',
           ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
         ];
         if (allowedOrigins.includes(origin)) {
@@ -122,8 +256,10 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           return;
         }
 
+        // Serve GraphiQL Explorer pada GET request
         if (req.method === 'GET') {
-          res.json({ message: 'GraphQL server is running. Use POST to send queries.' });
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.send(GRAPHIQL_HTML);
           return;
         }
 
