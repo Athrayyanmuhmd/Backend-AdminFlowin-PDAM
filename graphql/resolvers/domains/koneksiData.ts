@@ -1,5 +1,6 @@
 // @ts-nocheck
 import KoneksiData from '../../../models/ConnectionData.js';
+import User from '../../../models/User.js';
 import SurveyData from '../../../models/SurveyData.js';
 import RabConnection from '../../../models/RabConnection.js';
 import Meteran from '../../../models/Meteran.js';
@@ -157,6 +158,14 @@ export const koneksiDataResolvers = {
         catatan: input.catatan || null,
       });
       await koneksi.save();
+
+      // Sync NIK dan Alamat ke User agar langsung tampil di list pelanggan
+      if (input.IdPelanggan) {
+        User.findByIdAndUpdate(input.IdPelanggan, {
+          ...(input.NIK && { nik: input.NIK }),
+          ...(input.Alamat && { address: input.Alamat }),
+        }).catch(() => {});
+      }
 
       // Notify semua admin bahwa ada pengajuan sambungan baru
       await notifikasiSemuaAdmin(
