@@ -113,10 +113,10 @@ export const tagihanResolvers = {
       // Helper: buat Snap untuk billing id tertentu
       const buatSnap = async (billingId: any, totalBiayaSnap: number, periodeLabel: string, penggunaId: any) => {
         try {
-          const orderId = `BILLING-${billingId}`;
+          const MidtransOrderId = `BILLING-${billingId}`;
           const pengguna = penggunaId ? await User.findById(penggunaId).select('namaLengkap email noHP').lean() : null;
           const snap = await midtransClient.createTransaction({
-            transaction_details: { order_id: orderId, gross_amount: Math.round(totalBiayaSnap) },
+            transaction_details: { order_id: MidtransOrderId, gross_amount: Math.round(totalBiayaSnap) },
             item_details: [{ id: billingId.toString(), price: Math.round(totalBiayaSnap), quantity: 1, name: `Tagihan Air ${periodeLabel}` }],
             customer_details: {
               first_name: (pengguna as any)?.namaLengkap || 'Pelanggan',
@@ -124,7 +124,7 @@ export const tagihanResolvers = {
               phone: (pengguna as any)?.noHP || '',
             },
           });
-          await Billing.findByIdAndUpdate(billingId, { orderId, SnapToken: snap.token, SnapRedirectUrl: snap.redirect_url });
+          await Billing.findByIdAndUpdate(billingId, { MidtransOrderId, SnapToken: snap.token, SnapRedirectUrl: snap.redirect_url });
           return snap.redirect_url as string;
         } catch (e: any) {
           console.warn('[generateTagihan] Gagal buat Snap:', e?.message);
@@ -351,7 +351,7 @@ export const tagihanResolvers = {
       if (!tagihan) throw new Error('Tagihan tidak ditemukan');
       if (tagihan.StatusPembayaran === 'settlement') throw new Error('Tagihan sudah lunas');
 
-      const orderId = tagihan.orderId || `BILLING-${tagihan._id}`;
+      const MidtransOrderId = tagihan.MidtransOrderId || `BILLING-${tagihan._id}`;
       const userId = tagihan.userId;
       const pengguna = userId ? await User.findById(userId).select('namaLengkap email noHP').lean() : null;
       const bulanLabel = tagihan.bulanCakupan && tagihan.bulanCakupan > 1
@@ -360,7 +360,7 @@ export const tagihanResolvers = {
 
       const snapParam = {
         transaction_details: {
-          order_id: orderId,
+          order_id: MidtransOrderId,
           gross_amount: Math.round(tagihan.TotalBiaya ?? 0),
         },
         item_details: [{
@@ -381,7 +381,7 @@ export const tagihanResolvers = {
       return await Billing.findByIdAndUpdate(
         id,
         {
-          orderId,
+          MidtransOrderId,
           SnapToken: snapTransaction.token,
           SnapRedirectUrl: snapTransaction.redirect_url,
         },

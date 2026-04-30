@@ -25,7 +25,7 @@ export const tagihanTypeDefs = gql`
     jenisBilling: EnumJenisBilling
     bulanCakupan: Int
     isMergedBilling: Boolean
-    orderId: String
+    MidtransOrderId: String
     SnapToken: String
     SnapRedirectUrl: String
     createdAt: String
