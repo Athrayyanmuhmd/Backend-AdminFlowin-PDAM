@@ -44,6 +44,10 @@ export interface IBilling {
   isMergedBilling?: boolean;
   mergedFromIds?: Types.ObjectId[];
   mergedIntoBillingId?: Types.ObjectId | null;
+  // Midtrans payment fields
+  orderId?: string | null;
+  SnapToken?: string | null;
+  SnapRedirectUrl?: string | null;
 }
 
 export interface IBillingDocument extends IBilling, Document {}
@@ -139,6 +143,9 @@ const billingSchema = new Schema<IBilling>(
       type: Schema.Types.ObjectId,
       default: null,
     },
+    orderId: { type: String, default: null },
+    SnapToken: { type: String, default: null },
+    SnapRedirectUrl: { type: String, default: null },
   },
   {
     timestamps: true,

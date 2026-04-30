@@ -3,6 +3,7 @@ import Billing from '../../../models/Billing.js';
 import Meteran from '../../../models/Meteran.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import User from '../../../models/User.js';
+import midtransClient from '../../../middleware/midtrans.js';
 import { verifyAdminToken, notifikasiUntukPelanggan } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
@@ -108,8 +109,9 @@ export const tagihanResolvers = {
       const [year, month] = Periode.split('-').map(Number);
       const tenggatWaktu = new Date(year, month, 25); // bulan berikutnya tgl 25
 
+      const userId = (meteran.IdKoneksiData as any)?.IdPelanggan || null;
       const billing = new Billing({
-        userId: (meteran.IdKoneksiData as any)?.IdPelanggan || null,
+        userId,
         IdMeteran: meteran._id,
         Periode,
         PenggunaanSebelum: penggunaanSebelum,
@@ -125,12 +127,45 @@ export const tagihanResolvers = {
       });
       await billing.save();
 
-      // Kirim notifikasi ke pelanggan — dibaca Ahmad via { IdPelanggan: userId }
+      // Buat Midtrans Snap transaction agar user bisa langsung bayar
+      const orderId = `BILLING-${billing._id}`;
+      try {
+        const pengguna = userId ? await User.findById(userId).select('namaLengkap email noHP').lean() : null;
+        const snapParam = {
+          transaction_details: {
+            order_id: orderId,
+            gross_amount: Math.round(biaya + biayaBeban),
+          },
+          item_details: [{
+            id: billing._id.toString(),
+            price: Math.round(biaya + biayaBeban),
+            quantity: 1,
+            name: `Tagihan Air ${Periode}`,
+          }],
+          customer_details: {
+            first_name: (pengguna as any)?.namaLengkap || 'Pelanggan',
+            email: (pengguna as any)?.email || '',
+            phone: (pengguna as any)?.noHP || '',
+          },
+        };
+        const snapTransaction = await midtransClient.createTransaction(snapParam);
+        await Billing.findByIdAndUpdate(billing._id, {
+          orderId,
+          SnapToken: snapTransaction.token,
+          SnapRedirectUrl: snapTransaction.redirect_url,
+        });
+      } catch (snapErr: any) {
+        // Snap gagal tidak batalkan billing — catat saja
+        console.warn('[generateTagihan] Gagal buat Snap transaction:', snapErr?.message);
+      }
+
+      // Kirim notifikasi ke pelanggan
       if (userId) {
+        const snapUrl = (await Billing.findById(billing._id).select('SnapRedirectUrl').lean() as any)?.SnapRedirectUrl;
         await notifikasiUntukPelanggan(
           userId.toString(),
           'Tagihan Air Baru',
-          `Tagihan air sebesar Rp${(biaya + biayaBeban).toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.`,
+          `Tagihan air sebesar Rp${(biaya + biayaBeban).toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
           'PEMBAYARAN',
           '/tagihan',
         );

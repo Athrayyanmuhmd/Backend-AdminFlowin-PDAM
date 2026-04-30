@@ -25,6 +25,9 @@ export const tagihanTypeDefs = gql`
     jenisBilling: EnumJenisBilling
     bulanCakupan: Int
     isMergedBilling: Boolean
+    orderId: String
+    SnapToken: String
+    SnapRedirectUrl: String
     createdAt: String
     updatedAt: String
   }
