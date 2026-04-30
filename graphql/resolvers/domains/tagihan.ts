@@ -93,23 +93,61 @@ export const tagihanResolvers = {
       const meteran = await Meteran.findById(IdMeteran).populate('IdKoneksiData');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
 
-      const existing = await Billing.findOne({ IdMeteran, Periode });
-      if (existing) throw new Error(`Tagihan untuk meteran ini pada periode ${Periode} sudah ada`);
+      // Tolak jika periode ini sudah tercatat (double-generate)
+      const periodeExist = await Billing.findOne({ IdMeteran, Periode, jenisBilling: { $ne: 'denda' } });
+      if (periodeExist) throw new Error(`Tagihan periode ${Periode} untuk meteran ini sudah tercatat`);
 
       const kelompok = await KelompokPelanggan.findById(meteran.IdKelompokPelanggan);
       const pemakaian = meteran.pemakaianBelumTerbayar || 0;
-      const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
       const batasRendah = kelompok?.BatasRendah ?? 10;
       const biaya = pemakaian <= batasRendah
         ? pemakaian * (kelompok?.TarifRendah ?? 1500)
         : batasRendah * (kelompok?.TarifRendah ?? 1500) + (pemakaian - batasRendah) * (kelompok?.TarifTinggi ?? 2000);
       const biayaBeban = kelompok?.BiayaBeban ?? 5000;
+      const totalBiaya = biaya + biayaBeban;
 
-      // TenggatWaktu = akhir bulan berikutnya tanggal 25
       const [year, month] = Periode.split('-').map(Number);
-      const tenggatWaktu = new Date(year, month, 25); // bulan berikutnya tgl 25
-
+      const tenggatWaktu = new Date(year, month, 25);
       const userId = (meteran.IdKoneksiData as any)?.IdPelanggan || null;
+
+      // Cek apakah sudah ada billing pending untuk meteran ini
+      const pendingBilling = await Billing.findOne({
+        IdMeteran,
+        StatusPembayaran: 'pending',
+        jenisBilling: { $ne: 'denda' },
+      });
+
+      if (pendingBilling) {
+        // Akumulasi ke billing pending yang ada
+        const updated = await Billing.findByIdAndUpdate(
+          pendingBilling._id,
+          {
+            $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
+            $set: {
+              PenggunaanSekarang: meteran.totalPemakaian || 0,
+              TenggatWaktu: tenggatWaktu,
+              Menunggak: true,
+              SnapToken: null,
+              SnapRedirectUrl: null,
+            },
+          },
+          { new: true }
+        ).populate(TAGIHAN_POPULATE);
+
+        if (userId) {
+          await notifikasiUntukPelanggan(
+            userId.toString(),
+            'Tagihan Air Diperbarui',
+            `Tagihan bulan ${Periode} (${pemakaian} m³, Rp${totalBiaya.toLocaleString('id-ID')}) ditambahkan. Total yang harus dibayar: Rp${((pendingBilling.TotalBiaya ?? 0) + totalBiaya).toLocaleString('id-ID')}.`,
+            'PEMBAYARAN',
+            '/tagihan',
+          );
+        }
+        return updated;
+      }
+
+      // Tidak ada pending — buat billing baru
+      const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
       const billing = new Billing({
         userId,
         IdMeteran: meteran._id,
@@ -119,53 +157,20 @@ export const tagihanResolvers = {
         TotalPemakaian: pemakaian,
         Biaya: biaya,
         BiayaBeban: biayaBeban,
-        TotalBiaya: biaya + biayaBeban,
+        TotalBiaya: totalBiaya,
         StatusPembayaran: 'pending',
         TenggatWaktu: tenggatWaktu,
         Menunggak: false,
         Denda: 0,
+        bulanCakupan: 1,
       });
       await billing.save();
 
-      // Buat Midtrans Snap transaction agar user bisa langsung bayar
-      const orderId = `BILLING-${billing._id}`;
-      try {
-        const pengguna = userId ? await User.findById(userId).select('namaLengkap email noHP').lean() : null;
-        const snapParam = {
-          transaction_details: {
-            order_id: orderId,
-            gross_amount: Math.round(biaya + biayaBeban),
-          },
-          item_details: [{
-            id: billing._id.toString(),
-            price: Math.round(biaya + biayaBeban),
-            quantity: 1,
-            name: `Tagihan Air ${Periode}`,
-          }],
-          customer_details: {
-            first_name: (pengguna as any)?.namaLengkap || 'Pelanggan',
-            email: (pengguna as any)?.email || '',
-            phone: (pengguna as any)?.noHP || '',
-          },
-        };
-        const snapTransaction = await midtransClient.createTransaction(snapParam);
-        await Billing.findByIdAndUpdate(billing._id, {
-          orderId,
-          SnapToken: snapTransaction.token,
-          SnapRedirectUrl: snapTransaction.redirect_url,
-        });
-      } catch (snapErr: any) {
-        // Snap gagal tidak batalkan billing — catat saja
-        console.warn('[generateTagihan] Gagal buat Snap transaction:', snapErr?.message);
-      }
-
-      // Kirim notifikasi ke pelanggan
       if (userId) {
-        const snapUrl = (await Billing.findById(billing._id).select('SnapRedirectUrl').lean() as any)?.SnapRedirectUrl;
         await notifikasiUntukPelanggan(
           userId.toString(),
           'Tagihan Air Baru',
-          `Tagihan air sebesar Rp${(biaya + biayaBeban).toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
+          `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.`,
           'PEMBAYARAN',
           '/tagihan',
         );
@@ -183,18 +188,26 @@ export const tagihanResolvers = {
       const [year, month] = Periode.split('-').map(Number);
       const tenggatWaktu = new Date(year, month, 25);
 
-      const [meteranList, existingBillings] = await Promise.all([
-        Meteran.find({ _id: { $in: IdMeteranList } })
-          .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap' } })
-          .lean(),
-        Billing.find({ IdMeteran: { $in: IdMeteranList }, Periode }).select('IdMeteran').lean(),
-      ]);
+      const meteranList = await Meteran.find({ _id: { $in: IdMeteranList } })
+        .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap' } })
+        .lean();
 
       const meteranMap = new Map(meteranList.map(m => [m._id.toString(), m]));
-      const existingSet = new Set(existingBillings.map(b => b.IdMeteran.toString()));
       const kelompokIds = [...new Set(meteranList.map(m => (m as any).IdKelompokPelanggan?.toString()).filter(Boolean))];
       const kelompokList = await KelompokPelanggan.find({ _id: { $in: kelompokIds } }).lean();
       const kelompokMap = new Map(kelompokList.map(k => [(k._id as any).toString(), k]));
+
+      // Cek periode sudah ada (double-generate guard)
+      const periodeExisting = await Billing.find({ IdMeteran: { $in: IdMeteranList }, Periode, jenisBilling: { $ne: 'denda' } }).select('IdMeteran').lean();
+      const periodeExistSet = new Set(periodeExisting.map(b => b.IdMeteran.toString()));
+
+      // Ambil semua pending billing yang ada untuk meteran-meteran ini sekaligus
+      const pendingBillings = await Billing.find({
+        IdMeteran: { $in: IdMeteranList },
+        StatusPembayaran: 'pending',
+        jenisBilling: { $ne: 'denda' },
+      }).select('_id IdMeteran TotalBiaya bulanCakupan').lean();
+      const pendingMap = new Map(pendingBillings.map(b => [b.IdMeteran.toString(), b]));
 
       for (const idMeteran of IdMeteranList) {
         try {
@@ -204,7 +217,7 @@ export const tagihanResolvers = {
             detailGagal.push({ IdMeteran: idMeteran.toString(), alasan: 'Meteran tidak ditemukan' });
             continue;
           }
-          if (existingSet.has(idMeteran.toString())) {
+          if (periodeExistSet.has(idMeteran.toString())) {
             gagal++;
             detailGagal.push({
               IdMeteran: idMeteran.toString(),
@@ -218,28 +231,48 @@ export const tagihanResolvers = {
 
           const kelompok = kelompokMap.get(meteran.IdKelompokPelanggan?.toString()) as any;
           const pemakaian = meteran.pemakaianBelumTerbayar || 0;
-          const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
           const batasRendah = kelompok?.BatasRendah ?? 10;
           const biaya = pemakaian <= batasRendah
             ? pemakaian * (kelompok?.TarifRendah ?? 1500)
             : batasRendah * (kelompok?.TarifRendah ?? 1500) + (pemakaian - batasRendah) * (kelompok?.TarifTinggi ?? 2000);
           const biayaBeban = kelompok?.BiayaBeban ?? 5000;
+          const totalBiaya = biaya + biayaBeban;
+          const userId = meteran.IdKoneksiData?.IdPelanggan?._id || meteran.IdKoneksiData?.IdPelanggan || null;
 
-          await new Billing({
-            userId: meteran.IdKoneksiData?.IdPelanggan?._id || meteran.IdKoneksiData?.IdPelanggan || null,
-            IdMeteran: meteran._id,
-            Periode,
-            PenggunaanSebelum: penggunaanSebelum,
-            PenggunaanSekarang: meteran.totalPemakaian || 0,
-            TotalPemakaian: pemakaian,
-            Biaya: biaya,
-            BiayaBeban: biayaBeban,
-            TotalBiaya: biaya + biayaBeban,
-            StatusPembayaran: 'pending',
-            TenggatWaktu: tenggatWaktu,
-            Menunggak: false,
-            Denda: 0,
-          }).save();
+          const pendingBilling = pendingMap.get(idMeteran.toString()) as any;
+
+          if (pendingBilling) {
+            // Akumulasi ke billing pending yang ada
+            await Billing.findByIdAndUpdate(pendingBilling._id, {
+              $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
+              $set: {
+                PenggunaanSekarang: meteran.totalPemakaian || 0,
+                TenggatWaktu: tenggatWaktu,
+                Menunggak: true,
+                SnapToken: null,
+                SnapRedirectUrl: null,
+              },
+            });
+          } else {
+            // Buat billing baru
+            const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
+            await new Billing({
+              userId,
+              IdMeteran: meteran._id,
+              Periode,
+              PenggunaanSebelum: penggunaanSebelum,
+              PenggunaanSekarang: meteran.totalPemakaian || 0,
+              TotalPemakaian: pemakaian,
+              Biaya: biaya,
+              BiayaBeban: biayaBeban,
+              TotalBiaya: totalBiaya,
+              StatusPembayaran: 'pending',
+              TenggatWaktu: tenggatWaktu,
+              Menunggak: false,
+              Denda: 0,
+              bulanCakupan: 1,
+            }).save();
+          }
           berhasil++;
         } catch (err: any) {
           const meteran = meteranMap.get(idMeteran.toString()) as any;
@@ -285,6 +318,50 @@ export const tagihanResolvers = {
       }
 
       return await Billing.findByIdAndUpdate(id, updateData, { new: true }).populate(TAGIHAN_POPULATE);
+    },
+
+    buatSnapTagihan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      const tagihan = await Billing.findById(id).populate(TAGIHAN_POPULATE);
+      if (!tagihan) throw new Error('Tagihan tidak ditemukan');
+      if (tagihan.StatusPembayaran === 'settlement') throw new Error('Tagihan sudah lunas');
+
+      const orderId = tagihan.orderId || `BILLING-${tagihan._id}`;
+      const userId = tagihan.userId;
+      const pengguna = userId ? await User.findById(userId).select('namaLengkap email noHP').lean() : null;
+      const bulanLabel = tagihan.bulanCakupan && tagihan.bulanCakupan > 1
+        ? `${tagihan.Periode} (${tagihan.bulanCakupan} bulan)`
+        : tagihan.Periode;
+
+      const snapParam = {
+        transaction_details: {
+          order_id: orderId,
+          gross_amount: Math.round(tagihan.TotalBiaya ?? 0),
+        },
+        item_details: [{
+          id: tagihan._id.toString(),
+          price: Math.round(tagihan.TotalBiaya ?? 0),
+          quantity: 1,
+          name: `Tagihan Air ${bulanLabel}`,
+        }],
+        customer_details: {
+          first_name: (pengguna as any)?.namaLengkap || 'Pelanggan',
+          email: (pengguna as any)?.email || '',
+          phone: (pengguna as any)?.noHP || '',
+        },
+      };
+
+      const snapTransaction = await midtransClient.createTransaction(snapParam);
+
+      return await Billing.findByIdAndUpdate(
+        id,
+        {
+          orderId,
+          SnapToken: snapTransaction.token,
+          SnapRedirectUrl: snapTransaction.redirect_url,
+        },
+        { new: true }
+      ).populate(TAGIHAN_POPULATE);
     },
   },
 };

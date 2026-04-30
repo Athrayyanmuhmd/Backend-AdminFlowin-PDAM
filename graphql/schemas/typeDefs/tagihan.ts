@@ -69,5 +69,6 @@ export const tagihanTypeDefs = gql`
     generateTagihan(IdMeteran: ID!, Periode: String!): Tagihan!
     generateTagihanBulanan(Periode: String!, IdMeteranList: [ID!]!): HasilGenerateTagihan!
     updateStatusPembayaran(id: ID!, status: PaymentStatus!): Tagihan!
+    buatSnapTagihan(id: ID!): Tagihan!
   }
 `;

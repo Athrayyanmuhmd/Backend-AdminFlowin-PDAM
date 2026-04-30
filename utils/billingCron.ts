@@ -54,18 +54,7 @@ export const setupBillingCron = (): void => {
           const koneksiData = (meteran as any).IdKoneksiData;
           const userId      = koneksiData?.IdPelanggan?._id ?? null;
 
-          // Skip jika billing periode ini sudah ada
-          const existingBilling = await Billing.findOne({
-            IdMeteran: meteran._id,
-            Periode: periode,
-          });
-          if (existingBilling) {
-            logger.info({ NomorMeteran: (meteran as any).NomorMeteran }, 'Billing already exists, skipping');
-            continue;
-          }
-
-          // Sync pemakaianBelumTerbayar: kurangi untuk tagihan yang sudah di-settle
-          // (kemungkinan dibayar Ahmad tanpa decrement field ini)
+          // Sync pemakaianBelumTerbayar dari tagihan settlement yang belum di-apply
           const settledUnaccounted = await Billing.find({
             IdMeteran: meteran._id,
             StatusPembayaran: 'settlement',
@@ -80,12 +69,10 @@ export const setupBillingCron = (): void => {
               await Meteran.findByIdAndUpdate(meteran._id, {
                 $inc: { pemakaianBelumTerbayar: -toDecrement },
               });
-              // Tandai sudah di-sync agar tidak double-decrement
               await Billing.updateMany(
                 { _id: { $in: settledUnaccounted.map((t: any) => t._id) } },
                 { $set: { Catatan: '[pemakaian_applied]' } }
               );
-              // Reload nilai setelah sync
               (meteran as any).pemakaianBelumTerbayar = Math.max(
                 0, ((meteran as any).pemakaianBelumTerbayar ?? 0) - toDecrement
               );
@@ -102,48 +89,88 @@ export const setupBillingCron = (): void => {
             continue;
           }
 
-          const totalPemakaian   = (meteran as any).totalPemakaian ?? 0;
-          const penggunaanSebelum = Math.max(0, totalPemakaian - pemakaian);
+          const totalPemakaian    = (meteran as any).totalPemakaian ?? 0;
+          const tenggatWaktu      = getDueDate();
           const { biaya, biayaBeban, totalBiaya } = calculateWaterBill(
             pemakaian,
             (meteran as any).IdKelompokPelanggan
           );
 
-          const tenggatWaktu = getDueDate();
-
-          const billing = new Billing({
-            userId,
+          // Cek apakah sudah ada billing pending untuk meteran ini
+          const pendingBilling = await Billing.findOne({
             IdMeteran: meteran._id,
-            Periode: periode,
-            PenggunaanSebelum: penggunaanSebelum,
-            PenggunaanSekarang: totalPemakaian,
-            TotalPemakaian: pemakaian,
-            Biaya: biaya,
-            BiayaBeban: biayaBeban,
-            TotalBiaya: totalBiaya,
             StatusPembayaran: 'pending',
-            TenggatWaktu: tenggatWaktu,
-            Menunggak: false,
-            Denda: 0,
+            jenisBilling: { $ne: 'denda' },
           });
-          await billing.save();
 
-          // Kirim notifikasi ke pelanggan jika ada userId
-          if (userId) {
-            await Notification.create({
-              IdPelanggan: userId,
-              Judul: 'Tagihan Air Baru',
-              Pesan: `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}`,
-              Kategori: 'PEMBAYARAN',
-              Link: '/pembayaran',
-              isRead: false,
-            }).catch((e: any) =>
-              logger.error({ err: e }, 'Gagal kirim notifikasi billing baru')
-            );
+          if (pendingBilling) {
+            // Akumulasi ke billing pending yang ada — user tetap 1 tagihan
+            await Billing.findByIdAndUpdate(pendingBilling._id, {
+              $inc: {
+                TotalPemakaian: pemakaian,
+                Biaya: biaya,
+                BiayaBeban: biayaBeban,
+                TotalBiaya: totalBiaya,
+                bulanCakupan: 1,
+              },
+              $set: {
+                PenggunaanSekarang: totalPemakaian,
+                TenggatWaktu: tenggatWaktu,
+                Menunggak: true,
+                // Invalidasi Snap lama karena nominal berubah
+                SnapToken: null,
+                SnapRedirectUrl: null,
+              },
+            });
+
+            if (userId) {
+              await Notification.create({
+                IdPelanggan: userId,
+                Judul: 'Tagihan Air Diperbarui',
+                Pesan: `Tagihan bulan ${periode} (${pemakaian} m³, Rp${totalBiaya.toLocaleString('id-ID')}) ditambahkan ke tagihan yang ada. Total yang harus dibayar sekarang: Rp${((pendingBilling.TotalBiaya ?? 0) + totalBiaya).toLocaleString('id-ID')}.`,
+                Kategori: 'PEMBAYARAN',
+                Link: '/pembayaran',
+                isRead: false,
+              }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi akumulasi billing'));
+            }
+
+            logger.info({ NomorMeteran: (meteran as any).NomorMeteran, periode }, 'Billing accumulated to existing pending');
+            successCount++;
+          } else {
+            // Tidak ada pending — buat billing baru
+            const penggunaanSebelum = Math.max(0, totalPemakaian - pemakaian);
+            const billing = new Billing({
+              userId,
+              IdMeteran: meteran._id,
+              Periode: periode,
+              PenggunaanSebelum: penggunaanSebelum,
+              PenggunaanSekarang: totalPemakaian,
+              TotalPemakaian: pemakaian,
+              Biaya: biaya,
+              BiayaBeban: biayaBeban,
+              TotalBiaya: totalBiaya,
+              StatusPembayaran: 'pending',
+              TenggatWaktu: tenggatWaktu,
+              Menunggak: false,
+              Denda: 0,
+              bulanCakupan: 1,
+            });
+            await billing.save();
+
+            if (userId) {
+              await Notification.create({
+                IdPelanggan: userId,
+                Judul: 'Tagihan Air Baru',
+                Pesan: `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}`,
+                Kategori: 'PEMBAYARAN',
+                Link: '/pembayaran',
+                isRead: false,
+              }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi billing baru'));
+            }
+
+            logger.info({ NomorMeteran: (meteran as any).NomorMeteran, totalBiaya }, 'Billing created');
+            successCount++;
           }
-
-          successCount++;
-          logger.info({ NomorMeteran: (meteran as any).NomorMeteran, totalBiaya }, 'Billing created');
         } catch (error: any) {
           logger.error({ err: error, NomorMeteran: (meteran as any).NomorMeteran }, 'Gagal generate billing');
           failedCount++;
