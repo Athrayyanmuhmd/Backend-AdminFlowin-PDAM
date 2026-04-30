@@ -110,6 +110,28 @@ export const tagihanResolvers = {
       const tenggatWaktu = new Date(year, month, 25);
       const userId = (meteran.IdKoneksiData as any)?.IdPelanggan || null;
 
+      // Helper: buat Snap untuk billing id tertentu
+      const buatSnap = async (billingId: any, totalBiayaSnap: number, periodeLabel: string, penggunaId: any) => {
+        try {
+          const orderId = `BILLING-${billingId}`;
+          const pengguna = penggunaId ? await User.findById(penggunaId).select('namaLengkap email noHP').lean() : null;
+          const snap = await midtransClient.createTransaction({
+            transaction_details: { order_id: orderId, gross_amount: Math.round(totalBiayaSnap) },
+            item_details: [{ id: billingId.toString(), price: Math.round(totalBiayaSnap), quantity: 1, name: `Tagihan Air ${periodeLabel}` }],
+            customer_details: {
+              first_name: (pengguna as any)?.namaLengkap || 'Pelanggan',
+              email: (pengguna as any)?.email || '',
+              phone: (pengguna as any)?.noHP || '',
+            },
+          });
+          await Billing.findByIdAndUpdate(billingId, { orderId, SnapToken: snap.token, SnapRedirectUrl: snap.redirect_url });
+          return snap.redirect_url as string;
+        } catch (e: any) {
+          console.warn('[generateTagihan] Gagal buat Snap:', e?.message);
+          return null;
+        }
+      };
+
       // Cek apakah sudah ada billing pending untuk meteran ini
       const pendingBilling = await Billing.findOne({
         IdMeteran,
@@ -119,31 +141,31 @@ export const tagihanResolvers = {
 
       if (pendingBilling) {
         // Akumulasi ke billing pending yang ada
-        const updated = await Billing.findByIdAndUpdate(
-          pendingBilling._id,
-          {
-            $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
-            $set: {
-              PenggunaanSekarang: meteran.totalPemakaian || 0,
-              TenggatWaktu: tenggatWaktu,
-              Menunggak: true,
-              SnapToken: null,
-              SnapRedirectUrl: null,
-            },
+        const totalBiayaBaru = (pendingBilling.TotalBiaya ?? 0) + totalBiaya;
+        const bulanBaru = (pendingBilling.bulanCakupan ?? 1) + 1;
+        await Billing.findByIdAndUpdate(pendingBilling._id, {
+          $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
+          $set: {
+            PenggunaanSekarang: meteran.totalPemakaian || 0,
+            TenggatWaktu: tenggatWaktu,
+            Menunggak: true,
           },
-          { new: true }
-        ).populate(TAGIHAN_POPULATE);
+        });
+
+        // Buat Snap baru dengan nominal akumulasi terbaru
+        const periodeLabel = `${pendingBilling.Periode} (${bulanBaru} bulan)`;
+        const snapUrl = await buatSnap(pendingBilling._id, totalBiayaBaru, periodeLabel, userId);
 
         if (userId) {
           await notifikasiUntukPelanggan(
             userId.toString(),
             'Tagihan Air Diperbarui',
-            `Tagihan bulan ${Periode} (${pemakaian} m³, Rp${totalBiaya.toLocaleString('id-ID')}) ditambahkan. Total yang harus dibayar: Rp${((pendingBilling.TotalBiaya ?? 0) + totalBiaya).toLocaleString('id-ID')}.`,
+            `Tagihan bulan ${Periode} ditambahkan. Total yang harus dibayar: Rp${totalBiayaBaru.toLocaleString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
             'PEMBAYARAN',
             '/tagihan',
           );
         }
-        return updated;
+        return await Billing.findById(pendingBilling._id).populate(TAGIHAN_POPULATE);
       }
 
       // Tidak ada pending — buat billing baru
@@ -166,11 +188,14 @@ export const tagihanResolvers = {
       });
       await billing.save();
 
+      // Buat Snap langsung setelah billing tersimpan
+      const snapUrl = await buatSnap(billing._id, totalBiaya, Periode, userId);
+
       if (userId) {
         await notifikasiUntukPelanggan(
           userId.toString(),
           'Tagihan Air Baru',
-          `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.`,
+          `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
           'PEMBAYARAN',
           '/tagihan',
         );
