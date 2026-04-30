@@ -12,11 +12,11 @@ export interface IConnectionData {
   AlasanPenolakan?: string | null;
   TanggalVerifikasi?: Date | null;
   NIK: string;
-  NIKUrl: string;
+  NIKUrl?: string | null;
   NoKK: string;
-  KKUrl: string;
+  KKUrl?: string | null;
   IMB: string;
-  IMBUrl: string;
+  IMBUrl?: string | null;
   Alamat: string;
   Kelurahan: string;
   Kecamatan: string;
@@ -48,11 +48,11 @@ const KoneksiDataSchema = new Schema<IConnectionData>(
       unique: true,
       trim: true,
     },
-    NIKUrl: { type: String, required: [true, 'NIK URL wajib diisi'] },
+    NIKUrl: { type: String, default: null },
     NoKK: { type: String, required: [true, 'No KK wajib diisi'], trim: true },
-    KKUrl: { type: String, required: [true, 'KK URL wajib diisi'] },
+    KKUrl: { type: String, default: null },
     IMB: { type: String, required: [true, 'IMB wajib diisi'], trim: true },
-    IMBUrl: { type: String, required: [true, 'IMB URL wajib diisi'] },
+    IMBUrl: { type: String, default: null },
     Alamat: { type: String, required: [true, 'Alamat wajib diisi'] },
     Kelurahan: { type: String, required: [true, 'Kelurahan wajib diisi'] },
     Kecamatan: { type: String, required: [true, 'Kecamatan wajib diisi'] },
