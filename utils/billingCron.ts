@@ -190,15 +190,16 @@ const detectAndMergeTunggakan = async (): Promise<void> => {
       // Skip jika sudah pernah di-merge
       if ((billA as any).mergedIntoBillingId || (billB as any).mergedIntoBillingId) continue;
 
-      // Periode sebagai string "YYYY-MM" — format untuk catatan gabungan
       const periodeAStr = String((billA as any).Periode || '');
       const periodeBStr = String((billB as any).Periode || '');
+      // Periode gabungan: "2026-01 - 2026-02" — satu order ID Midtrans untuk 2 bulan tunggakan
+      const periodeGabungan = `${periodeAStr} - ${periodeBStr}`;
       const catatanMerge = `Tagihan gabungan periode ${periodeAStr} dan ${periodeBStr}`;
 
       const mergedBilling = await Billing.create({
         userId:              (billA as any).userId,
         IdMeteran:           (billA as any).IdMeteran,
-        Periode:             periodeAStr,
+        Periode:             periodeGabungan,
         PenggunaanSebelum:   (billA as any).PenggunaanSebelum,
         PenggunaanSekarang:  (billB as any).PenggunaanSekarang,
         TotalPemakaian:      ((billA as any).TotalPemakaian || 0) + ((billB as any).TotalPemakaian || 0),
