@@ -152,8 +152,8 @@ export const setupBillingCron = (): void => {
 
       logger.info({ successCount, failedCount }, 'Monthly billing generation completed');
 
-      // ── Phase 2: Deteksi 3 bulan menunggak & merge tagihan 1+2 ──────────────
-      await detectAndMergeTunggakan();
+      // ── Phase 2: Deteksi user yang menunggak ≥3 bulan → notifikasi pemutusan ─
+      await deteksiTunggakanPemutusan();
 
     } catch (error) {
       logger.error({ err: error }, 'Error in billing cron job');
@@ -163,75 +163,39 @@ export const setupBillingCron = (): void => {
   logger.info('Billing cron scheduled: 1st of every month at 00:01');
 };
 
-// ─── Helper: Deteksi 3 bulan menunggak & merge tagihan bulan ke-1 + ke-2 ──────
+// ─── Helper: Deteksi user tunggakan ≥3 bulan → notifikasi pemutusan ──────────
+// Tidak ada merge DB — user bayar semua sekaligus via BILLING-MULTI (1 order ID)
 
-const detectAndMergeTunggakan = async (): Promise<void> => {
-  logger.info('Running tunggakan merge detection...');
+const deteksiTunggakanPemutusan = async (): Promise<void> => {
+  logger.info('Running tunggakan detection...');
   try {
-    // Ambil semua userId unik yang punya tagihan PENDING
     const userIds = await Billing.distinct('userId', { StatusPembayaran: 'pending' });
-    let mergeCount = 0;
+    let notifCount = 0;
 
     for (const userId of userIds) {
-      // Ambil semua tagihan PENDING milik user, urut terlama dulu
-      const pendingBillings = await Billing.find({
+      if (!userId) continue;
+
+      const pendingCount = await Billing.countDocuments({
         userId,
         StatusPembayaran: 'pending',
         jenisBilling: { $ne: 'denda' },
-      }).sort({ Periode: 1 }).lean();
-
-      // Hanya proses jika ada tepat 3 atau lebih tagihan PENDING
-      if (pendingBillings.length < 3) continue;
-
-      // Ambil 2 tagihan terlama untuk digabung
-      const billA = pendingBillings[0];
-      const billB = pendingBillings[1];
-
-      // Skip jika sudah pernah di-merge
-      if ((billA as any).mergedIntoBillingId || (billB as any).mergedIntoBillingId) continue;
-
-      const periodeAStr = String((billA as any).Periode || '');
-      const periodeBStr = String((billB as any).Periode || '');
-      // Periode gabungan: "2026-01 - 2026-02" — satu order ID Midtrans untuk 2 bulan tunggakan
-      const periodeGabungan = `${periodeAStr} - ${periodeBStr}`;
-      const catatanMerge = `Tagihan gabungan periode ${periodeAStr} dan ${periodeBStr}`;
-
-      const mergedBilling = await Billing.create({
-        userId:              (billA as any).userId,
-        IdMeteran:           (billA as any).IdMeteran,
-        Periode:             periodeGabungan,
-        PenggunaanSebelum:   (billA as any).PenggunaanSebelum,
-        PenggunaanSekarang:  (billB as any).PenggunaanSekarang,
-        TotalPemakaian:      ((billA as any).TotalPemakaian || 0) + ((billB as any).TotalPemakaian || 0),
-        Biaya:               ((billA as any).Biaya || 0) + ((billB as any).Biaya || 0),
-        BiayaBeban:          ((billA as any).BiayaBeban || 0) + ((billB as any).BiayaBeban || 0),
-        TotalBiaya:          ((billA as any).TotalBiaya || 0) + ((billB as any).TotalBiaya || 0),
-        StatusPembayaran:    'pending',
-        TenggatWaktu:        (billB as any).TenggatWaktu,
-        Menunggak:           true,
-        Denda:               0,
-        jenisBilling:        'normal',
-        isMergedBilling:     true,
-        bulanCakupan:        2,
-        mergedFromIds:       [billA._id, billB._id],
-        Catatan:             catatanMerge,
       });
 
-      // Tandai 2 tagihan lama sebagai 'MERGED'
+      if (pendingCount < 3) continue;
+
+      // Tandai semua pending sebagai Menunggak: true
       await Billing.updateMany(
-        { _id: { $in: [billA._id, billB._id] } },
-        { $set: { StatusPembayaran: 'merged', mergedIntoBillingId: mergedBilling._id } }
+        { userId, StatusPembayaran: 'pending' },
+        { $set: { Menunggak: true } }
       );
 
-      mergeCount++;
-
-      // Kirim notifikasi ke semua admin: pelanggan ini perlu pemutusan
+      // Notifikasi ke semua admin untuk pemutusan
       const admins = await AdminAccount.find({}, '_id').lean();
       if (admins.length > 0) {
         const adminNotifs = admins.map((admin: any) => ({
           IdAdmin: admin._id,
           Judul: 'Pelanggan Perlu Pemutusan',
-          Pesan: `Pelanggan dengan ID ${userId} telah menunggak 3 bulan berturut-turut. Tagihan bulan 1 dan 2 telah digabungkan. Silakan lakukan pemutusan.`,
+          Pesan: `Pelanggan ID ${userId} menunggak ${pendingCount} bulan. Tagihan dapat dibayar sekaligus via 1 transaksi. Silakan lakukan pemutusan.`,
           Kategori: 'PERINGATAN',
           Link: '/billing/pemutusan',
           isRead: false,
@@ -239,12 +203,13 @@ const detectAndMergeTunggakan = async (): Promise<void> => {
         await Notification.insertMany(adminNotifs, { ordered: false }).catch((e: any) =>
           logger.error({ err: e }, 'Gagal kirim notifikasi pemutusan ke admin')
         );
+        notifCount++;
       }
     }
 
-    logger.info({ mergeCount }, 'Tunggakan merge detection completed');
+    logger.info({ notifCount }, 'Tunggakan detection completed');
   } catch (error) {
-    logger.error({ err: error }, 'Error in tunggakan merge detection');
+    logger.error({ err: error }, 'Error in tunggakan detection');
   }
 };
 

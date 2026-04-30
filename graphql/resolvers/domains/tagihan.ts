@@ -60,9 +60,16 @@ export const tagihanResolvers = {
       verifyAdminToken(token);
       const inactiveUsers = await User.find({ accountStatus: 'inactive' }, '_id').lean();
       const inactiveIds = new Set(inactiveUsers.map((u: any) => u._id.toString()));
-      const mergedBillings = await Billing.find({ isMergedBilling: true, StatusPembayaran: 'pending' }, 'userId').lean();
-      const mergedIds = new Set(mergedBillings.map((b: any) => b.userId?.toString()).filter(Boolean));
-      const allUserIds = [...new Set([...inactiveIds, ...mergedIds])];
+
+      // Deteksi user dengan ≥3 tagihan pending — layak pemutusan
+      const pendingCounts = await Billing.aggregate([
+        { $match: { StatusPembayaran: 'pending', jenisBilling: { $ne: 'denda' }, userId: { $ne: null } } },
+        { $group: { _id: '$userId', count: { $sum: 1 } } },
+        { $match: { count: { $gte: 3 } } },
+      ]);
+      const tunggakanIds = new Set(pendingCounts.map((r: any) => r._id.toString()));
+
+      const allUserIds = [...new Set([...inactiveIds, ...tunggakanIds])];
       if (allUserIds.length === 0) return [];
 
       const result = [];
