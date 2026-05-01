@@ -262,18 +262,18 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
       await Billing.findByIdAndUpdate(billingId, updateData);
     }
 
-    // Kurangi pemakaianBelumTerbayar — field IdMeteran PascalCase sesuai Billing model
+    // Kurangi pemakaianBelumTerbayar — atomic: hindari race condition jika 2 webhook parallel
     if (shouldResetMeteran && (billing as any).IdMeteran) {
       const meteranId = (billing as any).IdMeteran._id ?? (billing as any).IdMeteran;
-      const meteran = await Meteran.findById(meteranId);
-      if (meteran) {
-        meteran.pemakaianBelumTerbayar = Math.max(
-          0,
-          (meteran.pemakaianBelumTerbayar ?? 0) - ((billing as any).TotalPemakaian ?? 0)
-        );
-        await meteran.save();
-        console.log(`✅ pemakaianBelumTerbayar dikurangi: ${(billing as any).TotalPemakaian} m³`);
-      }
+      const totalPemakaian = (billing as any).TotalPemakaian ?? 0;
+      await Meteran.findByIdAndUpdate(meteranId, [{
+        $set: {
+          pemakaianBelumTerbayar: {
+            $max: [0, { $subtract: ['$pemakaianBelumTerbayar', totalPemakaian] }],
+          },
+        },
+      }]);
+      console.log(`✅ pemakaianBelumTerbayar dikurangi (atomic): ${totalPemakaian} m³`);
     }
 
     // Kirim notifikasi ke pelanggan — field PascalCase sesuai Notification model & Ahmad
@@ -393,18 +393,17 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
         }
       }
 
-      // Kurangi pemakaianBelumTerbayar per meteran
+      // Kurangi pemakaianBelumTerbayar per meteran — atomic per meteran
       if (shouldUpdateMeteran) {
         for (const [meteranId, totalPemakaian] of meteranTotalMap.entries()) {
-          const meteran = await Meteran.findById(meteranId);
-          if (meteran) {
-            meteran.pemakaianBelumTerbayar = Math.max(
-              0,
-              (meteran.pemakaianBelumTerbayar ?? 0) - totalPemakaian
-            );
-            await meteran.save();
-            console.log(`✅ pemakaianBelumTerbayar dikurangi: meteran=${meteranId}, total=${totalPemakaian} m³`);
-          }
+          await Meteran.findByIdAndUpdate(meteranId, [{
+            $set: {
+              pemakaianBelumTerbayar: {
+                $max: [0, { $subtract: ['$pemakaianBelumTerbayar', totalPemakaian] }],
+              },
+            },
+          }]);
+          console.log(`✅ pemakaianBelumTerbayar dikurangi (atomic): meteran=${meteranId}, total=${totalPemakaian} m³`);
         }
       }
     }

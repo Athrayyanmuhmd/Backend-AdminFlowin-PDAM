@@ -4,6 +4,7 @@ import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
+import PemakaianHarian from '../../../models/PemakaianHarian.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, catatAuditLog } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
@@ -65,10 +66,20 @@ export const meteranResolvers = {
       return await Meteran.findOne({ IdKoneksiData }).populate(METERAN_POPULATE as any);
     },
 
-    getRiwayatPenggunaan: async (_, { meteranId, limit = 50 }, { token }: GraphQLContext) => {
+    getRiwayatPenggunaan: async (_, { meteranId, limit = 30 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // HistoryUsage masih pakai meteranId (camelCase) — IoT REST pipeline, jangan ganti
-      return await HistoryUsage.find({ meteranId }).sort({ createdAt: -1 }).limit(limit);
+      // Sumber: PemakaianHarian (ditulis IoT sync cron tiap jam dari Redis)
+      // Bukan HistoryUsage (Ahmad REST) — IoT via flowin tidak nulis ke historyusages
+      const records = await PemakaianHarian.find({ idMeteran: meteranId })
+        .sort({ tanggal: -1 })
+        .limit(Math.min(limit, 90))
+        .lean() as any[];
+      // Map ke shape yang sama agar frontend tidak perlu berubah
+      return records.map((r: any) => ({
+        _id: r._id,
+        penggunaanAir: r.totalLiter,  // liter
+        createdAt: new Date(r.tanggal).toISOString(),
+      }));
     },
 
     getRiwayatPenggunaanBulanan: async (_, { meteranId }, { token }: GraphQLContext) => {
@@ -78,17 +89,17 @@ export const meteranResolvers = {
       if (cached) return cached;
 
       const mongoose = await import('mongoose');
-      const hasil = await HistoryUsage.aggregate([
-        { $match: { meteranId: new mongoose.default.Types.ObjectId(meteranId) } },
+      const hasil = await PemakaianHarian.aggregate([
+        { $match: { idMeteran: new mongoose.default.Types.ObjectId(meteranId) } },
         { $group: {
-          _id: { tahun: { $year: '$createdAt' }, bulan: { $month: '$createdAt' } },
-          totalPemakaian: { $sum: '$penggunaanAir' },
-          jumlahRecord: { $count: {} },
+          _id: { tahun: { $year: '$tanggal' }, bulan: { $month: '$tanggal' } },
+          totalPemakaian: { $sum: '$totalLiter' },
+          jumlahRecord: { $sum: '$jumlahEntry' },
         }},
-        { $sort: { '_id.tahun': 1, '_id.bulan': 1 } },
+        { $sort: { '_id.tahun': -1, '_id.bulan': -1 } },
         { $limit: 12 },
       ]);
-      const result = hasil.map(item => ({
+      const result = hasil.map((item: any) => ({
         bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
         totalPemakaian: item.totalPemakaian,
         jumlahRecord: item.jumlahRecord,

@@ -1,6 +1,7 @@
 // @ts-nocheck
 import Meteran from '../../../models/Meteran.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
+import PemakaianHarian from '../../../models/PemakaianHarian.js';
 import User from '../../../models/User.js';
 import { verifyAdminToken } from '../helpers.js';
 import { isRedisConnected, getRedisClient } from '../../../utils/redis.js';
@@ -157,6 +158,56 @@ async function bacaDataMongo(meteranId: string, periode: string) {
   return { dataHarian, totalPenggunaan, latestReading: null as number | null };
 }
 
+// ─── Read-through cache: PemakaianHarian → Redis → serve ────────────────────
+// Urutan: Redis cache → PemakaianHarian (MongoDB) → RiwayatPenggunaan (fallback flowin)
+const CACHE_TTL_SEC = 7 * 24 * 3600; // 7 hari
+
+async function bacaDataHistoris(meteranId: string, periode: string) {
+  const cacheKey = `monitoring:agg:${meteranId}:${periode}`;
+  const client = isRedisConnected() ? getRedisClient() : null;
+
+  // 1. Cek Redis cache aggregate bulanan
+  if (client) {
+    try {
+      const cached = await client.get(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached as string);
+        return { ...parsed, sumberData: 'redis-cache' };
+      }
+    } catch { /* lanjut ke MongoDB */ }
+  }
+
+  // 2. Query PemakaianHarian (snapshot dari IoT sync cron)
+  const [tahun, bulan] = periode.split('-').map(Number);
+  const startDate = new Date(Date.UTC(tahun, bulan - 1, 1));
+  const endDate   = new Date(Date.UTC(tahun, bulan,     1)); // exclusive
+
+  const records = await PemakaianHarian.find({
+    idMeteran: meteranId,
+    tanggal: { $gte: startDate, $lt: endDate },
+  }).sort({ tanggal: 1 }).lean() as any[];
+
+  if (records.length > 0) {
+    const dataHarian = records.map((r: any) => ({
+      tanggal: String(new Date(r.tanggal).getUTCDate()).padStart(2, '0'),
+      liter: r.totalLiter,
+    }));
+    const totalPenggunaan = records.reduce((s: number, r: any) => s + r.totalLiter, 0);
+    const result = { dataHarian, totalPenggunaan, latestReading: null as number | null };
+
+    // Re-cache ke Redis agar request berikutnya cepat
+    if (client) {
+      try {
+        await client.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SEC);
+      } catch { /* Redis write non-critical */ }
+    }
+    return result;
+  }
+
+  // 3. Fallback ke RiwayatPenggunaan (data flowin lama)
+  return bacaDataMongo(meteranId, periode);
+}
+
 // ─── Hitung estimasi biaya berdasarkan tarif kelompok ────────────────────────
 function hitungEstimasiBiaya(pemakaian: number, kelompok: any) {
   const batas = kelompok?.BatasRendah ?? 10;
@@ -211,22 +262,22 @@ export const monitoringResolvers = {
       const periode = periodeParam ?? periodeSekarang();
       const periodeLalu = periodeSebelumnya(periode);
 
-      // Coba Redis flowin (butuh userId), paralel dengan MongoDB bulan lalu
-      const [redisData, mongoDataLalu] = await Promise.all([
+      // Coba Redis flowin (butuh userId), paralel dengan data historis bulan lalu
+      const [redisData, dataLalu] = await Promise.all([
         userId ? bacaDataRedis(meteranId, userId, periode) : Promise.resolve(null),
-        bacaDataMongo(meteranId, periodeLalu),
+        bacaDataHistoris(meteranId, periodeLalu),
       ]);
 
-      // Fallback ke MongoDB bulan ini jika Redis kosong (data sudah dimigrasi cron flowin)
-      const mongoDataIni = redisData ? null : await bacaDataMongo(meteranId, periode);
+      // Fallback ke historis bulan ini jika Redis kosong (data sudah lewat 7 hari)
+      const mongoDataIni = redisData ? null : await bacaDataHistoris(meteranId, periode);
 
       const bulanIniSource = redisData ?? mongoDataIni;
       const dataHarianIni = bulanIniSource?.dataHarian ?? [];
       const totalIni = bulanIniSource?.totalPenggunaan ?? 0;
       const latestReading = redisData?.latestReading ?? null;
 
-      const dataHarianLalu = mongoDataLalu?.dataHarian ?? [];
-      const totalLalu = mongoDataLalu?.totalPenggunaan ?? 0;
+      const dataHarianLalu = dataLalu?.dataHarian ?? [];
+      const totalLalu = dataLalu?.totalPenggunaan ?? 0;
 
       // Prediksi akhir bulan
       const hariTercatat = dataHarianIni.length;
@@ -270,7 +321,7 @@ export const monitoringResolvers = {
               periode: periodeLalu,
               totalPenggunaan: totalLalu,
               dataHarian: dataHarianLalu,
-              sumberData: 'mongodb',
+              sumberData: (dataLalu as any)?.sumberData ?? 'mongodb',
             }
           : null,
         prediksi: { rataRataHarian, prediksiAkhirBulan, hariTersisa, hariTercatat },
@@ -296,7 +347,7 @@ export const monitoringResolvers = {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-        const data = await bacaDataMongo(meteranId, periode);
+        const data = await bacaDataHistoris(meteranId, periode);
         if (data && data.totalPenggunaan > 0) {
           histori.push({
             periode,

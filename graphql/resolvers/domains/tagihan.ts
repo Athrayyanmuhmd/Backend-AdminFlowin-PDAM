@@ -387,17 +387,21 @@ export const tagihanResolvers = {
       if (status === 'settlement' && tagihan.StatusPembayaran !== 'settlement') {
         updateData.TanggalPembayaran = new Date();
         updateData.MetodePembayaran = 'manual_admin';
-        // Tandai sebagai sudah diproses agar billingCron tidak double-decrement
-        updateData.Catatan = '[pemakaian_applied]';
-        const pemakaian = tagihan.TotalPemakaian ?? 0;
+        // Append marker ke catatan lama — jangan overwrite info yang sudah ada
+        const catatanLama = (tagihan as any).Catatan;
+        updateData.Catatan = catatanLama
+          ? `${catatanLama} [pemakaian_applied]`
+          : '[pemakaian_applied]';
+        const pemakaian = (tagihan as any).TotalPemakaian ?? 0;
         if (pemakaian > 0) {
-          const meteran = await Meteran.findById(tagihan.IdMeteran);
-          if (meteran) {
-            const current = meteran.pemakaianBelumTerbayar ?? 0;
-            await Meteran.findByIdAndUpdate(tagihan.IdMeteran, {
-              pemakaianBelumTerbayar: Math.max(0, current - pemakaian),
-            });
-          }
+          // Atomic: $max + $subtract mencegah race condition dengan IoT cron
+          await Meteran.findByIdAndUpdate((tagihan as any).IdMeteran, [{
+            $set: {
+              pemakaianBelumTerbayar: {
+                $max: [0, { $subtract: ['$pemakaianBelumTerbayar', pemakaian] }],
+              },
+            },
+          }]);
         }
       }
 

@@ -1,6 +1,7 @@
 import cron from 'node-cron';
 import Billing from '../models/Billing.js';
 import Meteran from '../models/Meteran.js';
+import PemakaianHarian from '../models/PemakaianHarian.js';
 import Notification from '../models/Notification.js';
 import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
@@ -72,7 +73,13 @@ export const setupBillingCron = (): void => {
               });
               await Billing.updateMany(
                 { _id: { $in: settledUnaccounted.map((t: any) => t._id) } },
-                { $set: { Catatan: '[pemakaian_applied]' } }
+                [{ $set: { Catatan: {
+                  $cond: [
+                    { $or: [{ $eq: ['$Catatan', null] }, { $eq: ['$Catatan', ''] }] },
+                    '[pemakaian_applied]',
+                    { $concat: ['$Catatan', ' [pemakaian_applied]'] },
+                  ],
+                }}}]
               );
               (meteran as any).pemakaianBelumTerbayar = Math.max(
                 0, ((meteran as any).pemakaianBelumTerbayar ?? 0) - toDecrement
@@ -430,6 +437,31 @@ export const setupIotSyncCron = (): void => {
           const totalM3 = totalLiter / 1000;
 
           if (totalM3 <= 0) { skipCount++; continue; }
+
+          // ─── Snapshot harian ke PemakaianHarian (persistent, queryable per bulan) ──
+          // Group by WIB calendar date (UTC+7) sebelum Redis TTL expired
+          const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
+          const byDay = new Map<string, { totalLiter: number; count: number }>();
+          for (const e of newEntries) {
+            const wibDate = new Date((e as any).ts + TZ_OFFSET_MS);
+            const dayKey = [
+              wibDate.getUTCFullYear(),
+              String(wibDate.getUTCMonth() + 1).padStart(2, '0'),
+              String(wibDate.getUTCDate()).padStart(2, '0'),
+            ].join('-');
+            const existing = byDay.get(dayKey) ?? { totalLiter: 0, count: 0 };
+            existing.totalLiter += (e as any).usedWater;
+            existing.count++;
+            byDay.set(dayKey, existing);
+          }
+          for (const [dayStr, { totalLiter: dayLiter, count }] of byDay) {
+            const tanggal = new Date(dayStr); // UTC midnight = WIB calendar date
+            await PemakaianHarian.findOneAndUpdate(
+              { idMeteran: meteran._id, tanggal },
+              { $inc: { totalLiter: dayLiter, jumlahEntry: count } },
+              { upsert: true }
+            );
+          }
 
           await Meteran.findByIdAndUpdate(meteran._id, {
             $inc: {
