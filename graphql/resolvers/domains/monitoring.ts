@@ -265,7 +265,7 @@ export const monitoringResolvers = {
       // Coba Redis flowin (butuh userId), paralel dengan data historis bulan lalu
       const [redisData, dataLalu] = await Promise.all([
         userId ? bacaDataRedis(meteranId, userId, periode) : Promise.resolve(null),
-        bacaDataHistoris(meteranId, periodeLalu),
+        bacaDataHistoris(meteranId, periodeLalu).catch(() => null),
       ]);
 
       // Fallback ke historis bulan ini jika Redis kosong (data sudah lewat 7 hari)
@@ -316,7 +316,7 @@ export const monitoringResolvers = {
           dataHarian: dataHarianIni,
           sumberData: redisData ? 'redis' : 'mongodb',
         },
-        bulanLalu: mongoDataLalu
+        bulanLalu: dataLalu
           ? {
               periode: periodeLalu,
               totalPenggunaan: totalLalu,
@@ -347,7 +347,7 @@ export const monitoringResolvers = {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-        const data = await bacaDataHistoris(meteranId, periode);
+        const data = await bacaDataHistoris(meteranId, periode).catch(() => null);
         if (data && data.totalPenggunaan > 0) {
           histori.push({
             periode,
