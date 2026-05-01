@@ -52,14 +52,6 @@ export const createHistoryUsage = async (req, res) => {
       });
     }
 
-    // Validasi meteran belongs to user
-    if (meteran.userId.toString() !== userId) {
-      return res.status(403).json({
-        status: 403,
-        pesan: "Meteran tidak sesuai dengan user",
-      });
-    }
-
     let savedRecords = [];
     let totalWater = 0;
 
@@ -117,10 +109,10 @@ export const createHistoryUsage = async (req, res) => {
       });
     }
 
-    // Update total pemakaian di meteran (akumulasi)
-    meteran.totalPemakaian += totalWater;
-    meteran.pemakaianBelumTerbayar += totalWater;
-    await meteran.save();
+    // Update total pemakaian di meteran (atomic $inc — mencegah race condition concurrent IoT requests)
+    await Meteran.findByIdAndUpdate(meteranId, {
+      $inc: { totalPemakaian: totalWater, pemakaianBelumTerbayar: totalWater },
+    });
 
     res.status(201).json({
       status: 201,
