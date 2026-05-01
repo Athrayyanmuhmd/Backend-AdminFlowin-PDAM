@@ -105,6 +105,13 @@ export const setupBillingCron = (): void => {
 
           if (pendingBilling) {
             // Akumulasi ke billing pending yang ada — user tetap 1 tagihan
+            const bulanBaru = (pendingBilling.bulanCakupan ?? 1) + 1;
+            const [periodeY, periodeM] = (pendingBilling.Periode as string).split('-').map(Number);
+            const endIdx = periodeY * 12 + (periodeM - 1) + bulanBaru - 1;
+            const endYear = Math.floor(endIdx / 12);
+            const endMonth = (endIdx % 12) + 1;
+            const periodeAkhirBaru = `${endYear}-${String(endMonth).padStart(2, '0')}`;
+
             await Billing.findByIdAndUpdate(pendingBilling._id, {
               $inc: {
                 TotalPemakaian: pemakaian,
@@ -117,7 +124,9 @@ export const setupBillingCron = (): void => {
                 PenggunaanSekarang: totalPemakaian,
                 TenggatWaktu: tenggatWaktu,
                 Menunggak: true,
+                PeriodeAkhir: periodeAkhirBaru,
                 // Invalidasi Snap lama karena nominal berubah
+                MidtransOrderId: null,
                 SnapToken: null,
                 SnapRedirectUrl: null,
               },
@@ -143,6 +152,7 @@ export const setupBillingCron = (): void => {
               userId,
               IdMeteran: meteran._id,
               Periode: periode,
+              PeriodeAkhir: periode,
               PenggunaanSebelum: penggunaanSebelum,
               PenggunaanSekarang: totalPemakaian,
               TotalPemakaian: pemakaian,
@@ -191,22 +201,27 @@ export const setupBillingCron = (): void => {
 };
 
 // ─── Helper: Deteksi user tunggakan ≥3 bulan → notifikasi pemutusan ──────────
-// Tidak ada merge DB — user bayar semua sekaligus via BILLING-MULTI (1 order ID)
+// Dengan model akumulasi: 1 billing pending bisa mencakup banyak bulan (bulanCakupan)
 
 const deteksiTunggakanPemutusan = async (): Promise<void> => {
   logger.info('Running tunggakan detection...');
   try {
-    const userIds = await Billing.distinct('userId', { StatusPembayaran: 'pending' });
+    // Cari billing pending dengan bulanCakupan >= 3 (model akumulasi)
+    const eligibleBillings = await Billing.find({
+      StatusPembayaran: 'pending',
+      jenisBilling: { $ne: 'denda' },
+      userId: { $ne: null },
+      bulanCakupan: { $gte: 3 },
+    }).select('userId bulanCakupan').lean();
+
+    const userIds = [...new Set(eligibleBillings.map((b: any) => b.userId?.toString()).filter(Boolean))];
     let notifCount = 0;
 
     for (const userId of userIds) {
       if (!userId) continue;
 
-      const pendingCount = await Billing.countDocuments({
-        userId,
-        StatusPembayaran: 'pending',
-        jenisBilling: { $ne: 'denda' },
-      });
+      const pendingBilling = eligibleBillings.find((b: any) => b.userId?.toString() === userId);
+      const pendingCount = pendingBilling?.bulanCakupan ?? 3;
 
       if (pendingCount < 3) continue;
 

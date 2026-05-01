@@ -9,6 +9,7 @@ export const tagihanTypeDefs = gql`
     userId: ID
     IdMeteran: Meteran
     Periode: String!
+    PeriodeAkhir: String
     PenggunaanSebelum: Float
     PenggunaanSekarang: Float
     TotalPemakaian: Float
@@ -58,7 +59,7 @@ export const tagihanTypeDefs = gql`
 
   extend type Query {
     getTagihan(id: ID!): Tagihan
-    getAllTagihan(limit: Int, offset: Int): [Tagihan!]!
+    getAllTagihan(limit: Int, offset: Int, status: PaymentStatus, filterPeriode: String): [Tagihan!]!
     getTagihanByMeteran(IdMeteran: ID!): [Tagihan!]!
     getTagihanByStatus(status: PaymentStatus!): [Tagihan!]!
     getTunggakan: [Tagihan!]!

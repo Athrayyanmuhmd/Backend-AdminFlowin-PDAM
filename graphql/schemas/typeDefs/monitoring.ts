@@ -76,7 +76,7 @@ export const monitoringTypeDefs = gql`
   }
 
   extend type Query {
-    getMonitoringDashboard(meteranId: ID!): MonitoringDashboard
+    getMonitoringDashboard(meteranId: ID!, periode: String): MonitoringDashboard
     getMonitoringHistori(meteranId: ID!, jumlahBulan: Int): [MonitoringHistoriBulan!]!
     getMonitoringHarian(meteranId: ID!, tanggal: String!): MonitoringHarian
   }

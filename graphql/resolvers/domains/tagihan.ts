@@ -25,6 +25,16 @@ const formatPeriode = (d: Date): string => {
   return `${y}-${m}`;
 };
 
+// Hitung PeriodeAkhir dari Periode awal + bulanCakupan
+// Contoh: Periode="2026-02", bulanCakupan=3 → "2026-04"
+function computePeriodeAkhir(periode: string, bulanCakupan: number): string {
+  const [year, month] = periode.split('-').map(Number);
+  const endIdx = year * 12 + (month - 1) + bulanCakupan - 1;
+  const endYear = Math.floor(endIdx / 12);
+  const endMonth = (endIdx % 12) + 1;
+  return `${endYear}-${String(endMonth).padStart(2, '0')}`;
+}
+
 export const tagihanResolvers = {
   Query: {
     getTagihan: async (_, { id }, { token }: GraphQLContext) => {
@@ -32,9 +42,30 @@ export const tagihanResolvers = {
       return await Billing.findById(id).populate(TAGIHAN_POPULATE);
     },
 
-    getAllTagihan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
+    getAllTagihan: async (_, { limit = 100, offset = 0, status, filterPeriode } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find()
+      const filter: Record<string, any> = {};
+      if (status) filter.StatusPembayaran = status;
+
+      if (filterPeriode && filterPeriode !== 'semua') {
+        const now = new Date();
+        if (filterPeriode === 'bulan_ini') {
+          filter.TenggatWaktu = {
+            $gte: new Date(now.getFullYear(), now.getMonth(), 1),
+            $lt:  new Date(now.getFullYear(), now.getMonth() + 1, 1),
+          };
+        } else if (filterPeriode === 'bulan_lalu') {
+          filter.TenggatWaktu = {
+            $gte: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+            $lt:  new Date(now.getFullYear(), now.getMonth(), 1),
+          };
+        } else {
+          // Treat as exact Periode string, e.g. "2026-04"
+          filter.Periode = filterPeriode;
+        }
+      }
+
+      return await Billing.find(filter)
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(Math.min(limit, 1000))
@@ -62,13 +93,14 @@ export const tagihanResolvers = {
       const inactiveUsers = await User.find({ accountStatus: 'inactive' }, '_id').lean();
       const inactiveIds = new Set(inactiveUsers.map((u: any) => u._id.toString()));
 
-      // Deteksi user dengan ≥3 tagihan pending — layak pemutusan
-      const pendingCounts = await Billing.aggregate([
-        { $match: { StatusPembayaran: 'pending', jenisBilling: { $ne: 'denda' }, userId: { $ne: null } } },
-        { $group: { _id: '$userId', count: { $sum: 1 } } },
-        { $match: { count: { $gte: 3 } } },
-      ]);
-      const tunggakanIds = new Set(pendingCounts.map((r: any) => r._id.toString()));
+      // Deteksi billing pending dengan bulanCakupan ≥3 — 1 record = beberapa bulan akumulasi
+      const eligibleBillings = await Billing.find({
+        StatusPembayaran: 'pending',
+        jenisBilling: { $ne: 'denda' },
+        userId: { $ne: null },
+        bulanCakupan: { $gte: 3 },
+      }).select('userId').lean();
+      const tunggakanIds = new Set(eligibleBillings.map((b: any) => b.userId.toString()));
 
       const allUserIds = [...new Set([...inactiveIds, ...tunggakanIds])];
       if (allUserIds.length === 0) return [];
@@ -93,9 +125,22 @@ export const tagihanResolvers = {
       const meteran = await Meteran.findById(IdMeteran).populate('IdKoneksiData');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
 
-      // Tolak jika periode ini sudah tercatat (double-generate)
-      const periodeExist = await Billing.findOne({ IdMeteran, Periode, jenisBilling: { $ne: 'denda' } });
-      if (periodeExist) throw new Error(`Tagihan periode ${Periode} untuk meteran ini sudah tercatat`);
+      // Guard 1: periode exact match (settlement/existing normal record)
+      const periodeExact = await Billing.findOne({
+        IdMeteran, Periode, StatusPembayaran: { $ne: 'merged' }, jenisBilling: { $ne: 'denda' },
+      });
+      if (periodeExact) throw new Error(`Tagihan periode ${Periode} untuk meteran ini sudah tercatat`);
+
+      // Guard 2: periode sudah tercakup dalam range billing pending yang terakumulasi
+      const pendingCheck = await Billing.findOne({
+        IdMeteran, StatusPembayaran: 'pending', jenisBilling: { $ne: 'denda' },
+      }).select('Periode bulanCakupan PeriodeAkhir').lean() as any;
+      if (pendingCheck) {
+        const periodeAkhirCheck = pendingCheck.PeriodeAkhir ?? computePeriodeAkhir(pendingCheck.Periode, pendingCheck.bulanCakupan ?? 1);
+        if (Periode >= pendingCheck.Periode && Periode <= periodeAkhirCheck) {
+          throw new Error(`Periode ${Periode} sudah tercakup dalam tagihan aktif (${pendingCheck.Periode} – ${periodeAkhirCheck})`);
+        }
+      }
 
       const kelompok = await KelompokPelanggan.findById(meteran.IdKelompokPelanggan);
       const pemakaian = meteran.pemakaianBelumTerbayar || 0;
@@ -111,9 +156,10 @@ export const tagihanResolvers = {
       const userId = (meteran.IdKoneksiData as any)?.IdPelanggan || null;
 
       // Helper: buat Snap untuk billing id tertentu
+      // Timestamp di order_id mencegah Midtrans menolak dengan "duplicate order_id"
       const buatSnap = async (billingId: any, totalBiayaSnap: number, periodeLabel: string, penggunaId: any) => {
         try {
-          const MidtransOrderId = `BILLING-${billingId}`;
+          const MidtransOrderId = `BILLING-${billingId}-${Date.now()}`;
           const pengguna = penggunaId ? await User.findById(penggunaId).select('namaLengkap email noHP').lean() : null;
           const snap = await midtransClient.createTransaction({
             transaction_details: { order_id: MidtransOrderId, gross_amount: Math.round(totalBiayaSnap) },
@@ -143,17 +189,23 @@ export const tagihanResolvers = {
         // Akumulasi ke billing pending yang ada
         const totalBiayaBaru = (pendingBilling.TotalBiaya ?? 0) + totalBiaya;
         const bulanBaru = (pendingBilling.bulanCakupan ?? 1) + 1;
+        const periodeAkhirBaru = computePeriodeAkhir(pendingBilling.Periode as string, bulanBaru);
         await Billing.findByIdAndUpdate(pendingBilling._id, {
           $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
           $set: {
             PenggunaanSekarang: meteran.totalPemakaian || 0,
             TenggatWaktu: tenggatWaktu,
             Menunggak: true,
+            PeriodeAkhir: periodeAkhirBaru,
+            // Batalkan Snap lama — nominal berubah, order_id baru wajib dibuat
+            MidtransOrderId: null,
+            SnapToken: null,
+            SnapRedirectUrl: null,
           },
         });
 
         // Buat Snap baru dengan nominal akumulasi terbaru
-        const periodeLabel = `${pendingBilling.Periode} (${bulanBaru} bulan)`;
+        const periodeLabel = `${pendingBilling.Periode} – ${periodeAkhirBaru} (${bulanBaru} bulan)`;
         const snapUrl = await buatSnap(pendingBilling._id, totalBiayaBaru, periodeLabel, userId);
 
         if (userId) {
@@ -174,6 +226,7 @@ export const tagihanResolvers = {
         userId,
         IdMeteran: meteran._id,
         Periode,
+        PeriodeAkhir: Periode,
         PenggunaanSebelum: penggunaanSebelum,
         PenggunaanSekarang: meteran.totalPemakaian || 0,
         TotalPemakaian: pemakaian,
@@ -268,12 +321,17 @@ export const tagihanResolvers = {
 
           if (pendingBilling) {
             // Akumulasi ke billing pending yang ada
+            const bulanBaru = (pendingBilling.bulanCakupan ?? 1) + 1;
+            const periodeAkhirBaru = computePeriodeAkhir(pendingBilling.Periode as string, bulanBaru);
             await Billing.findByIdAndUpdate(pendingBilling._id, {
               $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
               $set: {
                 PenggunaanSekarang: meteran.totalPemakaian || 0,
                 TenggatWaktu: tenggatWaktu,
                 Menunggak: true,
+                PeriodeAkhir: periodeAkhirBaru,
+                // Batalkan Snap lama — nominal berubah
+                MidtransOrderId: null,
                 SnapToken: null,
                 SnapRedirectUrl: null,
               },
@@ -285,6 +343,7 @@ export const tagihanResolvers = {
               userId,
               IdMeteran: meteran._id,
               Periode,
+              PeriodeAkhir: Periode,
               PenggunaanSebelum: penggunaanSebelum,
               PenggunaanSekarang: meteran.totalPemakaian || 0,
               TotalPemakaian: pemakaian,
@@ -351,7 +410,8 @@ export const tagihanResolvers = {
       if (!tagihan) throw new Error('Tagihan tidak ditemukan');
       if (tagihan.StatusPembayaran === 'settlement') throw new Error('Tagihan sudah lunas');
 
-      const MidtransOrderId = tagihan.MidtransOrderId || `BILLING-${tagihan._id}`;
+      // Selalu buat order_id baru dengan timestamp agar Midtrans tidak menolak duplicate
+      const MidtransOrderId = `BILLING-${tagihan._id}-${Date.now()}`;
       const userId = tagihan.userId;
       const pengguna = userId ? await User.findById(userId).select('namaLengkap email noHP').lean() : null;
       const bulanLabel = tagihan.bulanCakupan && tagihan.bulanCakupan > 1

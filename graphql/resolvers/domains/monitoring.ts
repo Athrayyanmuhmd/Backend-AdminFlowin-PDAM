@@ -38,12 +38,16 @@ function hariSekarangDalamBulan(): number {
   return new Date().getDate();
 }
 
-// ─── Resolve userId dari meteranId via User model ─────────────────────────────
-// Dibutuhkan untuk konstruksi kunci Redis flowin: iot:{userId}:{meteranId}
+// ─── Resolve userId dari meteranId via Meteran → IdKoneksiData → IdPelanggan ──
+// Kunci Redis flowin: iot:{userId}:{meteranId}
+// Gunakan relasi ERD — bukan User.meteranId (legacy, sering null)
 async function getUserIdByMeteranId(meteranId: string): Promise<string | null> {
   try {
-    const user = await User.findOne({ meteranId }).select('_id').lean() as any;
-    return user ? user._id.toString() : null;
+    const meteran = await Meteran.findById(meteranId)
+      .populate({ path: 'IdKoneksiData', select: 'IdPelanggan' })
+      .select('IdKoneksiData')
+      .lean() as any;
+    return meteran?.IdKoneksiData?.IdPelanggan?.toString() ?? null;
   } catch {
     return null;
   }
@@ -192,7 +196,7 @@ export const monitoringResolvers = {
   Query: {
     // ── Dashboard monitoring bulan berjalan ─────────────────────────────────
     // Flow data: Redis (iot:{userId}:{meteranId} List) → fallback MongoDB flowin
-    getMonitoringDashboard: async (_, { meteranId }, { token }: GraphQLContext) => {
+    getMonitoringDashboard: async (_, { meteranId, periode: periodeParam }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
 
       // Jalankan lookup meteran + resolve userId secara paralel
@@ -204,7 +208,7 @@ export const monitoringResolvers = {
       if (!meteran) throw new Error('Meteran tidak ditemukan');
 
       const kelompok = meteran.IdKelompokPelanggan as any;
-      const periode = periodeSekarang();
+      const periode = periodeParam ?? periodeSekarang();
       const periodeLalu = periodeSebelumnya(periode);
 
       // Coba Redis flowin (butuh userId), paralel dengan MongoDB bulan lalu

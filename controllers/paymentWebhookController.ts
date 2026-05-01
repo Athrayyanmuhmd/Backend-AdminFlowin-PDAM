@@ -199,7 +199,8 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
  */
 async function handleBillingPayment(orderId, transactionStatus, notification) {
   try {
-    const billingId = orderId.replace("BILLING-", "");
+    // Format: BILLING-{billingId}-{timestamp} — ambil bagian ke-2 saja (billingId = ObjectId hex)
+    const billingId = orderId.split('-')[1];
 
     // Populate: userId (camelCase OK), IdMeteran (PascalCase sesuai Billing model)
     const billing = await Billing.findById(billingId)
