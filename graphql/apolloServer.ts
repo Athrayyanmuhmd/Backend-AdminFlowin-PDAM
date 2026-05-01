@@ -226,28 +226,7 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
   app.use(
     '/graphql',
     loginRateLimiter,
-    cors({
-      origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-          return callback(null, true);
-        }
-        if (origin.endsWith('.vercel.app')) {
-          return callback(null, true);
-        }
-        const allowedOrigins = [
-          'https://studio.apollographql.com', // Apollo Studio / Sandbox Explorer
-          'https://sandbox.embed.apollographql.com',
-          ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
-        ];
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(`Origin ${origin} tidak diizinkan oleh CORS`));
-        }
-      },
-      credentials: true,
-    }),
+    cors({ origin: true, credentials: true }),
     express.json(),
     async (req: Request, res: Response) => {
       try {

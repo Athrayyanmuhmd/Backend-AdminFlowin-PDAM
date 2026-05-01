@@ -87,33 +87,9 @@ app.use(pinoHttp({
   },
 }));
 
-// CORS Configuration
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://localhost:3002',
-  'http://localhost:3003',
-];
-if (process.env.FRONTEND_URL) {
-  allowedOrigins.push(process.env.FRONTEND_URL);
-}
+// CORS — allow all origins (API secured by JWT, origin restriction tidak diperlukan)
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    // Allow localhost in development
-    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
-      return callback(null, true);
-    }
-    // Allow Vercel preview/production deployments
-    if (origin.endsWith('.vercel.app')) {
-      return callback(null, true);
-    }
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: true,
   credentials: true,
   optionsSuccessStatus: 200,
 }));
