@@ -12,9 +12,11 @@ export interface IMeteran {
   NomorAkun: string;
   // Eksklusif admin — untuk billing & IoT tracking (tidak ada di Ahmad)
   totalPemakaian?: number;
-  /** Critical: incremented by IoT, decremented on payment — do NOT reset to 0 */
+  /** Critical: incremented by IoT sync cron, decremented on payment — do NOT reset to 0 */
   pemakaianBelumTerbayar?: number;
   statusAktif?: boolean;
+  /** Timestamp terakhir IoT sync cron memproses Redis entries untuk meteran ini */
+  lastIotSyncAt?: Date | null;
 }
 
 export interface IMeteranDocument extends IMeteran, Document {}
@@ -54,6 +56,10 @@ const MeteranSchema = new Schema<IMeteran>(
     statusAktif: {
       type: Boolean,
       default: true,
+    },
+    lastIotSyncAt: {
+      type: Date,
+      default: null,
     },
   },
   {

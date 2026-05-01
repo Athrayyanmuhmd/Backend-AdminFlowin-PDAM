@@ -37,6 +37,7 @@ import {
   setupBillingCron,
   setupOverdueCron,
   setupReminderCron,
+  setupIotSyncCron,
 } from './utils/billingCron.js';
 import { setupApolloServer } from './graphql/apolloServer.js';
 
@@ -221,6 +222,7 @@ if (!process.env.VERCEL) {
       setupBillingCron();
       setupOverdueCron();
       setupReminderCron();
+      setupIotSyncCron();
       logger.info('All cron jobs are active');
     });
 

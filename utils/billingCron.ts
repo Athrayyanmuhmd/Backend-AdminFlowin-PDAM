@@ -4,6 +4,7 @@ import Meteran from '../models/Meteran.js';
 import Notification from '../models/Notification.js';
 import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
+import { getRedisClient, isRedisConnected } from './redis.js';
 
 // ─── Helper: format periode "YYYY-MM" ─────────────────────────────────────────
 
@@ -356,4 +357,104 @@ export const setupReminderCron = (): void => {
   });
 
   logger.info('Reminder cron scheduled: daily at 08:00');
+};
+
+// ─── Cron 4: Sync IoT Redis → Meteran.pemakaianBelumTerbayar (tiap jam) ───────
+// flowin-recieve-iot menulis ke Redis iot:{userId}:{meterId} tanpa update Meteran.
+// Cron ini menjadi jembatan: baca entries baru dari Redis sejak lastIotSyncAt,
+// lalu atomic $inc pemakaianBelumTerbayar + totalPemakaian di Meteran.
+// usedWater dari flowin-recieve-iot = liter → dibagi 1000 untuk m³.
+
+export const setupIotSyncCron = (): void => {
+  cron.schedule('0 * * * *', async () => {
+    logger.info('Running IoT sync cron...');
+
+    if (!isRedisConnected()) {
+      logger.warn('IoT sync skipped — Redis tidak terhubung');
+      return;
+    }
+
+    const client = getRedisClient();
+    if (!client) return;
+
+    try {
+      // Populate IdKoneksiData → IdPelanggan untuk dapat userId (kunci Redis)
+      const meterans = await Meteran.find({ statusAktif: true })
+        .populate({ path: 'IdKoneksiData', select: 'IdPelanggan' })
+        .select('_id NomorMeteran IdKoneksiData pemakaianBelumTerbayar lastIotSyncAt')
+        .lean();
+
+      let syncCount = 0;
+      let skipCount = 0;
+
+      for (const meteran of meterans) {
+        try {
+          const userId = (meteran as any).IdKoneksiData?.IdPelanggan?.toString();
+          if (!userId) { skipCount++; continue; }
+
+          const key = `iot:${userId}:${meteran._id}`;
+
+          let rawEntries: any[];
+          try {
+            rawEntries = await client.lrange(key, 0, -1);
+          } catch {
+            skipCount++;
+            continue;
+          }
+
+          if (!rawEntries || rawEntries.length === 0) { skipCount++; continue; }
+
+          // Watermark: hanya proses entries yang masuk setelah sync terakhir
+          const lastSync = (meteran as any).lastIotSyncAt
+            ? new Date((meteran as any).lastIotSyncAt).getTime()
+            : 0;
+
+          const newEntries = rawEntries
+            .map((e: any) => {
+              try {
+                const parsed = typeof e === 'string' ? JSON.parse(e) : e;
+                return parsed &&
+                  typeof parsed.usedWater === 'number' &&
+                  typeof parsed.ts === 'number'
+                  ? parsed
+                  : null;
+              } catch { return null; }
+            })
+            .filter(Boolean)
+            .filter((e: any) => e.ts > lastSync);
+
+          if (newEntries.length === 0) { skipCount++; continue; }
+
+          // usedWater dari flowin-recieve-iot = liter → konversi ke m³
+          const totalLiter = newEntries.reduce((sum: number, e: any) => sum + e.usedWater, 0);
+          const totalM3 = totalLiter / 1000;
+
+          if (totalM3 <= 0) { skipCount++; continue; }
+
+          await Meteran.findByIdAndUpdate(meteran._id, {
+            $inc: {
+              pemakaianBelumTerbayar: totalM3,
+              totalPemakaian: totalM3,
+            },
+            $set: { lastIotSyncAt: new Date() },
+          });
+
+          logger.info(
+            { NomorMeteran: (meteran as any).NomorMeteran, totalM3: totalM3.toFixed(4), newEntries: newEntries.length },
+            'IoT sync: pemakaianBelumTerbayar updated'
+          );
+          syncCount++;
+        } catch (err: any) {
+          logger.error({ err, meteranId: meteran._id }, 'IoT sync error pada meteran');
+          skipCount++;
+        }
+      }
+
+      logger.info({ syncCount, skipCount, total: meterans.length }, 'IoT sync cron completed');
+    } catch (err) {
+      logger.error({ err }, 'IoT sync cron error');
+    }
+  });
+
+  logger.info('IoT sync cron scheduled: every hour at :00');
 };
