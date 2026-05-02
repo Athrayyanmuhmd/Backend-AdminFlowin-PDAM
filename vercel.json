@@ -21,7 +21,7 @@
     },
     {
       "path": "/api/cron/iot-sync",
-      "schedule": "0 * * * *"
+      "schedule": "0 2 * * *"
     }
   ],
   "routes": [
