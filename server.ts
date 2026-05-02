@@ -87,12 +87,25 @@ app.use(pinoHttp({
   },
 }));
 
-// CORS — allow all origins (API secured by JWT, origin restriction tidak diperlukan)
+// CORS — allow known origins + local dev (API secured by JWT)
+const ALLOWED_ORIGINS = [
+  'https://aqualink-admin-panel.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:3001',
+];
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin '${origin}' not allowed`));
+  },
   credentials: true,
   optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-internal-secret', 'apollo-require-preflight'],
 }));
+app.options('*', cors()); // Handle preflight for all routes
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
