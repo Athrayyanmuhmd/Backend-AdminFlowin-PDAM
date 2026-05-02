@@ -32,6 +32,7 @@ import documentRouter from './routes/documentRoutes.js';
 import iotRouter from './routes/iotRoutes.js';
 import adminCustomerRouter from './routes/adminCustomerRoutes.js';
 import internalRouter from './routes/internalRoutes.js';
+import cronRouter from './routes/cronRoutes.js';
 
 import {
   setupBillingCron,
@@ -172,6 +173,7 @@ app.use('/documents', documentRouter);
 app.use('/iot', iotRouter);
 app.use('/admin/customers', adminCustomerRouter);
 app.use('/internal', internalRouter);
+app.use('/api/cron', cronRouter); // Vercel Cron Jobs endpoint
 
 
 // Global error handler — must be after all routes

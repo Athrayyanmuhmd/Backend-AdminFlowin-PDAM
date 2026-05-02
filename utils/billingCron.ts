@@ -35,10 +35,9 @@ const getDueDate = (): Date => {
 
 // ─── Cron 1: Generate tagihan bulanan (1 tiap bulan, 00:01) ───────────────────
 
-export const setupBillingCron = (): void => {
-  cron.schedule('1 0 1 * *', async () => {
-    logger.info('Running monthly billing generation...');
-    try {
+export const runBillingJob = async (): Promise<void> => {
+  logger.info('Running monthly billing generation...');
+  try {
       const now      = new Date();
       const periode  = formatPeriode(now); // "YYYY-MM"
 
@@ -200,11 +199,13 @@ export const setupBillingCron = (): void => {
       // ── Phase 2: Deteksi user yang menunggak ≥3 bulan → notifikasi pemutusan ─
       await deteksiTunggakanPemutusan();
 
-    } catch (error) {
-      logger.error({ err: error }, 'Error in billing cron job');
-    }
-  });
+  } catch (error) {
+    logger.error({ err: error }, 'Error in billing cron job');
+  }
+};
 
+export const setupBillingCron = (): void => {
+  cron.schedule('1 0 1 * *', runBillingJob);
   logger.info('Billing cron scheduled: 1st of every month at 00:01');
 };
 
@@ -265,10 +266,9 @@ const deteksiTunggakanPemutusan = async (): Promise<void> => {
 
 // ─── Cron 2: Tandai tagihan overdue (tiap hari 00:05) ─────────────────────────
 
-export const setupOverdueCron = (): void => {
-  cron.schedule('5 0 * * *', async () => {
-    logger.info('Running overdue billing check...');
-    try {
+export const runOverdueJob = async (): Promise<void> => {
+  logger.info('Running overdue billing check...');
+  try {
       const now = new Date();
 
       const overdueResult = await Billing.updateMany(
@@ -300,21 +300,22 @@ export const setupOverdueCron = (): void => {
         }
       }
 
-      logger.info({ updatedCount }, 'Overdue check completed');
-    } catch (error) {
-      logger.error({ err: error }, 'Error in overdue cron job');
-    }
-  });
+    logger.info({ updatedCount }, 'Overdue check completed');
+  } catch (error) {
+    logger.error({ err: error }, 'Error in overdue cron job');
+  }
+};
 
+export const setupOverdueCron = (): void => {
+  cron.schedule('5 0 * * *', runOverdueJob);
   logger.info('Overdue cron scheduled: daily at 00:05');
 };
 
 // ─── Cron 3: Reminder 3 hari sebelum jatuh tempo (tiap hari 08:00) ────────────
 
-export const setupReminderCron = (): void => {
-  cron.schedule('0 8 * * *', async () => {
-    logger.info('Running billing reminder check...');
-    try {
+export const runReminderJob = async (): Promise<void> => {
+  logger.info('Running billing reminder check...');
+  try {
       const now            = new Date();
       const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
 
@@ -357,12 +358,14 @@ export const setupReminderCron = (): void => {
         }
       }
 
-      logger.info({ reminderCount }, 'Reminder check completed');
-    } catch (error) {
-      logger.error({ err: error }, 'Error in reminder cron job');
-    }
-  });
+    logger.info({ reminderCount }, 'Reminder check completed');
+  } catch (error) {
+    logger.error({ err: error }, 'Error in reminder cron job');
+  }
+};
 
+export const setupReminderCron = (): void => {
+  cron.schedule('0 8 * * *', runReminderJob);
   logger.info('Reminder cron scheduled: daily at 08:00');
 };
 
@@ -372,14 +375,13 @@ export const setupReminderCron = (): void => {
 // lalu atomic $inc pemakaianBelumTerbayar + totalPemakaian di Meteran.
 // usedWater dari flowin-recieve-iot = liter → dibagi 1000 untuk m³.
 
-export const setupIotSyncCron = (): void => {
-  cron.schedule('0 * * * *', async () => {
-    logger.info('Running IoT sync cron...');
+export const runIotSyncJob = async (): Promise<void> => {
+  logger.info('Running IoT sync cron...');
 
-    if (!isRedisConnected()) {
-      logger.warn('IoT sync skipped — Redis tidak terhubung');
-      return;
-    }
+  if (!isRedisConnected()) {
+    logger.warn('IoT sync skipped — Redis tidak terhubung');
+    return;
+  }
 
     const client = getRedisClient();
     if (!client) return;
@@ -486,7 +488,9 @@ export const setupIotSyncCron = (): void => {
     } catch (err) {
       logger.error({ err }, 'IoT sync cron error');
     }
-  });
+};
 
+export const setupIotSyncCron = (): void => {
+  cron.schedule('0 * * * *', runIotSyncJob);
   logger.info('IoT sync cron scheduled: every hour at :00');
 };

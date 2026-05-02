@@ -6,6 +6,24 @@
       "use": "@vercel/node"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/billing",
+      "schedule": "1 0 1 * *"
+    },
+    {
+      "path": "/api/cron/overdue",
+      "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/cron/reminder",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/iot-sync",
+      "schedule": "0 * * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
