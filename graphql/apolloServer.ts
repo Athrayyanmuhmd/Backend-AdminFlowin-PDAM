@@ -246,8 +246,11 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           ? req.headers.authorization.replace(/^Bearer\s+/i, '')
           : '';
 
+        // Validasi session sekali per request (sama untuk semua operasi dalam 1 batch)
+        const firstOp = Array.isArray(req.body) ? req.body[0] : req.body;
+        if (rawToken) await validateSessionInDB(rawToken, firstOp?.operationName);
+
         const executeOne = async (op: { query: string; variables?: any; operationName?: string }) => {
-          if (rawToken) await validateSessionInDB(rawToken, op.operationName);
           const result = await server.executeOperation(
             { query: op.query, variables: op.variables, operationName: op.operationName },
             { contextValue: { token: rawToken, req } }
