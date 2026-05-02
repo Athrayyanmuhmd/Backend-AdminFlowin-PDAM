@@ -242,31 +242,27 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           return;
         }
 
-        const { query, variables, operationName } = req.body;
-
         const rawToken = req.headers.authorization
           ? req.headers.authorization.replace(/^Bearer\s+/i, '')
           : '';
 
-        // DB session check — dilakukan sebelum resolver berjalan, satu kali per request
-        if (rawToken) {
-          await validateSessionInDB(rawToken, operationName);
-        }
+        const executeOne = async (op: { query: string; variables?: any; operationName?: string }) => {
+          if (rawToken) await validateSessionInDB(rawToken, op.operationName);
+          const result = await server.executeOperation(
+            { query: op.query, variables: op.variables, operationName: op.operationName },
+            { contextValue: { token: rawToken, req } }
+          );
+          return result.body.kind === 'single'
+            ? result.body.singleResult
+            : { errors: [{ message: 'Incremental delivery not supported' }] };
+        };
 
-        const result = await server.executeOperation(
-          { query, variables, operationName },
-          {
-            contextValue: {
-              token: rawToken,
-              req,
-            },
-          }
-        );
-
-        if (result.body.kind === 'single') {
-          res.json(result.body.singleResult);
+        // BatchHttpLink kirim array, HttpLink kirim object — handle keduanya
+        if (Array.isArray(req.body)) {
+          const results = await Promise.all(req.body.map(executeOne));
+          res.json(results);
         } else {
-          res.status(500).json({ error: 'Incremental delivery not supported' });
+          res.json(await executeOne(req.body));
         }
       } catch (error: any) {
         console.error('GraphQL execution error:', error);
