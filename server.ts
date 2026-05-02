@@ -45,6 +45,10 @@ import { setupApolloServer } from './graphql/apolloServer.js';
 const app = express();
 const port = 5000;
 
+// Trust Vercel/proxy forwarded headers so req.ip reflects real client IP
+// Required for express-rate-limit to work correctly behind Vercel's proxy
+app.set('trust proxy', 1);
+
 // Validate required environment variables before anything else
 const REQUIRED_ENV = ['MONGO_URI', 'JWT_SECRET', 'MIDTRANS_SERVER_KEY', 'MIDTRANS_CLIENT_KEY', 'JWT_ACCESS_SECRET', 'INTERNAL_API_SECRET'];
 for (const key of REQUIRED_ENV) {
@@ -67,6 +71,7 @@ const restAuthLimiter = rateLimit({
   message: { status: 429, pesan: 'Terlalu banyak percobaan login. Coba lagi dalam 15 menit.' },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
 });
 app.use('/admin/auth/login', restAuthLimiter);
 app.use('/technician/login', restAuthLimiter);
