@@ -118,9 +118,11 @@ app.use(express.json());
 
 const clientOptions = {
   serverApi: { version: '1' as const, strict: true, deprecationErrors: true },
+  serverSelectionTimeoutMS: 5000, // gagal cepat pada attempt pertama, tidak tunggu 30 detik
+  connectTimeoutMS: 10000,
 };
 
-async function connectDB(retries = 3, delayMs = 5000): Promise<void> {
+async function connectDB(retries = 3, delayMs = 1000): Promise<void> {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await mongoose.connect(process.env.MONGO_URI as string, clientOptions);
