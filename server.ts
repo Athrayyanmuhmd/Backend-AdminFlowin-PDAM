@@ -95,7 +95,8 @@ app.use(pinoHttp({
 
 // CORS — allow known origins + local dev (API secured by JWT)
 const ALLOWED_ORIGINS = [
-  'https://aqualink-admin-panel.vercel.app',
+  // 'https://aqualink-admin-panel.vercel.app',  // old — sebelum Cloudflare proxy
+  'https://adminflowin.my.id',                   // Cloudflare proxy → Vercel frontend
   'http://localhost:3000',
   'http://localhost:3001',
 ];
