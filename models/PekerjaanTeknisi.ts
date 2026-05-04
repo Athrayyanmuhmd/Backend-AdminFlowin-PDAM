@@ -23,6 +23,7 @@ export const JENIS_PEKERJAAN = [
   'pengawasan_pemasangan',
   'pengawasan_setelah_pemasangan',
   'penyelesaian_laporan',
+  'maintenance',
 ] as const;
 
 export type JenisPekerjaan = (typeof JENIS_PEKERJAAN)[number];
@@ -79,12 +80,14 @@ export const URUTAN_PEKERJAAN: Record<JenisPekerjaan, JenisPekerjaan[]> = {
   pengawasan_pemasangan: ['rab'],
   pengawasan_setelah_pemasangan: ['pemasangan', 'pengawasan_pemasangan'],
   penyelesaian_laporan: [],
+  maintenance: [],
 };
 
 /**
  * Mapping: jenisPekerjaan → field referensi dokumen di WorkOrder.
  */
-export const JENIS_KE_REF_FIELD: Record<JenisPekerjaan, string> = {
+// maintenance tidak punya ref field di Aqualink — data ada sepenuhnya di Rafli's system
+export const JENIS_KE_REF_FIELD: Partial<Record<JenisPekerjaan, string>> = {
   survei: 'idSurvei',
   rab: 'idRAB',
   pemasangan: 'idPemasangan',

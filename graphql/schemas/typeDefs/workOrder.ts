@@ -13,6 +13,7 @@ export const workOrderTypeDefs = gql`
     pengawasan_pemasangan
     pengawasan_setelah_pemasangan
     penyelesaian_laporan
+    maintenance
   }
 
   enum StatusPekerjaan {
