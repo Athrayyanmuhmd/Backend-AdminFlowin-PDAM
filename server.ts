@@ -11,11 +11,12 @@ const pinoHttp = (pinoHttpPkg as any).default ?? pinoHttpPkg;
 import logger from './utils/logger.js';
 import userRouter from './routes/userRouter.js';
 import reportRouter from './routes/reportRouter.js';
-import transactionRouter from './routes/transactionRoutes.js';
-import paymentRouter from './routes/paymentRouter.js';
-import waterCreditRouter from './routes/waterCreditRoutes.js';
-import subscribeRouter from './routes/subscribeRouter.js';
-import walletRouter from './routes/walletRouter.js';
+// Legacy routes removed — collections dropped (iotconnections, subscribes, transactionmidtrans, transactions, wallets, watercredits)
+// import transactionRouter from './routes/transactionRoutes.js';
+// import paymentRouter from './routes/paymentRouter.js';
+// import waterCreditRouter from './routes/waterCreditRoutes.js';
+// import subscribeRouter from './routes/subscribeRouter.js';
+// import walletRouter from './routes/walletRouter.js';
 import notificationRouter from './routes/notificationRoutes.js';
 import historyRouter from './routes/historyRoutes.js';
 import adminAccountRouter from './routes/adminAccountRoutes.js';
@@ -29,7 +30,7 @@ import billingRouter from './routes/billingRoutes.js';
 import monitoringRouter from './routes/monitoringRoutes.js';
 import webhookRouter from './routes/webhookRoutes.js';
 import documentRouter from './routes/documentRoutes.js';
-import iotRouter from './routes/iotRoutes.js';
+// import iotRouter from './routes/iotRoutes.js'; // iotconnections dropped
 import adminCustomerRouter from './routes/adminCustomerRoutes.js';
 import internalRouter from './routes/internalRoutes.js';
 import cronRouter from './routes/cronRoutes.js';
@@ -161,11 +162,11 @@ app.use('/webhook', webhookRouter);
 
 app.use('/users', userRouter);
 app.use('/report', reportRouter);
-app.use('/transactions', transactionRouter);
-app.use('/midtrans', paymentRouter);
-app.use('/waterCredit', waterCreditRouter);
-app.use('/subscribe', subscribeRouter);
-app.use('/wallet', walletRouter);
+// app.use('/transactions', transactionRouter);   // dropped
+// app.use('/midtrans', paymentRouter);            // dropped (wallet top-up — unused)
+// app.use('/waterCredit', waterCreditRouter);     // dropped
+// app.use('/subscribe', subscribeRouter);         // dropped
+// app.use('/wallet', walletRouter);               // dropped
 app.use('/notification', notificationRouter);
 app.use('/history', historyRouter);
 app.use('/billing', billingRouter);
@@ -178,7 +179,7 @@ app.use('/kelompok-pelanggan', kelompokPelangganRouter);
 app.use('/technician', technicianRouter);
 app.use('/monitoring', monitoringRouter);
 app.use('/documents', documentRouter);
-app.use('/iot', iotRouter);
+// app.use('/iot', iotRouter);                    // dropped
 app.use('/admin/customers', adminCustomerRouter);
 app.use('/internal', internalRouter);
 app.use('/api/cron', cronRouter); // Vercel Cron Jobs endpoint
