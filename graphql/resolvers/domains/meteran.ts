@@ -4,7 +4,7 @@ import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
-import PemakaianHarian from '../../../models/PemakaianHarian.js';
+// PemakaianHarian dihapus — Opsi A: query langsung ke HistoryUsage (riwayatpenggunaans)
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, catatAuditLog } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
@@ -68,17 +68,23 @@ export const meteranResolvers = {
 
     getRiwayatPenggunaan: async (_, { meteranId, limit = 30 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // Sumber: PemakaianHarian (ditulis IoT sync cron tiap jam dari Redis)
-      // Bukan HistoryUsage (Ahmad REST) — IoT via flowin tidak nulis ke historyusages
-      const records = await PemakaianHarian.find({ idMeteran: meteranId })
-        .sort({ tanggal: -1 })
-        .limit(Math.min(limit, 90))
-        .lean() as any[];
-      // Map ke shape yang sama agar frontend tidak perlu berubah
+      // Opsi A: agregasi per hari dari HistoryUsage (riwayatpenggunaans)
+      // billingCron menulis raw entries; resolver ini mengelompokkan per hari WIB
+      const { Types } = await import('mongoose');
+      const records = await HistoryUsage.aggregate([
+        { $match: { meteranId: new Types.ObjectId(meteranId) } },
+        { $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
+          totalM3: { $sum: '$penggunaanAir' },
+          jumlahEntry: { $sum: 1 },
+        }},
+        { $sort: { _id: -1 } },
+        { $limit: Math.min(limit, 90) },
+      ]);
       return records.map((r: any) => ({
         _id: r._id,
-        penggunaanAir: r.totalLiter,  // liter
-        createdAt: new Date(r.tanggal).toISOString(),
+        penggunaanAir: r.totalM3 * 1000, // m³ → liter (frontend expects liter)
+        createdAt: new Date(r._id).toISOString(),
       }));
     },
 
@@ -88,13 +94,17 @@ export const meteranResolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      const mongoose = await import('mongoose');
-      const hasil = await PemakaianHarian.aggregate([
-        { $match: { idMeteran: new mongoose.default.Types.ObjectId(meteranId) } },
+      // Opsi A: agregasi bulanan dari HistoryUsage dengan timezone WIB
+      const { Types } = await import('mongoose');
+      const hasil = await HistoryUsage.aggregate([
+        { $match: { meteranId: new Types.ObjectId(meteranId) } },
         { $group: {
-          _id: { tahun: { $year: '$tanggal' }, bulan: { $month: '$tanggal' } },
-          totalPemakaian: { $sum: '$totalLiter' },
-          jumlahRecord: { $sum: '$jumlahEntry' },
+          _id: {
+            tahun: { $year:  { date: '$createdAt', timezone: 'Asia/Jakarta' } },
+            bulan: { $month: { date: '$createdAt', timezone: 'Asia/Jakarta' } },
+          },
+          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // m³ → liter
+          jumlahRecord: { $sum: 1 },
         }},
         { $sort: { '_id.tahun': -1, '_id.bulan': -1 } },
         { $limit: 12 },

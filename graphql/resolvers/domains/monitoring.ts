@@ -1,7 +1,7 @@
 // @ts-nocheck
 import Meteran from '../../../models/Meteran.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
-import PemakaianHarian from '../../../models/PemakaianHarian.js';
+import HistoryUsage from '../../../models/HistoryUsage.js';
 import User from '../../../models/User.js';
 import { verifyAdminToken } from '../helpers.js';
 import { isRedisConnected, getRedisClient } from '../../../utils/redis.js';
@@ -158,8 +158,8 @@ async function bacaDataMongo(meteranId: string, periode: string) {
   return { dataHarian, totalPenggunaan, latestReading: null as number | null };
 }
 
-// ─── Read-through cache: PemakaianHarian → Redis → serve ────────────────────
-// Urutan: Redis cache → PemakaianHarian (MongoDB) → RiwayatPenggunaan (fallback flowin)
+// ─── Read-through cache: HistoryUsage → Redis → serve (Opsi A) ──────────────
+// Urutan: Redis cache → HistoryUsage aggregate (MongoDB) → RiwayatPenggunaan (fallback flowin)
 const CACHE_TTL_SEC = 7 * 24 * 3600; // 7 hari
 
 async function bacaDataHistoris(meteranId: string, periode: string) {
@@ -177,25 +177,34 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
     } catch { /* lanjut ke MongoDB */ }
   }
 
-  // 2. Query PemakaianHarian (snapshot dari IoT sync cron)
+  // 2. Agregasi dari HistoryUsage (raw entries dari IoT sync cron, Opsi A)
+  // Batas bulan pakai WIB offset agar tidak ada data yang terpotong di ujung bulan
   const [tahun, bulan] = periode.split('-').map(Number);
-  const startDate = new Date(Date.UTC(tahun, bulan - 1, 1));
-  const endDate   = new Date(Date.UTC(tahun, bulan,     1)); // exclusive
+  const startDate = new Date(Date.UTC(tahun, bulan - 1, 1) - TZ_OFFSET_MS);
+  const endDate   = new Date(Date.UTC(tahun, bulan,     1) - TZ_OFFSET_MS); // exclusive
 
-  const records = await PemakaianHarian.find({
-    idMeteran: meteranId,
-    tanggal: { $gte: startDate, $lt: endDate },
-  }).sort({ tanggal: 1 }).lean() as any[];
+  const { Types } = await import('mongoose');
+  const aggRecords = await HistoryUsage.aggregate([
+    {
+      $match: {
+        meteranId: new Types.ObjectId(meteranId),
+        createdAt: { $gte: startDate, $lt: endDate },
+      },
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
+        totalLiter: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // m³ → liter
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
 
-  if (records.length > 0) {
-    const dataHarian = records.map((r: any) => ({
-      tanggal: String(new Date(r.tanggal).getUTCDate()).padStart(2, '0'),
-      liter: r.totalLiter,
-    }));
-    const totalPenggunaan = records.reduce((s: number, r: any) => s + r.totalLiter, 0);
+  if (aggRecords.length > 0) {
+    const dataHarian = aggRecords.map((r: any) => ({ tanggal: r._id, liter: r.totalLiter }));
+    const totalPenggunaan = aggRecords.reduce((s: number, r: any) => s + r.totalLiter, 0);
     const result = { dataHarian, totalPenggunaan, latestReading: null as number | null };
 
-    // Re-cache ke Redis agar request berikutnya cepat
     if (client) {
       try {
         await client.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SEC);
@@ -204,7 +213,7 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
     return result;
   }
 
-  // 3. Fallback ke RiwayatPenggunaan (data flowin lama)
+  // 3. Fallback ke RiwayatPenggunaan (data flowin lama / Ahmad monthly)
   return bacaDataMongo(meteranId, periode);
 }
 

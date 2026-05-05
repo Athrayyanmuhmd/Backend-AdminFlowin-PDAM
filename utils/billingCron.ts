@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import Billing from '../models/Billing.js';
 import Meteran from '../models/Meteran.js';
-import PemakaianHarian from '../models/PemakaianHarian.js';
+import HistoryUsage from '../models/HistoryUsage.js';
 import Notification from '../models/Notification.js';
 import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
@@ -440,29 +440,18 @@ export const runIotSyncJob = async (): Promise<void> => {
 
           if (totalM3 <= 0) { skipCount++; continue; }
 
-          // ─── Snapshot harian ke PemakaianHarian (persistent, queryable per bulan) ──
-          // Group by WIB calendar date (UTC+7) sebelum Redis TTL expired
-          const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
-          const byDay = new Map<string, { totalLiter: number; count: number }>();
-          for (const e of newEntries) {
-            const wibDate = new Date((e as any).ts + TZ_OFFSET_MS);
-            const dayKey = [
-              wibDate.getUTCFullYear(),
-              String(wibDate.getUTCMonth() + 1).padStart(2, '0'),
-              String(wibDate.getUTCDate()).padStart(2, '0'),
-            ].join('-');
-            const existing = byDay.get(dayKey) ?? { totalLiter: 0, count: 0 };
-            existing.totalLiter += (e as any).usedWater;
-            existing.count++;
-            byDay.set(dayKey, existing);
-          }
-          for (const [dayStr, { totalLiter: dayLiter, count }] of byDay) {
-            const tanggal = new Date(dayStr); // UTC midnight = WIB calendar date
-            await PemakaianHarian.findOneAndUpdate(
-              { idMeteran: meteran._id, tanggal },
-              { $inc: { totalLiter: dayLiter, jumlahEntry: count } },
-              { upsert: true }
-            );
+          // ─── Persist raw entries ke riwayatpenggunaans (Opsi A) ──────────────────
+          // Setiap entry IoT disimpan sebagai dokumen individual dengan timestamp asli.
+          // createdAt di-set dari e.ts (waktu IoT aktual), bukan waktu sync.
+          // Resolver monitoring lalu agregasi per hari via $group + timezone WIB.
+          const entriesToInsert = newEntries.map((e: any) => ({
+            userId,
+            meteranId: meteran._id,
+            penggunaanAir: e.usedWater / 1000, // liter → m³, sesuai konvensi Meteran
+            createdAt: new Date(e.ts),
+          }));
+          if (entriesToInsert.length > 0) {
+            await HistoryUsage.collection.insertMany(entriesToInsert, { ordered: false });
           }
 
           await Meteran.findByIdAndUpdate(meteran._id, {
