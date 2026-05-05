@@ -57,19 +57,15 @@ const UsersSchema = new Schema<IUser>(
     gender: {
       type: String,
       enum: ['L', 'P', null],
-      default: null,
     },
     birthDate: {
       type: String,
-      default: null,
     },
     occupation: {
       type: String,
-      default: null,
     },
     location: {
       type: Schema.Types.Mixed,
-      default: null,
     },
     customerType: {
       type: String,
