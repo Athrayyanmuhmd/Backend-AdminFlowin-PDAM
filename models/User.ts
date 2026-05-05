@@ -92,17 +92,14 @@ const UsersSchema = new Schema<IUser>(
     SambunganDataId: {
       type: Schema.Types.ObjectId,
       ref: 'KoneksiData',
-      default: null,
     },
     meteranId: {
       type: Schema.Types.ObjectId,
       ref: 'Meteran',
-      default: null,
     },
     iotConnectionId: {
       type: Schema.Types.ObjectId,
       ref: 'IoTConnection',
-      default: null,
     },
     isIoTConnected: {
       type: Boolean,
