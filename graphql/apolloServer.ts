@@ -7,6 +7,8 @@ import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import AdminAccount from '../models/AdminAccount.js';
 import Technician from '../models/Technician.js';
+import depthLimit from 'graphql-depth-limit';
+import logger from '../utils/logger.js';
 
 // Operasi yang boleh berjalan tanpa sesi aktif di DB (login/logout public)
 const PUBLIC_OPERATIONS = new Set(['loginAdmin', 'loginTechnician', 'logoutAdmin', 'logoutTechnician']);
@@ -211,8 +213,9 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
     resolvers,
     // Introspection selalu aktif agar GraphiQL Explorer dan Apollo Studio bisa membaca schema
     introspection: true,
+    validationRules: [depthLimit(7)],
     formatError: (error: any) => {
-      console.error('GraphQL Error:', error);
+      logger.error({ err: error }, 'GraphQL Error');
       return {
         message: error.message,
         locations: error.locations,
@@ -268,7 +271,7 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           res.json(await executeOne(req.body));
         }
       } catch (error: any) {
-        console.error('GraphQL execution error:', error);
+        logger.error({ err: error }, 'GraphQL execution error');
         res.status(500).json({
           errors: [{ message: error.message || 'Internal server error' }],
         });
@@ -276,6 +279,6 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
     }
   );
 
-  console.log('🚀 GraphQL Server ready at http://localhost:5000/graphql');
+  logger.info('GraphQL Server ready at http://localhost:5000/graphql');
   return server;
 }

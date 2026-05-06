@@ -234,12 +234,10 @@ export const createCustomer = async (req, res) => {
 export const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
-
-    // Remove fields that shouldn't be updated directly
-    delete updateData.password;
-    delete updateData.token;
-    delete updateData._id;
+    const { namaLengkap, noHP, alamat, email } = req.body;
+    const updateData = { namaLengkap, noHP, alamat, email };
+    // Strip undefined values so partial updates work correctly
+    Object.keys(updateData).forEach(k => updateData[k] === undefined && delete updateData[k]);
 
     const customer = await User.findByIdAndUpdate(
       id,

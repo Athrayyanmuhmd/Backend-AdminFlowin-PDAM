@@ -236,21 +236,22 @@ export const updateRabPaymentStatus = async (req, res) => {
 export const updateRabConnection = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { totalBiaya, catatan, statusPembayaran } = req.body;
+    const updates: Record<string, any> = { catatan, statusPembayaran };
 
     // Handle RAB document upload if provided
     if (req.file) {
-      updates.rabUrl = await uploadPdfAsImage(
+      updates.urlRab = await uploadPdfAsImage(
         req.file.buffer,
         "aqualink/rab",
         req.file.mimetype
       );
     }
 
-    // Convert totalBiaya to number if provided
-    if (updates.totalBiaya) {
-      updates.totalBiaya = parseInt(updates.totalBiaya);
+    if (totalBiaya !== undefined) {
+      updates.totalBiaya = parseInt(totalBiaya);
     }
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
     const rabConnection = await RabConnection.findByIdAndUpdate(id, updates, {
       new: true,

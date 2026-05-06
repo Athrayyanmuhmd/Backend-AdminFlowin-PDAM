@@ -25,7 +25,7 @@ export const createReport = [
         });
       }
 
-      const newReport = new Reports(req.body);
+      const newReport = new Reports({ idPengguna, namaLaporan, masalah, alamat, koordinat });
       const savedReport = await newReport.save();
 
       res.status(201).json({
@@ -82,7 +82,10 @@ export const editReport = [
         });
       }
 
-      const updatedReport = await Reports.findByIdAndUpdate(id, req.body, {
+      const { namaLaporan, masalah, alamat, koordinat, status } = req.body;
+      const safeUpdate = { namaLaporan, masalah, alamat, koordinat, status };
+      Object.keys(safeUpdate).forEach(k => safeUpdate[k] === undefined && delete safeUpdate[k]);
+      const updatedReport = await Reports.findByIdAndUpdate(id, safeUpdate, {
         new: true,
         runValidators: true,
       });

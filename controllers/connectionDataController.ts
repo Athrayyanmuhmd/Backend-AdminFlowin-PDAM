@@ -373,7 +373,8 @@ export const completeAllProcedure = async (req, res) => {
 export const updateConnectionData = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { NIK, noKK, alamat, kecamatan, kelurahan, noIMB, luasBangunan, catatan } = req.body;
+    const updates: Record<string, any> = { NIK, noKK, alamat, kecamatan, kelurahan, noIMB, catatan };
 
     // Handle PDF/image file uploads if provided
     if (req.files) {
@@ -400,10 +401,8 @@ export const updateConnectionData = async (req, res) => {
       }
     }
 
-    // Convert luasBangunan to number if provided
-    if (updates.luasBangunan) {
-      updates.luasBangunan = parseInt(updates.luasBangunan);
-    }
+    if (luasBangunan !== undefined) updates.luasBangunan = parseInt(luasBangunan);
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
     const connectionData = await ConnectionData.findByIdAndUpdate(id, updates, {
       new: true,

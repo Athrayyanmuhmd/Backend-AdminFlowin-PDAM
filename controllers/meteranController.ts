@@ -174,7 +174,9 @@ export const getMeteranByUserId = async (req, res) => {
 export const updateMeteran = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { NomorMeteran, NomorAkun, IdKelompokPelanggan, IdKoneksiData, statusAktif } = req.body;
+    const updates: Record<string, any> = { NomorMeteran, NomorAkun, IdKelompokPelanggan, IdKoneksiData, statusAktif };
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
     const meteran = await Meteran.findByIdAndUpdate(id, updates, {
       new: true,

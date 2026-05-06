@@ -218,7 +218,8 @@ export const getSurveyDataByConnectionId = async (req, res) => {
 export const updateSurveyData = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { diameterPipa, jumlahPenghuni, standar, catatan, koordinatLat, koordinatLong } = req.body;
+    const updates: Record<string, any> = { catatan };
 
     // Handle PDF/image file uploads if provided
     if (req.files) {
@@ -246,23 +247,17 @@ export const updateSurveyData = async (req, res) => {
     }
 
     // Handle koordinat update
-    if (updates.koordinatLat || updates.koordinatLong) {
+    if (koordinatLat || koordinatLong) {
       updates.koordinat = {};
-      if (updates.koordinatLat)
-        updates.koordinat.latitude = parseFloat(updates.koordinatLat);
-      if (updates.koordinatLong)
-        updates.koordinat.longitude = parseFloat(updates.koordinatLong);
-      delete updates.koordinatLat;
-      delete updates.koordinatLong;
+      if (koordinatLat) updates.koordinat.latitude = parseFloat(koordinatLat);
+      if (koordinatLong) updates.koordinat.longitude = parseFloat(koordinatLong);
     }
 
-    // Convert numbers
-    if (updates.diameterPipa)
-      updates.diameterPipa = parseInt(updates.diameterPipa);
-    if (updates.jumlahPenghuni)
-      updates.jumlahPenghuni = parseInt(updates.jumlahPenghuni);
-    if (updates.standar)
-      updates.standar = updates.standar === "true" || updates.standar === true;
+    // Convert numbers from whitelisted fields
+    if (diameterPipa !== undefined) updates.diameterPipa = parseInt(diameterPipa);
+    if (jumlahPenghuni !== undefined) updates.jumlahPenghuni = parseInt(jumlahPenghuni);
+    if (standar !== undefined) updates.standar = standar === "true" || standar === true;
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
     const surveyData = await SurveyData.findByIdAndUpdate(id, updates, {
       new: true,

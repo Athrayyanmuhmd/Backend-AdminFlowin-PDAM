@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import mongoSanitize from 'express-mongo-sanitize';
 import pinoHttpPkg from 'pino-http';
 const pinoHttp = (pinoHttpPkg as any).default ?? pinoHttpPkg;
 import logger from './utils/logger.js';
@@ -117,6 +118,8 @@ app.options('*', cors()); // Handle preflight for all routes
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+// Strip $-prefixed keys from req.body/query/params to prevent NoSQL injection
+app.use(mongoSanitize());
 
 const clientOptions = {
   serverApi: { version: '1' as const, strict: true, deprecationErrors: true },

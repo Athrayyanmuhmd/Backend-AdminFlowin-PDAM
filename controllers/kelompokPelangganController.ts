@@ -80,7 +80,9 @@ export const getKelompokPelangganById = async (req, res) => {
 export const updateKelompokPelanggan = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const { namaKelompok, tarif, deskripsi, batasPemakaian } = req.body;
+    const updates: Record<string, any> = { namaKelompok, tarif, deskripsi, batasPemakaian };
+    Object.keys(updates).forEach(k => updates[k] === undefined && delete updates[k]);
 
     const kelompokPelanggan = await KelompokPelanggan.findByIdAndUpdate(
       id,
