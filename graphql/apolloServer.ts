@@ -271,6 +271,14 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
           res.json(await executeOne(req.body));
         }
       } catch (error: any) {
+        const isAuthError = error.message === 'Sesi tidak valid. Silakan login ulang.';
+        if (isAuthError) {
+          logger.warn({ msg: 'Session invalidated', reason: error.message });
+          res.status(401).json({
+            errors: [{ message: error.message, extensions: { code: 'UNAUTHENTICATED' } }],
+          });
+          return;
+        }
         logger.error({ err: error }, 'GraphQL execution error');
         res.status(500).json({
           errors: [{ message: error.message || 'Internal server error' }],
