@@ -62,12 +62,10 @@ export const handlePaymentWebhook = async (req, res) => {
       fraud_status,
     });
 
-    console.log(JSON.stringify(notification, null, 2));
-
     // Verify signature from Midtrans
     const serverKey = process.env.MIDTRANS_SERVER_KEY;
     if (!serverKey) {
-      console.error("❌ MIDTRANS_SERVER_KEY not configured");
+      logger.error("MIDTRANS_SERVER_KEY not configured");
       return res.status(500).json({ status: "error", pesan: "Server configuration error" });
     }
 
@@ -79,11 +77,11 @@ export const handlePaymentWebhook = async (req, res) => {
       crypto.timingSafeEqual(hashBuffer, sigBuffer);
 
     if (!signaturesMatch) {
-      console.error("❌ Invalid signature from Midtrans", { order_id, status_code });
+      logger.warn({ order_id, status_code }, "Invalid Midtrans signature");
       return res.status(403).json({ status: "error", pesan: "Invalid signature" });
     }
 
-    console.log("✅ Signature verified:", order_id);
+    logger.info({ order_id }, "Midtrans signature verified");
 
     if (order_id.startsWith("RAB-")) {
       await handleRABPayment(order_id, transaction_status, notification);
@@ -93,15 +91,14 @@ export const handlePaymentWebhook = async (req, res) => {
       await handleBillingPayment(order_id, transaction_status, notification);
     } else {
       // Order format dari Ahmad (FLOWIN-*) atau sistem lain — abaikan dengan graceful
-      console.log("⚠️ Unknown order_id format, skipping:", order_id);
+      logger.info({ order_id }, "Unknown order_id format, skipping");
       return res.status(200).json({ status: "ok", pesan: "Order ID format not handled by this webhook" });
     }
 
     res.status(200).json({ status: "success", pesan: "Notification processed successfully" });
   } catch (error) {
     // Selalu return 200 agar Midtrans tidak retry — retry bisa menyebabkan double-process.
-    // Error sudah di-log di dalam handler masing-masing (handleBillingPayment, dll).
-    console.error("❌ Error processing webhook:", error);
+    logger.error({ err: error }, "Error processing webhook");
     res.status(200).json({ status: "error", pesan: "Webhook processing failed, logged for review" });
   }
 };
@@ -115,12 +112,12 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
     const parts = orderId.split("-");
     const rabId = parts[1];
 
-    console.log(`🔍 Processing RAB payment for rabId: ${rabId} (order_id: ${orderId})`);
+    logger.info({ rabId, orderId }, "Processing RAB payment");
 
     // RabConnection tidak memiliki userId — ambil via idKoneksiData → IdPelanggan
     const rab = await RabConnection.findById(rabId);
     if (!rab) {
-      console.error("❌ RAB not found:", rabId);
+      logger.warn({ rabId }, "RAB not found");
       return;
     }
 
@@ -131,12 +128,11 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
       pelangganId = koneksi?.IdPelanggan ?? null;
     }
 
-    console.log(`📋 Current RAB status: rabId=${rab._id}, statusPembayaran=${rab.statusPembayaran}`);
-    console.log(`📊 Transaction status received: "${transactionStatus}"`);
+    logger.info({ rabId: rab._id, statusPembayaran: rab.statusPembayaran, transactionStatus }, "RAB payment status");
 
     // Idempotency: jangan proses ulang jika sudah settlement
     if (rab.statusPembayaran === 'settlement' && (transactionStatus === 'settlement' || transactionStatus === 'capture')) {
-      console.log(`⚠️ [idempotency] RAB ${rabId} sudah settlement, skip duplicate event`);
+      logger.info({ rabId }, "[idempotency] RAB sudah settlement, skip duplicate event");
       return;
     }
 
@@ -147,19 +143,19 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
       case "settlement":
       case "capture": {
         if (transactionStatus === "capture" && notification.fraud_status !== "accept") {
-          console.log(`⚠️ CAPTURE but fraud_status is: ${notification.fraud_status}`);
+          logger.warn({ rabId, fraud_status: notification.fraud_status }, "CAPTURE with non-accept fraud_status, skip");
           return;
         }
         // Field RAB model pakai camelCase: statusPembayaran
         await RabConnection.findByIdAndUpdate(rabId, { statusPembayaran: 'settlement' }, { new: true });
         notificationTitle = 'Pembayaran RAB Berhasil';
         notificationMessage = `Pembayaran RAB sebesar Rp${parseFloat(notification.gross_amount).toLocaleString('id-ID')} telah berhasil. Pemasangan akan segera dijadwalkan.`;
-        console.log(`✅ RAB status updated to settlement`);
+        logger.info({ rabId }, "RAB status updated to settlement");
         break;
       }
 
       case "pending":
-        console.log("⏳ RAB payment pending, no DB update");
+        logger.info({ rabId }, "RAB payment pending, no DB update");
         return;
 
       case "deny":
@@ -170,7 +166,7 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
         break;
 
       default:
-        console.log("⚠️ Unhandled transaction status:", transactionStatus);
+        logger.warn({ rabId, transactionStatus }, "Unhandled RAB transaction status");
         return;
     }
 
@@ -186,7 +182,7 @@ async function handleRABPayment(orderId, transactionStatus, notification) {
       }).catch((e: any) => logger.error({ err: e }, 'Gagal kirim notifikasi RAB'));
     }
 
-    console.log(`✅ RAB payment webhook processing completed: ${rabId} - Status: ${transactionStatus}`);
+    logger.info({ rabId, transactionStatus }, "RAB payment webhook completed");
   } catch (error) {
     logger.error({ err: error }, "RAB payment webhook error");
     throw error;
@@ -208,13 +204,13 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
       .populate("IdMeteran");
 
     if (!billing) {
-      console.error("❌ Billing not found:", billingId);
+      logger.warn({ billingId }, "Billing not found");
       return;
     }
 
     // Idempotency: jangan proses ulang jika sudah settlement (pemakaianBelumTerbayar sudah dikurangi)
     if ((billing as any).StatusPembayaran === 'settlement' && (transactionStatus === 'settlement' || transactionStatus === 'capture')) {
-      console.log(`⚠️ [idempotency] Billing ${billingId} sudah settlement, skip duplicate event`);
+      logger.info({ billingId }, "[idempotency] Billing sudah settlement, skip duplicate event");
       return;
     }
 
@@ -254,7 +250,7 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
         break;
 
       default:
-        console.log("⚠️ Unhandled transaction status:", transactionStatus);
+        logger.warn({ billingId, transactionStatus }, "Unhandled billing transaction status");
         return;
     }
 
@@ -273,7 +269,7 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
           },
         },
       }]);
-      console.log(`✅ pemakaianBelumTerbayar dikurangi (atomic): ${totalPemakaian} m³`);
+      logger.info({ meteranId, totalPemakaian }, "pemakaianBelumTerbayar dikurangi (atomic)");
     }
 
     // Kirim notifikasi ke pelanggan — field PascalCase sesuai Notification model & Ahmad
@@ -296,7 +292,7 @@ async function handleBillingPayment(orderId, transactionStatus, notification) {
       deleteCacheByPattern('dashboard:*').catch(() => {});
     }
 
-    console.log(`✅ Billing payment updated: ${billingId} - Status: ${transactionStatus}`);
+    logger.info({ billingId, transactionStatus }, "Billing payment updated");
   } catch (error) {
     logger.error({ err: error }, "Billing payment webhook error");
     throw error;
@@ -312,7 +308,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
     const parts = orderId.split("-");
     const userId = parts[2];
 
-    console.log(`📋 Processing multiple billing payment for user: ${userId}`);
+    logger.info({ userId }, "Processing multiple billing payment");
 
     // Filter PascalCase sesuai Billing model
     const unpaidBillings = await Billing.find({
@@ -322,7 +318,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
 
     if (unpaidBillings.length === 0) {
       // Idempotency: semua tagihan sudah di-settle — kemungkinan duplicate event
-      console.log(`⚠️ [idempotency] Semua billing user ${userId} sudah settlement, skip duplicate event`);
+      logger.info({ userId }, "[idempotency] Semua billing sudah settlement, skip duplicate event");
       return;
     }
 
@@ -331,7 +327,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
       (b: any) => b.StatusPembayaran !== 'settlement'
     );
     if (billingsToProcess.length === 0) {
-      console.log(`⚠️ [idempotency] Tidak ada billing yang perlu diupdate untuk user ${userId}`);
+      logger.info({ userId }, "[idempotency] Tidak ada billing yang perlu diupdate");
       return;
     }
 
@@ -370,7 +366,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
         break;
 
       default:
-        console.log("⚠️ Unhandled transaction status:", transactionStatus);
+        logger.warn({ userId, transactionStatus }, "Unhandled multi-billing transaction status");
         return;
     }
 
@@ -403,7 +399,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
               },
             },
           }]);
-          console.log(`✅ pemakaianBelumTerbayar dikurangi (atomic): meteran=${meteranId}, total=${totalPemakaian} m³`);
+          logger.info({ meteranId, totalPemakaian }, "pemakaianBelumTerbayar dikurangi (atomic)");
         }
       }
     }
@@ -427,7 +423,7 @@ async function handleMultipleBillingPayment(orderId, transactionStatus, notifica
       deleteCacheByPattern('dashboard:*').catch(() => {});
     }
 
-    console.log(`✅ Multiple billing payment updated for user ${userId}: ${billingsToProcess.length} bills - Status: ${transactionStatus}`);
+    logger.info({ userId, jumlahBilling: billingsToProcess.length, transactionStatus }, "Multiple billing payment updated");
   } catch (error) {
     logger.error({ err: error }, "Multi-billing payment webhook error");
     throw error;

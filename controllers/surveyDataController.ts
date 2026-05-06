@@ -3,6 +3,7 @@ import SurveyData from "../models/SurveyData.js";
 import ConnectionData from "../models/ConnectionData.js";
 import { uploadPdfAsImage } from "../utils/cloudinary.js";
 import { computeFileHash } from "../middleware/upload.js";
+import logger from "../utils/logger.js";
 
 // Create Survey Data (Technician)
 export const createSurveyData = async (req, res) => {
@@ -18,12 +19,7 @@ export const createSurveyData = async (req, res) => {
     } = req.body;
 
     const isAdmin = req.userRole === "admin";
-    console.log(
-      "[createSurveyData] Request from:",
-      isAdmin ? "admin" : "technician",
-      isAdmin ? req.userId : req.technicianId
-    );
-    console.log("[createSurveyData] Connection Data ID:", connectionDataId);
+    logger.info({ role: isAdmin ? "admin" : "technician", connectionDataId }, "[createSurveyData] request received");
 
     // Check if connection data exists
     const connectionData = await ConnectionData.findById(connectionDataId);
@@ -55,10 +51,7 @@ export const createSurveyData = async (req, res) => {
       }
     }
 
-    console.log(
-      "[createSurveyData] Access granted for:",
-      isAdmin ? "admin " + req.userId : "technician " + req.technicianId
-    );
+    logger.info({ role: isAdmin ? "admin" : "technician" }, "[createSurveyData] access granted");
 
     // Check if survey already exists
     const existingSurvey = await SurveyData.findOne({ idKoneksiData: connectionDataId });
@@ -130,10 +123,7 @@ export const createSurveyData = async (req, res) => {
     connectionData.surveiId = surveyData._id;
     await connectionData.save();
 
-    console.log(
-      "[createSurveyData] Survey created successfully:",
-      surveyData._id
-    );
+    logger.info({ surveyId: surveyData._id }, "[createSurveyData] survey created");
 
     res.status(201).json({
       status: 201,
@@ -141,7 +131,7 @@ export const createSurveyData = async (req, res) => {
       data: surveyData,
     });
   } catch (error) {
-    console.error("[createSurveyData] Error:", error);
+    logger.error({ err: error }, "[createSurveyData] error");
     res.status(500).json({
       status: 500,
       message: error.message,
