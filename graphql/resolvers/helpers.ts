@@ -3,6 +3,7 @@ import AdminAccount from '../../models/AdminAccount.js';
 import Technician from '../../models/Technician.js';
 import Notification from '../../models/Notification.js';
 import AuditLog from '../../models/AuditLog.js';
+import AksesLog from '../../models/AksesLog.js';
 import logger from '../../utils/logger.js';
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -135,6 +136,77 @@ export async function notifikasiUntukPelanggan(
     });
   } catch (err) {
     logger.error({ err }, 'Gagal kirim notifikasi pelanggan');
+  }
+}
+
+// ─── Akses Log & Anomaly Detection ───────────────────────────────────────────
+
+/**
+ * Catat setiap akses ke dokumen kredensial (NIK, KK, IMB, RAB, Survei).
+ * Fire-and-forget — tidak menghambat response GraphQL jika gagal.
+ * Setelah catat, jalankan cek anomali: jika admin yang sama akses >20 dokumen dalam 10 menit,
+ * kirim notifikasi peringatan ke semua admin lain.
+ */
+export async function catatAksesLog({
+  token,
+  req,
+  jenisDokumen,
+  idPemilik,
+  namaOperasi,
+}: {
+  token?: string;
+  req?: any;
+  jenisDokumen: string;
+  idPemilik: string;
+  namaOperasi: string;
+}) {
+  try {
+    let namaAdmin = 'Tidak Diketahui';
+    let idAdmin = 'unknown';
+
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as any;
+        idAdmin = (decoded.id ?? decoded.userId ?? 'unknown').toString();
+        const admin = await AdminAccount.findById(idAdmin, 'namaLengkap');
+        if (admin) namaAdmin = admin.namaLengkap;
+      } catch (_) {}
+    }
+
+    const ipAddress = req?.ip ?? req?.headers?.['x-forwarded-for'] ?? 'unknown';
+    const userAgent = req?.headers?.['user-agent'] ?? null;
+
+    await AksesLog.create({ idAdmin, namaAdmin, jenisDokumen, idPemilik, namaOperasi, ipAddress, userAgent });
+
+    // Deteksi anomali: >20 akses dokumen dalam 10 menit oleh admin yang sama
+    const batasWaktu = new Date(Date.now() - 10 * 60 * 1000);
+    const jumlahAkses = await AksesLog.countDocuments({ idAdmin, createdAt: { $gte: batasWaktu } });
+    if (jumlahAkses > 20) {
+      // Hanya kirim notif sekali setiap 10 menit (cek apakah sudah ada notif yang sama)
+      const sudahAda = await AuditLog.findOne({
+        idAdmin,
+        aksi: 'ANOMALY_ALERT',
+        createdAt: { $gte: batasWaktu },
+      });
+      if (!sudahAda) {
+        await AuditLog.create({
+          idAdmin,
+          namaAdmin,
+          aksi: 'ANOMALY_ALERT',
+          resource: 'DOKUMEN_KREDENSIAL',
+          catatan: `Akses tidak biasa: ${jumlahAkses} dokumen diakses dalam 10 menit terakhir dari IP ${ipAddress}`,
+        });
+        await notifikasiSemuaAdmin(
+          '⚠️ Peringatan Keamanan: Akses Dokumen Tidak Normal',
+          `Admin "${namaAdmin}" mengakses ${jumlahAkses} dokumen kredensial dalam 10 menit terakhir (IP: ${ipAddress}). Harap verifikasi.`,
+          'PERINGATAN',
+          '/system/audit-logs',
+        );
+        logger.warn({ idAdmin, namaAdmin, jumlahAkses, ipAddress }, 'ANOMALY: akses dokumen berlebihan terdeteksi');
+      }
+    }
+  } catch (err) {
+    logger.error({ err }, 'Gagal mencatat akses log');
   }
 }
 

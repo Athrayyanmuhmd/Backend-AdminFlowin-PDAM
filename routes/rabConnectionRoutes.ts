@@ -15,7 +15,7 @@ import { verifyToken } from "../middleware/auth.js";
 import { verifyAdmin } from "../middleware/adminAuth.js";
 import { verifyTechnician } from "../middleware/technicianAuth.js";
 import { verifyAdminOrTechnician } from "../middleware/adminOrTechnicianAuth.js";
-import { uploadRabFile } from "../middleware/upload.js";
+import { uploadRabFile, validateMagicBytes } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -25,8 +25,8 @@ router.post("/:rabId/pay", verifyToken, createRabPayment); // Endpoint baru untu
 router.put("/:id/payment", verifyToken, updateRabPaymentStatus);
 
 // Admin or Technician routes (create/update)
-router.post("/", verifyAdminOrTechnician, uploadRabFile, createRabConnection);
-router.put("/:id", verifyAdminOrTechnician, uploadRabFile, updateRabConnection);
+router.post("/", verifyAdminOrTechnician, uploadRabFile, validateMagicBytes, createRabConnection);
+router.put("/:id", verifyAdminOrTechnician, uploadRabFile, validateMagicBytes, updateRabConnection);
 
 // Admin & Technician routes (read access)
 router.get("/", verifyAdminOrTechnician, getAllRabConnections);

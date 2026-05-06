@@ -2,6 +2,7 @@
 import ConnectionData from "../models/ConnectionData.js";
 import User from "../models/User.js";
 import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { computeFileHash } from "../middleware/upload.js";
 
 // Create Connection Data (User)
 export const createConnectionData = async (req, res) => {
@@ -51,6 +52,11 @@ export const createConnectionData = async (req, res) => {
       });
     }
 
+    // Hitung SHA-256 sebelum upload — fingerprint isi file asli sebelum dikonversi Cloudinary
+    const nikHash  = computeFileHash(req.files.nikFile[0].buffer);
+    const kkHash   = computeFileHash(req.files.kkFile[0].buffer);
+    const imbHash  = computeFileHash(req.files.imbFile[0].buffer);
+
     // Upload PDF/image files to Cloudinary
     const nikUrl = await uploadPdfAsImage(
       req.files.nikFile[0].buffer,
@@ -72,13 +78,16 @@ export const createConnectionData = async (req, res) => {
       userId,
       nik,
       nikUrl,
+      nikHash,
       noKK,
       kkUrl,
+      kkHash,
       alamat,
       kecamatan,
       kelurahan,
       noImb,
       imbUrl,
+      imbHash,
       luasBangunan: parseInt(luasBangunan),
     });
 

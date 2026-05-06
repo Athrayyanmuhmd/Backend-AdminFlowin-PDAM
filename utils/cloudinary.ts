@@ -13,9 +13,50 @@ cloudinary.config({
 });
 
 /**
- * Upload PDF or image to Cloudinary.
- * For PDFs: converts first page to image using pdf.js
- * For images: optimizes directly with sharp
+ * Tambahkan watermark "RAHASIA - PERUMDAM TIRTA DAROY" ke gambar.
+ * Watermark semi-transparan diagonal — terlihat jika dicetak/screenshot, namun tidak mengganggu keterbacaan dokumen.
+ * Dipanggil sebelum upload ke Cloudinary untuk semua dokumen kredensial pelanggan.
+ */
+async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
+  const metadata = await sharp(imageBuffer).metadata();
+  const w = metadata.width || 1000;
+  const h = metadata.height || 1400;
+
+  // Teks watermark: baris 1 identitas organisasi, baris 2 label rahasia, baris 3 timestamp upload
+  const fontSize = Math.max(28, Math.round(w * 0.04));
+  const lineGap = Math.round(fontSize * 1.6);
+  const cx = w / 2;
+  const cy = h / 2;
+  const uploadDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const svgWatermark = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+      <style>
+        text {
+          font-family: Arial, sans-serif;
+          font-weight: bold;
+          fill: rgba(160, 0, 0, 0.13);
+          text-anchor: middle;
+        }
+      </style>
+      <g transform="rotate(-35, ${cx}, ${cy})">
+        <text x="${cx}" y="${cy - lineGap}" font-size="${fontSize * 1.2}">DOKUMEN RAHASIA</text>
+        <text x="${cx}" y="${cy}" font-size="${fontSize}">PERUMDAM TIRTA DAROY</text>
+        <text x="${cx}" y="${cy + lineGap}" font-size="${Math.round(fontSize * 0.75)}">Diunggah: ${uploadDate}</text>
+      </g>
+    </svg>
+  `;
+
+  return sharp(imageBuffer)
+    .composite([{ input: Buffer.from(svgWatermark), blend: 'over' }])
+    .jpeg({ quality: 90 })
+    .toBuffer();
+}
+
+/**
+ * Upload PDF or image to Cloudinary dengan watermark otomatis.
+ * PDF → konversi halaman 1 ke JPEG → watermark → Cloudinary
+ * Image → resize → watermark → Cloudinary
  */
 export const uploadPdfAsImage = async (
   fileBuffer: Buffer,
@@ -26,7 +67,6 @@ export const uploadPdfAsImage = async (
     let imageBuffer: Buffer;
 
     if (mimetype === 'application/pdf') {
-      console.log('📄 Converting PDF to image...');
       try {
         const loadingTask = (getDocument as any)({
           data: new Uint8Array(fileBuffer),
@@ -44,28 +84,26 @@ export const uploadPdfAsImage = async (
           .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 90 })
           .toBuffer();
-        console.log('✅ PDF converted to image successfully');
       } catch (pdfError: any) {
-        console.error('❌ Error converting PDF:', pdfError);
         throw new Error(`Failed to convert PDF: ${pdfError.message}`);
       }
     } else {
-      console.log('🖼️ Optimizing image file...');
       imageBuffer = await sharp(fileBuffer)
         .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
         .jpeg({ quality: 85 })
         .toBuffer();
     }
 
+    // Terapkan watermark ke semua dokumen kredensial
+    imageBuffer = await applyWatermark(imageBuffer);
+
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder, resource_type: 'image', format: 'jpg' },
         (error, result) => {
           if (error || !result) {
-            console.error('❌ Cloudinary upload error:', error);
             reject(new Error(`Failed to upload file: ${error?.message}`));
           } else {
-            console.log('✅ Image uploaded to Cloudinary:', result.secure_url);
             resolve(result.secure_url);
           }
         }
@@ -79,7 +117,7 @@ export const uploadPdfAsImage = async (
 };
 
 /**
- * Upload file to Cloudinary from buffer (raw/PDF mode)
+ * Upload file to Cloudinary from buffer (raw/PDF mode — tanpa watermark, untuk RAB)
  */
 export const uploadToCloudinary = async (
   fileBuffer: Buffer,
@@ -90,12 +128,10 @@ export const uploadToCloudinary = async (
       { folder, resource_type: 'raw', format: 'pdf', access_mode: 'public' },
       (error, result) => {
         if (error || !result) {
-          console.error('❌ Cloudinary upload error:', error);
           reject(new Error(`Failed to upload file: ${error?.message}`));
         } else {
           let secureUrl = result.secure_url;
           if (!secureUrl.endsWith('.pdf')) secureUrl = `${secureUrl}.pdf`;
-          console.log('✅ File uploaded to Cloudinary:', secureUrl);
           resolve(secureUrl);
         }
       }

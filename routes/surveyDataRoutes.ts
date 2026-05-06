@@ -11,13 +11,13 @@ import {
 import { verifyAdmin } from "../middleware/adminAuth.js";
 import { verifyTechnician } from "../middleware/technicianAuth.js";
 import { verifyAdminOrTechnician } from "../middleware/adminOrTechnicianAuth.js";
-import { uploadSurveyDataFiles } from "../middleware/upload.js";
+import { uploadSurveyDataFiles, validateMagicBytes } from "../middleware/upload.js";
 
 const router = express.Router();
 
 // Admin or Technician routes (create/update)
-router.post("/", verifyAdminOrTechnician, uploadSurveyDataFiles, createSurveyData);
-router.put("/:id", verifyAdminOrTechnician, uploadSurveyDataFiles, updateSurveyData);
+router.post("/", verifyAdminOrTechnician, uploadSurveyDataFiles, validateMagicBytes, createSurveyData);
+router.put("/:id", verifyAdminOrTechnician, uploadSurveyDataFiles, validateMagicBytes, updateSurveyData);
 
 // Admin & Technician routes (read access)
 router.get("/", verifyAdminOrTechnician, getAllSurveyData);

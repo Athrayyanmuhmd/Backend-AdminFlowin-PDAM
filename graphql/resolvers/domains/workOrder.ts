@@ -2,7 +2,7 @@
 // Admin menggunakan x-api-key (INTERNAL_API_SECRET) + x-signature — otomatis ditambahkan oleh teknisiGraphQL
 
 import { teknisiGraphQL } from '../../../utils/teknisiClient.js';
-import { verifyAdminToken, notifikasiUntukPelanggan } from '../helpers.js';
+import { verifyAdminToken, catatAksesLog, notifikasiUntukPelanggan } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 import RabConnection from '../../../models/RabConnection.js';
 import ConnectionData from '../../../models/ConnectionData.js';

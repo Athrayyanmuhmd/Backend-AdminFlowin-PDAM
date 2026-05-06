@@ -2,6 +2,7 @@
 import SurveyData from "../models/SurveyData.js";
 import ConnectionData from "../models/ConnectionData.js";
 import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { computeFileHash } from "../middleware/upload.js";
 
 // Create Survey Data (Technician)
 export const createSurveyData = async (req, res) => {
@@ -82,6 +83,11 @@ export const createSurveyData = async (req, res) => {
       });
     }
 
+    // Hitung SHA-256 sebelum upload ke Cloudinary
+    const jaringanHash     = computeFileHash(req.files.jaringanFile[0].buffer);
+    const posisiBakHash    = computeFileHash(req.files.posisiBakFile[0].buffer);
+    const posisiMeteranHash = computeFileHash(req.files.posisiMeteranFile[0].buffer);
+
     // Upload PDF/image files to Cloudinary
     const jaringanUrl = await uploadPdfAsImage(
       req.files.jaringanFile[0].buffer,
@@ -103,9 +109,12 @@ export const createSurveyData = async (req, res) => {
       idKoneksiData: connectionDataId,
       idTeknisi: req.technicianId || connectionData.assignedTechnicianId || null,
       urlJaringan: jaringanUrl,
+      jaringanHash,
       diameterPipa: parseInt(diameterPipa),
       urlPosisiBak: posisiBakUrl,
+      posisiBakHash,
       posisiMeteran: posisiMeteranUrl,
+      posisiMeteranHash,
       jumlahPenghuni: String(jumlahPenghuni),
       koordinat: {
         latitude: parseFloat(koordinatLat),

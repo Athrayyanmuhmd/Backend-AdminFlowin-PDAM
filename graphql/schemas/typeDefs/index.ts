@@ -13,6 +13,7 @@ import { notifikasiTypeDefs } from './notifikasi.js';
 import { pemasanganTypeDefs } from './pemasangan.js';
 import { dashboardTypeDefs } from './dashboard.js';
 import { monitoringTypeDefs } from './monitoring.js';
+import { aksesLogTypeDefs } from './aksesLog.js';
 
 // Apollo Server accepts an array of DocumentNode — it merges them automatically.
 // All domain files use `extend type Query` / `extend type Mutation`
@@ -33,4 +34,5 @@ export const typeDefs = [
   pemasanganTypeDefs,
   dashboardTypeDefs,
   monitoringTypeDefs,
+  aksesLogTypeDefs,
 ];

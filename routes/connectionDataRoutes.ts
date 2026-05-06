@@ -17,12 +17,12 @@ import { verifyToken } from "../middleware/auth.js";
 import { verifyAdmin } from "../middleware/adminAuth.js";
 import { verifyTechnician } from "../middleware/technicianAuth.js";
 import { verifyAdminOrTechnician } from "../middleware/adminOrTechnicianAuth.js";
-import { uploadConnectionDataFiles } from "../middleware/upload.js";
+import { uploadConnectionDataFiles, validateMagicBytes } from "../middleware/upload.js";
 
 const router = express.Router();
 
 // User routes
-router.post("/", verifyToken, uploadConnectionDataFiles, createConnectionData);
+router.post("/", verifyToken, uploadConnectionDataFiles, validateMagicBytes, createConnectionData);
 router.get("/my-connection", verifyToken, getConnectionDataByUser);
 
 // Admin & Technician routes (read access)
@@ -38,6 +38,7 @@ router.put(
   "/:id",
   verifyAdmin,
   uploadConnectionDataFiles,
+  validateMagicBytes,
   updateConnectionData
 );
 router.delete("/:id", verifyAdmin, deleteConnectionData);

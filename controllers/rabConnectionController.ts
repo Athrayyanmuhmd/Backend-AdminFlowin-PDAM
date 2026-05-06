@@ -2,6 +2,7 @@
 import RabConnection from "../models/RabConnection.js";
 import ConnectionData from "../models/ConnectionData.js";
 import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { computeFileHash } from "../middleware/upload.js";
 import midtransClient from "../middleware/midtrans.js";
 
 // Create RAB Connection (Technician)
@@ -48,6 +49,9 @@ export const createRabConnection = async (req, res) => {
       });
     }
 
+    // Hitung SHA-256 sebelum upload ke Cloudinary
+    const rabHash = computeFileHash(req.file.buffer);
+
     // Upload RAB document to Cloudinary
     const rabUrl = await uploadPdfAsImage(
       req.file.buffer,
@@ -59,6 +63,7 @@ export const createRabConnection = async (req, res) => {
       idKoneksiData: connectionDataId,
       totalBiaya: parseInt(totalBiaya),
       urlRab: rabUrl,
+      rabHash,
       catatan: catatan || "",
     });
 
