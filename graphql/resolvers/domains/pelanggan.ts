@@ -21,7 +21,27 @@ export const pelangganResolvers = {
     getAllPengguna: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
-      return users.map(u => ({ ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null }));
+
+      // Batch-populate address dari ConnectionData untuk user yang address-nya kosong
+      // Mencegah tampilan "—" di list pelanggan untuk pelanggan yang didaftarkan via admin
+      const missingIds = users.filter(u => !u.address).map(u => u._id);
+      const alamatMap = new Map<string, string>();
+      if (missingIds.length > 0) {
+        const koneksiList = await ConnectionData.find(
+          { IdPelanggan: { $in: missingIds } },
+          'IdPelanggan Alamat'
+        ).sort({ createdAt: -1 }).lean();
+        koneksiList.forEach((k: any) => {
+          const key = k.IdPelanggan?.toString();
+          if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
+        });
+      }
+
+      return users.map(u => {
+        const obj = { ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
+        if (!obj.address) obj.address = alamatMap.get(u._id.toString()) ?? null;
+        return obj;
+      });
     },
 
     searchPengguna: async (_, { search }, { token }: GraphQLContext) => {
@@ -33,7 +53,26 @@ export const pelangganResolvers = {
           { noHP: { $regex: search, $options: 'i' } },
         ],
       }).sort({ createdAt: -1 });
-      return users.map(u => ({ ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null }));
+
+      // Batch-populate address dari ConnectionData (sama dengan getAllPengguna)
+      const missingIds = users.filter(u => !u.address).map(u => u._id);
+      const alamatMap = new Map<string, string>();
+      if (missingIds.length > 0) {
+        const koneksiList = await ConnectionData.find(
+          { IdPelanggan: { $in: missingIds } },
+          'IdPelanggan Alamat'
+        ).sort({ createdAt: -1 }).lean();
+        koneksiList.forEach((k: any) => {
+          const key = k.IdPelanggan?.toString();
+          if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
+        });
+      }
+
+      return users.map(u => {
+        const obj = { ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
+        if (!obj.address) obj.address = alamatMap.get(u._id.toString()) ?? null;
+        return obj;
+      });
     },
   },
 
