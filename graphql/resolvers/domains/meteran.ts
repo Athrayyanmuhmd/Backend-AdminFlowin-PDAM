@@ -6,7 +6,7 @@ import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
 // PemakaianHarian dihapus — Opsi A: query langsung ke HistoryUsage (riwayatpenggunaans)
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
-import { verifyAdminToken, catatAuditLog } from '../helpers.js';
+import { verifyAdminToken, /* catatAuditLog */ } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
@@ -173,13 +173,14 @@ export const meteranResolvers = {
         IdKoneksiData: IdKoneksiData || null,
       });
       await meteran.save();
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_CREATE',
         resource: 'Meteran',
         resourceId: meteran._id,
         nilaiAfter: { NomorMeteran, NomorAkun, IdKoneksiData },
-      });
+      }); */
       return await Meteran.findById(meteran._id)
         .populate('IdKelompokPelanggan')
         .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } });
@@ -200,13 +201,14 @@ export const meteranResolvers = {
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const activeBilling = await Billing.findOne({ IdMeteran: id, StatusPembayaran: { $in: ['pending'] } });
       if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_DELETE',
         resource: 'Meteran',
         resourceId: id,
         nilaiBefore: { NomorMeteran: (meteran as any).NomorMeteran, NomorAkun: (meteran as any).NomorAkun },
-      });
+      }); */
       await Meteran.findByIdAndDelete(id);
       return { success: true, message: 'Meteran berhasil dihapus' };
     },

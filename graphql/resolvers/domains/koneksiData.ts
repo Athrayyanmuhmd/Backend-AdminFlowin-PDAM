@@ -9,7 +9,7 @@ import PengawasanPemasangan from '../../../models/PengawasanPemasangan.js';
 import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasangan.js';
 import { teknisiGraphQL } from '../../../utils/teknisiClient.js';
 import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
-import { verifyAdminToken, catatAuditLog, catatAksesLog, notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
+import { verifyAdminToken, /* catatAuditLog, catatAksesLog, */ notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const koneksiDataResolvers = {
@@ -18,8 +18,8 @@ export const koneksiDataResolvers = {
       verifyAdminToken(token);
       const data = await KoneksiData.findById(id).populate('IdPelanggan');
       if (data) {
-        // Catat akses ke dokumen kredensial (NIK, KK, IMB)
-        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
+        // [akseslog nonaktif — uncomment untuk mengaktifkan kembali]
+        // catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
       }
       return data;
     },
@@ -30,7 +30,7 @@ export const koneksiDataResolvers = {
         .sort({ createdAt: -1 })
         .populate('IdPelanggan');
       if (data) {
-        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: String(data._id), namaOperasi: 'getKoneksiDataByPelanggan' });
+        // catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: String(data._id), namaOperasi: 'getKoneksiDataByPelanggan' });
       }
       return data;
     },
@@ -205,6 +205,7 @@ export const koneksiDataResolvers = {
 
       const result = await KoneksiData.findByIdAndUpdate(id, updateData, { new: true })
         .populate('IdPelanggan');
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'KONEKSI_VERIFY',
@@ -212,7 +213,7 @@ export const koneksiDataResolvers = {
         resourceId: id,
         nilaiBefore: { StatusPengajuan: before?.StatusPengajuan },
         nilaiAfter: { StatusPengajuan: status, AlasanPenolakan: alasanPenolakan },
-      });
+      }); */
 
       // Kirim notifikasi ke pelanggan — dibaca oleh Ahmad's user app
       const pelangganId = (result?.IdPelanggan as any)?._id?.toString()

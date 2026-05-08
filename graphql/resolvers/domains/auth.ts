@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import AdminAccount from '../../../models/AdminAccount.js';
 import Technician from '../../../models/Technician.js';
 import logger from '../../../utils/logger.js';
-import { verifyAdminToken, catatAuditLog, validateEmail, validatePassword, validatePhone } from '../helpers.js';
+import { verifyAdminToken, /* catatAuditLog, */ validateEmail, validatePassword, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const authResolvers = {
@@ -64,13 +64,14 @@ export const authResolvers = {
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({ ...input, password: hashedPassword });
       const saved = await admin.save();
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_CREATE',
         resource: 'Admin',
         resourceId: saved._id,
         nilaiAfter: { NIP: input.NIP, namaLengkap: input.namaLengkap, email: input.email },
-      });
+      }); */
       return saved;
     },
 
@@ -78,13 +79,14 @@ export const authResolvers = {
       verifyAdminToken(token);
       if (input.password) input.password = await bcrypt.hash(input.password, 10);
       const updated = await AdminAccount.findByIdAndUpdate(id, input, { new: true });
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_UPDATE',
         resource: 'Admin',
         resourceId: id,
         nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email },
-      });
+      }); */
       return updated;
     },
 
@@ -92,13 +94,14 @@ export const authResolvers = {
       verifyAdminToken(token);
       const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
+      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_DELETE',
         resource: 'Admin',
         resourceId: id,
         nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email } : null,
-      });
+      }); */
       return { success: true, message: 'Admin berhasil dihapus' };
     },
 
