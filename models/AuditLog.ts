@@ -24,7 +24,10 @@ const AuditLogSchema = new Schema<IAuditLog>(
     nilaiAfter: { type: Schema.Types.Mixed, default: null },
     catatan: { type: String, default: null },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    autoIndex: false, // nonaktif — jangan buat collection otomatis saat server start
+  }
 );
 
 AuditLogSchema.index({ createdAt: -1 });

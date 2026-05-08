@@ -31,6 +31,7 @@ const AksesLogSchema = new Schema<IAksesLog>(
   {
     timestamps: { createdAt: true, updatedAt: false },
     collection: 'akseslogs',
+    autoIndex: false, // nonaktif — jangan buat collection otomatis saat server start
   }
 );
 
