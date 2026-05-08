@@ -5,7 +5,6 @@ import KelompokPelanggan from "../models/KelompokPelanggan.js";
 import HistoryUsage from "../models/HistoryUsage.js";
 import Notification from "../models/Notification.js";
 import User from "../models/User.js";
-import Transaction from "../models/Transaction.js";
 import midtransClient from "../middleware/midtrans.js";
 import crypto from "crypto";
 
@@ -759,19 +758,6 @@ export const createPayment = async (req, res) => {
     // Create Snap transaction
     const transaction = await midtransClient.createTransaction(parameter);
 
-    // Save transaction to database
-    const newTransaction = new Transaction({
-      userId: billing.userId._id,
-      billingId: billing._id,
-      orderId: orderId,
-      grossAmount: grossAmount,
-      status: "pending",
-      snapToken: transaction.token,
-      snapRedirectUrl: transaction.redirect_url,
-    });
-
-    await newTransaction.save();
-
     res.status(201).json({
       status: 201,
       pesan: "Payment link berhasil dibuat",
@@ -900,20 +886,6 @@ export const createPaymentForAllBills = async (req, res) => {
 
     // Create Snap transaction
     const transaction = await midtransClient.createTransaction(parameter);
-
-    // Save transaction to database (use first billing ID as reference)
-    const newTransaction = new Transaction({
-      userId: userId,
-      billingId: unpaidBillings[0]._id, // Reference to first billing
-      orderId: orderId,
-      grossAmount: grossAmount,
-      status: "pending",
-      snapToken: transaction.token,
-      snapRedirectUrl: transaction.redirect_url,
-      catatan: `Pembayaran ${unpaidBillings.length} tagihan sekaligus`,
-    });
-
-    await newTransaction.save();
 
     res.status(201).json({
       status: 201,
