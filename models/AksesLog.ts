@@ -10,9 +10,11 @@ export interface IAksesLog {
   namaAdmin: string;         // nama admin untuk kemudahan audit tanpa join
   jenisDokumen: string;      // 'NIK' | 'KK' | 'IMB' | 'RAB' | 'SURVEI' | 'MULTIPLE'
   idPemilik: string;         // _id KoneksiData atau dokumen yang diakses
-  namaOperasi: string;       // nama GraphQL operation (getKoneksiData, getWorkOrder, dll)
+  namaOperasi: string;       // nama GraphQL operation atau 'DOCUMENT_PROXY'
   ipAddress: string;
   userAgent?: string | null;
+  fingerprintHash?: string | null;  // canary hash untuk investigasi kebocoran
+  urlDokumen?: string | null;       // URL Cloudinary yang diakses
   createdAt?: Date;
 }
 
@@ -25,8 +27,10 @@ const AksesLogSchema = new Schema<IAksesLog>(
     jenisDokumen:  { type: String, required: true },
     idPemilik:     { type: String, required: true },
     namaOperasi:   { type: String, required: true },
-    ipAddress:     { type: String, required: true },
-    userAgent:     { type: String, default: null },
+    ipAddress:        { type: String, required: true },
+    userAgent:        { type: String, default: null },
+    fingerprintHash:  { type: String, default: null, index: true },
+    urlDokumen:       { type: String, default: null },
   },
   {
     timestamps: { createdAt: true, updatedAt: false },

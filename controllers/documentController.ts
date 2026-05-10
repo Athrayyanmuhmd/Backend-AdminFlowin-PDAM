@@ -1,78 +1,223 @@
-// @ts-nocheck — legacy REST controller, phase-out menuju GraphQL
-import { v2 as cloudinary } from "cloudinary";
-import axios from "axios";
-import logger from "../utils/logger.js";
+import { Request, Response } from 'express';
+import axios from 'axios';
+import multer from 'multer';
+import AksesLog from '../models/AksesLog.js';
+import logger from '../utils/logger.js';
+import { generateFingerprintHash, applyCanary, decodeCanary } from '../utils/canary.js';
 
-// Proxy endpoint to serve documents with authentication
-export const getDocumentProxy = async (req, res) => {
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+// Bisa dimatikan via .env tanpa perlu deploy ulang (hanya restart)
+const PROXY_ENABLED   = () => process.env.PROXY_DOCUMENT_ENABLED  !== 'false';
+const CANARY_ENABLED  = () => process.env.CANARY_DOCUMENT_ENABLED !== 'false';
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getAdminFromReq(req: Request): { id: string; nama: string } {
+  const admin = (req as any).admin;
+  const user  = (req as any).user;
+  return {
+    id:   (admin?._id ?? admin?.id ?? user?.id ?? 'unknown').toString(),
+    nama: admin?.namaLengkap ?? user?.email ?? 'unknown',
+  };
+}
+
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  return req.ip ?? 'unknown';
+}
+
+function detectMimetype(url: string, headers: Record<string, string>): string {
+  const ct = headers['content-type'] ?? '';
+  if (ct.includes('pdf') || url.toLowerCase().endsWith('.pdf')) return 'application/pdf';
+  if (ct.includes('jpeg') || ct.includes('jpg')) return 'image/jpeg';
+  if (ct.includes('png')) return 'image/png';
+  return ct || 'application/octet-stream';
+}
+
+async function logAccess(params: {
+  req: Request;
+  adminId: string;
+  namaAdmin: string;
+  jenisDokumen: string;
+  idPemilik: string;
+  urlDokumen: string;
+  fingerprintHash: string | null;
+}): Promise<void> {
   try {
-    const { url } = req.query;
+    await AksesLog.create({
+      idAdmin:         params.adminId,
+      namaAdmin:       params.namaAdmin,
+      jenisDokumen:    params.jenisDokumen,
+      idPemilik:       params.idPemilik,
+      namaOperasi:     'DOCUMENT_PROXY',
+      ipAddress:       getClientIp(params.req),
+      userAgent:       params.req.headers['user-agent'] ?? null,
+      fingerprintHash: params.fingerprintHash,
+      urlDokumen:      params.urlDokumen,
+    });
+  } catch (err) {
+    // Log error tetapi jangan gagalkan request utama
+    logger.warn({ err }, 'Gagal menyimpan AksesLog dokumen');
+  }
+}
 
-    if (!url) {
-      return res.status(400).json({
-        status: 400,
-        pesan: "Document URL is required",
-      });
-    }
+// ─── Endpoint: View Document ──────────────────────────────────────────────────
 
-    // Validate URL is from Cloudinary
-    if (!url.includes("cloudinary.com")) {
-      return res.status(400).json({
-        status: 400,
-        pesan: "Invalid document URL",
-      });
-    }
+/**
+ * GET /documents/view?url=<cloudinaryUrl>&docType=<type>&ownerId=<id>
+ *
+ * Feature flags:
+ *   PROXY_DOCUMENT_ENABLED=false  → redirect langsung ke Cloudinary URL (bypass proxy)
+ *   CANARY_DOCUMENT_ENABLED=false → proxy aktif, tapi tanpa fingerprint (log tetap jalan)
+ *
+ * Alur normal:
+ *   1. Verifikasi JWT admin (dilakukan di middleware sebelum controller ini)
+ *   2. Fetch file dari Cloudinary
+ *   3. Generate fingerprint hash unik per admin per akses
+ *   4. Sisipkan canary ke dalam file
+ *   5. Simpan ke AksesLog
+ *   6. Stream file ke client
+ */
+export const viewDocument = async (req: Request, res: Response): Promise<void> => {
+  const { url, docType = 'UNKNOWN', ownerId = 'unknown' } = req.query as Record<string, string>;
 
-    // Ensure URL has .pdf extension
-    let processedUrl = url;
-    if (!url.endsWith(".pdf")) {
-      processedUrl = `${url}.pdf`;
-    }
+  if (!url) {
+    res.status(400).json({ status: 400, pesan: 'Parameter url wajib diisi.' });
+    return;
+  }
 
-    // Fetch document from Cloudinary
-    const response = await axios.get(processedUrl, {
-      responseType: "stream",
-      timeout: 30000,
+  if (!url.includes('cloudinary.com')) {
+    res.status(400).json({ status: 400, pesan: 'URL tidak valid — hanya Cloudinary yang diizinkan.' });
+    return;
+  }
+
+  // Feature flag: proxy dimatikan → redirect langsung
+  if (!PROXY_ENABLED()) {
+    res.redirect(302, url);
+    return;
+  }
+
+  const { id: adminId, nama: namaAdmin } = getAdminFromReq(req);
+
+  try {
+    // Fetch file dari Cloudinary sebagai buffer
+    const response = await axios.get<Buffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 30_000,
     });
 
-    // Set response headers
-    res.setHeader(
-      "Content-Type",
-      response.headers["content-type"] || "application/pdf"
-    );
-    if (response.headers["content-length"]) {
-      res.setHeader("Content-Length", response.headers["content-length"]);
+    const rawBuffer: Buffer = Buffer.from(new Uint8Array(response.data));
+    const mimetype  = detectMimetype(url, response.headers as Record<string, string>);
+
+    // Canary: generate fingerprint dan sisipkan ke file
+    let fingerprintHash: string | null = null;
+    let fileBuffer: Buffer = rawBuffer;
+
+    if (CANARY_ENABLED()) {
+      fingerprintHash = generateFingerprintHash(adminId, url);
+      try {
+        fileBuffer = Buffer.from(await applyCanary(rawBuffer, mimetype, fingerprintHash));
+      } catch (canaryErr) {
+        // Canary gagal → tetap sajikan file asli, jangan gagalkan request
+        logger.warn({ err: canaryErr }, 'Canary encoding gagal, melayani file asli');
+        fileBuffer = rawBuffer;
+        fingerprintHash = null;
+      }
     }
-    res.setHeader("Content-Disposition", "inline");
-    // private: hanya browser peminta yang boleh cache — tidak CDN/proxy publik
-    // no-store: dokumen sensitif tidak boleh tersimpan di disk cache browser
-    res.setHeader("Cache-Control", "private, no-store");
-    // Hapus manual CORS header — biarkan CORS middleware server.ts yang mengatur
-    // (middleware sudah dikonfigurasi hanya izinkan origin admin panel)
 
-    // Stream the document to client
-    response.data.pipe(res);
-  } catch (error) {
-    logger.error({ err: error }, "Error proxying document");
+    // Log akses (fire-and-forget — tidak blokir response)
+    logAccess({ req, adminId, namaAdmin, jenisDokumen: docType, idPemilik: ownerId, urlDokumen: url, fingerprintHash });
 
-    if (error.response?.status === 401) {
-      return res.status(401).json({
-        status: 401,
-        pesan: "Unauthorized access to document from Cloudinary",
+    // Stream ke client
+    res.setHeader('Content-Type', mimetype);
+    res.setHeader('Content-Length', fileBuffer.length);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.end(fileBuffer);
+
+  } catch (err: any) {
+    logger.error({ err }, 'Error saat proxy dokumen');
+    const status = err.response?.status ?? 500;
+    if (status === 404) {
+      res.status(404).json({ status: 404, pesan: 'Dokumen tidak ditemukan di Cloudinary.' });
+    } else {
+      res.status(500).json({ status: 500, pesan: 'Gagal mengambil dokumen.' });
+    }
+  }
+};
+
+// ─── Endpoint: Investigate (Fase 5) ──────────────────────────────────────────
+
+// Multer: hanya terima file di memory, max 10MB
+export const uploadForInvestigation = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+    cb(null, allowed.includes(file.mimetype));
+  },
+}).single('file');
+
+/**
+ * POST /documents/investigate
+ * Body: multipart/form-data { file: <pdf atau gambar yang dicurigai bocor> }
+ *
+ * Response:
+ *   - Jika fingerprint ditemukan dan ada di AksesLog → return info admin yang bocorkan
+ *   - Jika fingerprint ditemukan tapi tidak di log → hash ada tapi log hilang/di-manipulasi
+ *   - Jika tidak ada fingerprint → bukan file dari sistem kita
+ */
+export const investigateDocument = async (req: Request, res: Response): Promise<void> => {
+  if (!req.file) {
+    res.status(400).json({ status: 400, pesan: 'File wajib diunggah untuk investigasi.' });
+    return;
+  }
+
+  try {
+    const fingerprintHash = await decodeCanary(req.file.buffer);
+
+    if (!fingerprintHash) {
+      res.json({
+        status: 'not_found',
+        pesan: 'Tidak ada canary fingerprint di file ini. Kemungkinan bukan dokumen dari sistem Aqualink, atau file sudah dimodifikasi.',
+        fingerprintHash: null,
+        aksesLog: null,
       });
+      return;
     }
 
-    if (error.response?.status === 404) {
-      return res.status(404).json({
-        status: 404,
-        pesan: "Document not found in Cloudinary",
+    // Cari di AksesLog
+    const log = await AksesLog.findOne({ fingerprintHash }).lean();
+
+    if (!log) {
+      res.json({
+        status: 'hash_found_no_log',
+        pesan: 'Fingerprint ditemukan di file, tapi tidak ada di AksesLog. Log mungkin telah dihapus atau dimanipulasi.',
+        fingerprintHash,
+        aksesLog: null,
       });
+      return;
     }
 
-    return res.status(500).json({
-      status: 500,
-      pesan: "Failed to retrieve document",
-      error: error.message,
+    res.json({
+      status: 'identified',
+      pesan: `Dokumen ini pernah diakses oleh ${log.namaAdmin} dan kemungkinan adalah sumber kebocoran.`,
+      fingerprintHash,
+      aksesLog: {
+        idAdmin:      log.idAdmin,
+        namaAdmin:    log.namaAdmin,
+        jenisDokumen: log.jenisDokumen,
+        idPemilik:    log.idPemilik,
+        ipAddress:    log.ipAddress,
+        userAgent:    log.userAgent,
+        waktuAkses:   log.createdAt,
+        urlDokumen:   log.urlDokumen,
+      },
     });
+
+  } catch (err) {
+    logger.error({ err }, 'Error saat investigasi canary');
+    res.status(500).json({ status: 500, pesan: 'Gagal memproses file investigasi.' });
   }
 };
