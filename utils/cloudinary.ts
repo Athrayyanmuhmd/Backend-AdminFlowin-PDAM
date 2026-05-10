@@ -1,8 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { configDotenv } from 'dotenv';
 import sharp from 'sharp';
-import { createCanvas } from 'canvas';
-import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { PDFDocument, rgb, degrees } from 'pdf-lib';
 
 configDotenv();
 
@@ -12,40 +11,76 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// ─── Watermark Helpers ────────────────────────────────────────────────────────
+
 /**
- * Tambahkan watermark "RAHASIA - PERUMDAM TIRTA DAROY" ke gambar.
- * Watermark semi-transparan diagonal — terlihat jika dicetak/screenshot, namun tidak mengganggu keterbacaan dokumen.
- * Dipanggil sebelum upload ke Cloudinary untuk semua dokumen kredensial pelanggan.
+ * Embed diagonal watermark teks ke dalam PDF menggunakan pdf-lib.
+ * Tidak ada rendering ke canvas — PDF tetap vector/lossless.
  */
-async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
+async function applyPdfWatermark(pdfBuffer: Buffer): Promise<Buffer> {
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const uploadDate = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
+
+  for (const page of pdfDoc.getPages()) {
+    const { width, height } = page.getSize();
+    const cx = width / 2;
+    const cy = height / 2;
+    const fontSize = Math.max(18, Math.round(width * 0.04));
+
+    page.drawText('DOKUMEN RAHASIA', {
+      x: cx - 120, y: cy + fontSize * 1.6,
+      size: fontSize * 1.2,
+      color: rgb(0.6, 0, 0),
+      opacity: 0.12,
+      rotate: degrees(-35),
+    });
+    page.drawText('PERUMDAM TIRTA DAROY', {
+      x: cx - 120, y: cy,
+      size: fontSize,
+      color: rgb(0.6, 0, 0),
+      opacity: 0.12,
+      rotate: degrees(-35),
+    });
+    page.drawText(`Diunggah: ${uploadDate}`, {
+      x: cx - 80, y: cy - fontSize * 1.6,
+      size: fontSize * 0.75,
+      color: rgb(0.6, 0, 0),
+      opacity: 0.12,
+      rotate: degrees(-35),
+    });
+  }
+
+  return Buffer.from(await pdfDoc.save());
+}
+
+/**
+ * Embed diagonal watermark SVG ke dalam gambar menggunakan sharp.
+ */
+async function applyImageWatermark(imageBuffer: Buffer): Promise<Buffer> {
   const metadata = await sharp(imageBuffer).metadata();
   const w = metadata.width || 1000;
   const h = metadata.height || 1400;
-
-  // Teks watermark: baris 1 identitas organisasi, baris 2 label rahasia, baris 3 timestamp upload
   const fontSize = Math.max(28, Math.round(w * 0.04));
   const lineGap = Math.round(fontSize * 1.6);
   const cx = w / 2;
   const cy = h / 2;
-  const uploadDate = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+  const uploadDate = new Date().toLocaleDateString('id-ID', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  });
 
   const svgWatermark = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
       <style>
-        text {
-          font-family: Arial, sans-serif;
-          font-weight: bold;
-          fill: rgba(160, 0, 0, 0.13);
-          text-anchor: middle;
-        }
+        text { font-family: Arial, sans-serif; font-weight: bold; fill: rgba(160,0,0,0.13); text-anchor: middle; }
       </style>
       <g transform="rotate(-35, ${cx}, ${cy})">
         <text x="${cx}" y="${cy - lineGap}" font-size="${fontSize * 1.2}">DOKUMEN RAHASIA</text>
         <text x="${cx}" y="${cy}" font-size="${fontSize}">PERUMDAM TIRTA DAROY</text>
         <text x="${cx}" y="${cy + lineGap}" font-size="${Math.round(fontSize * 0.75)}">Diunggah: ${uploadDate}</text>
       </g>
-    </svg>
-  `;
+    </svg>`;
 
   return sharp(imageBuffer)
     .composite([{ input: Buffer.from(svgWatermark), blend: 'over' }])
@@ -53,95 +88,88 @@ async function applyWatermark(imageBuffer: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
+// ─── Upload Helpers ───────────────────────────────────────────────────────────
+
+function uploadStream(buffer: Buffer, options: object): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(options, (error, result) => {
+      if (error || !result) reject(new Error(error?.message ?? 'Upload failed'));
+      else resolve(result.secure_url);
+    });
+    stream.end(buffer);
+  });
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 /**
- * Upload PDF or image to Cloudinary dengan watermark otomatis.
- * PDF → konversi halaman 1 ke JPEG → watermark → Cloudinary
- * Image → resize → watermark → Cloudinary
+ * Upload dokumen (PDF atau gambar) ke Cloudinary dengan watermark otomatis.
+ *
+ * - PDF  → watermark via pdf-lib → upload raw (lossless, kualitas asli terjaga)
+ * - Image → resize → watermark via sharp → upload sebagai JPEG
+ *
+ * Gunakan fungsi ini untuk semua dokumen kredensial: NIK, KK, IMB, foto survei, RAB.
  */
-export const uploadPdfAsImage = async (
+export const uploadDocument = async (
   fileBuffer: Buffer,
   folder = 'aqualink',
   mimetype = 'application/pdf'
 ): Promise<string> => {
-  try {
-    let imageBuffer: Buffer;
-
-    if (mimetype === 'application/pdf') {
-      try {
-        const loadingTask = (getDocument as any)({
-          data: new Uint8Array(fileBuffer),
-          standardFontDataUrl: null,
-        });
-        const pdfDocument = await loadingTask.promise;
-        const page = await pdfDocument.getPage(1);
-        const scale = 2.0;
-        const viewport = page.getViewport({ scale });
-        const canvas = createCanvas(viewport.width, viewport.height);
-        const context = canvas.getContext('2d');
-        await page.render({ canvasContext: context, viewport }).promise;
-        const pngBuffer = canvas.toBuffer('image/png');
-        imageBuffer = await sharp(pngBuffer)
-          .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
-          .jpeg({ quality: 90 })
-          .toBuffer();
-      } catch (pdfError: any) {
-        throw new Error(`Failed to convert PDF: ${pdfError.message}`);
-      }
-    } else {
-      imageBuffer = await sharp(fileBuffer)
-        .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer();
-    }
-
-    // Terapkan watermark ke semua dokumen kredensial
-    imageBuffer = await applyWatermark(imageBuffer);
-
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'image', format: 'jpg' },
-        (error, result) => {
-          if (error || !result) {
-            reject(new Error(`Failed to upload file: ${error?.message}`));
-          } else {
-            resolve(result.secure_url);
-          }
-        }
-      );
-      uploadStream.end(imageBuffer);
+  if (mimetype === 'application/pdf') {
+    const watermarked = await applyPdfWatermark(fileBuffer);
+    const url = await uploadStream(watermarked, {
+      folder,
+      resource_type: 'raw',
+      format: 'pdf',
+      access_mode: 'public',
     });
-  } catch (error) {
-    console.error('❌ Error processing file:', error);
-    throw error;
+    return url.endsWith('.pdf') ? url : `${url}.pdf`;
   }
+
+  // Image path (JPEG/PNG dari foto teknisi)
+  const resized = await sharp(fileBuffer)
+    .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  const watermarked = await applyImageWatermark(resized);
+  return uploadStream(watermarked, { folder, resource_type: 'image', format: 'jpg' });
 };
 
 /**
- * Upload file to Cloudinary from buffer (raw/PDF mode — tanpa watermark, untuk RAB)
+ * Upload PDF mentah ke Cloudinary tanpa watermark (untuk internal/sistem).
+ * Untuk dokumen user gunakan uploadDocument().
  */
 export const uploadToCloudinary = async (
   fileBuffer: Buffer,
   folder = 'aqualink'
 ): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      { folder, resource_type: 'raw', format: 'pdf', access_mode: 'public' },
-      (error, result) => {
-        if (error || !result) {
-          reject(new Error(`Failed to upload file: ${error?.message}`));
-        } else {
-          let secureUrl = result.secure_url;
-          if (!secureUrl.endsWith('.pdf')) secureUrl = `${secureUrl}.pdf`;
-          resolve(secureUrl);
-        }
-      }
-    );
-    uploadStream.end(fileBuffer);
+  const url = await uploadStream(fileBuffer, {
+    folder,
+    resource_type: 'raw',
+    format: 'pdf',
+    access_mode: 'public',
   });
+  return url.endsWith('.pdf') ? url : `${url}.pdf`;
 };
 
 /**
- * Delete file from Cloudinary by URL
+ * Kembalikan URL Cloudinary yang bisa dibuka langsung di browser (inline, bukan download).
+ * Gunakan ini untuk preview PDF di <iframe>.
+ */
+export function toPdfInlineUrl(cloudinaryUrl: string): string {
+  return cloudinaryUrl.replace('/upload/', '/upload/fl_attachment:false/');
+}
+
+/**
+ * Kembalikan true jika URL mengarah ke file PDF (bukan gambar).
+ * Digunakan di frontend untuk memilih antara <img> vs <iframe>.
+ */
+export function isPdfUrl(url: string): boolean {
+  return url.toLowerCase().endsWith('.pdf');
+}
+
+/**
+ * Delete file from Cloudinary by URL.
  */
 export const deleteFromCloudinary = async (fileUrl: string): Promise<void> => {
   try {

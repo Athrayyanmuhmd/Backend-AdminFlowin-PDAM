@@ -1,7 +1,7 @@
 // @ts-nocheck — legacy REST controller, phase-out menuju GraphQL
 import ConnectionData from "../models/ConnectionData.js";
 import User from "../models/User.js";
-import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { uploadDocument } from "../utils/cloudinary.js";
 import { computeFileHash } from "../middleware/upload.js";
 
 // Create Connection Data (User)
@@ -58,17 +58,17 @@ export const createConnectionData = async (req, res) => {
     const imbHash  = computeFileHash(req.files.imbFile[0].buffer);
 
     // Upload PDF/image files to Cloudinary
-    const nikUrl = await uploadPdfAsImage(
+    const nikUrl = await uploadDocument(
       req.files.nikFile[0].buffer,
       "aqualink/nik",
       req.files.nikFile[0].mimetype
     );
-    const kkUrl = await uploadPdfAsImage(
+    const kkUrl = await uploadDocument(
       req.files.kkFile[0].buffer,
       "aqualink/kk",
       req.files.kkFile[0].mimetype
     );
-    const imbUrl = await uploadPdfAsImage(
+    const imbUrl = await uploadDocument(
       req.files.imbFile[0].buffer,
       "aqualink/imb",
       req.files.imbFile[0].mimetype
@@ -379,21 +379,21 @@ export const updateConnectionData = async (req, res) => {
     // Handle PDF/image file uploads if provided
     if (req.files) {
       if (req.files.nikFile) {
-        updates.nikUrl = await uploadPdfAsImage(
+        updates.nikUrl = await uploadDocument(
           req.files.nikFile[0].buffer,
           "aqualink/nik",
           req.files.nikFile[0].mimetype
         );
       }
       if (req.files.kkFile) {
-        updates.kkUrl = await uploadPdfAsImage(
+        updates.kkUrl = await uploadDocument(
           req.files.kkFile[0].buffer,
           "aqualink/kk",
           req.files.kkFile[0].mimetype
         );
       }
       if (req.files.imbFile) {
-        updates.imbUrl = await uploadPdfAsImage(
+        updates.imbUrl = await uploadDocument(
           req.files.imbFile[0].buffer,
           "aqualink/imb",
           req.files.imbFile[0].mimetype

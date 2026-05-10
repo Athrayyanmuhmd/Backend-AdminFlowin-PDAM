@@ -1,7 +1,7 @@
 // @ts-nocheck — legacy REST controller, phase-out menuju GraphQL
 import SurveyData from "../models/SurveyData.js";
 import ConnectionData from "../models/ConnectionData.js";
-import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { uploadDocument } from "../utils/cloudinary.js";
 import { computeFileHash } from "../middleware/upload.js";
 import logger from "../utils/logger.js";
 
@@ -82,17 +82,17 @@ export const createSurveyData = async (req, res) => {
     const posisiMeteranHash = computeFileHash(req.files.posisiMeteranFile[0].buffer);
 
     // Upload PDF/image files to Cloudinary
-    const jaringanUrl = await uploadPdfAsImage(
+    const jaringanUrl = await uploadDocument(
       req.files.jaringanFile[0].buffer,
       "aqualink/survey/jaringan",
       req.files.jaringanFile[0].mimetype
     );
-    const posisiBakUrl = await uploadPdfAsImage(
+    const posisiBakUrl = await uploadDocument(
       req.files.posisiBakFile[0].buffer,
       "aqualink/survey/bak",
       req.files.posisiBakFile[0].mimetype
     );
-    const posisiMeteranUrl = await uploadPdfAsImage(
+    const posisiMeteranUrl = await uploadDocument(
       req.files.posisiMeteranFile[0].buffer,
       "aqualink/survey/meteran",
       req.files.posisiMeteranFile[0].mimetype
@@ -224,21 +224,21 @@ export const updateSurveyData = async (req, res) => {
     // Handle PDF/image file uploads if provided
     if (req.files) {
       if (req.files.jaringanFile) {
-        updates.urlJaringan = await uploadPdfAsImage(
+        updates.urlJaringan = await uploadDocument(
           req.files.jaringanFile[0].buffer,
           "aqualink/survey/jaringan",
           req.files.jaringanFile[0].mimetype
         );
       }
       if (req.files.posisiBakFile) {
-        updates.urlPosisiBak = await uploadPdfAsImage(
+        updates.urlPosisiBak = await uploadDocument(
           req.files.posisiBakFile[0].buffer,
           "aqualink/survey/bak",
           req.files.posisiBakFile[0].mimetype
         );
       }
       if (req.files.posisiMeteranFile) {
-        updates.posisiMeteran = await uploadPdfAsImage(
+        updates.posisiMeteran = await uploadDocument(
           req.files.posisiMeteranFile[0].buffer,
           "aqualink/survey/meteran",
           req.files.posisiMeteranFile[0].mimetype

@@ -1,7 +1,7 @@
 // @ts-nocheck — legacy REST controller, phase-out menuju GraphQL
 import RabConnection from "../models/RabConnection.js";
 import ConnectionData from "../models/ConnectionData.js";
-import { uploadPdfAsImage } from "../utils/cloudinary.js";
+import { uploadDocument } from "../utils/cloudinary.js";
 import { computeFileHash } from "../middleware/upload.js";
 import midtransClient from "../middleware/midtrans.js";
 
@@ -53,7 +53,7 @@ export const createRabConnection = async (req, res) => {
     const rabHash = computeFileHash(req.file.buffer);
 
     // Upload RAB document to Cloudinary
-    const rabUrl = await uploadPdfAsImage(
+    const rabUrl = await uploadDocument(
       req.file.buffer,
       "aqualink/rab",
       req.file.mimetype
@@ -241,7 +241,7 @@ export const updateRabConnection = async (req, res) => {
 
     // Handle RAB document upload if provided
     if (req.file) {
-      updates.urlRab = await uploadPdfAsImage(
+      updates.urlRab = await uploadDocument(
         req.file.buffer,
         "aqualink/rab",
         req.file.mimetype
