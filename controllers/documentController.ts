@@ -22,9 +22,20 @@ function getAdminFromReq(req: Request): { id: string; nama: string } {
 }
 
 function getClientIp(req: Request): string {
+  // Prioritas 1: IP asli dari Next.js relay (dari header X-Real-IP)
+  const realIp = req.headers['x-real-ip'];
+  if (typeof realIp === 'string') return realIp.split(',')[0].trim();
+  // Prioritas 2: dari reverse proxy standar
   const forwarded = req.headers['x-forwarded-for'];
   if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  // Fallback: direct connection
   return req.ip ?? 'unknown';
+}
+
+/** Ambil User-Agent asli dari browser admin (dikirim via header X-Client-User-Agent dari Next.js relay). */
+function getClientUserAgent(req: Request): string {
+  const ua = req.headers['x-client-user-agent'];
+  return typeof ua === 'string' ? ua : (req.headers['user-agent'] ?? null);
 }
 
 function detectMimetype(url: string, headers: Record<string, string>): string {
@@ -52,7 +63,7 @@ async function logAccess(params: {
       idPemilik:       params.idPemilik,
       namaOperasi:     'DOCUMENT_PROXY',
       ipAddress:       getClientIp(params.req),
-      userAgent:       params.req.headers['user-agent'] ?? null,
+      userAgent:       getClientUserAgent(params.req),
       fingerprintHash: params.fingerprintHash,
       urlDokumen:      params.urlDokumen,
     });
