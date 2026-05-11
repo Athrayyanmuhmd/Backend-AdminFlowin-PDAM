@@ -27,11 +27,22 @@ export const kelompokPelangganResolvers = {
   Mutation: {
     createKelompokPelanggan: async (_, { input }, { token }) => {
       verifyAdminToken(token);
-      const { TarifRendah, TarifTinggi, BiayaBeban } = input;
+      const { TarifRendah, TarifTinggi, BiayaBeban, KodeKelompok } = input;
+
+      // Validasi angka negatif
       if (TarifRendah != null && (TarifRendah < 0 || !Number.isFinite(TarifRendah))) throw new Error('TarifRendah harus positif');
       if (TarifTinggi != null && (TarifTinggi < 0 || !Number.isFinite(TarifTinggi))) throw new Error('TarifTinggi harus positif');
       if (BiayaBeban != null && (BiayaBeban < 0 || !Number.isFinite(BiayaBeban))) throw new Error('BiayaBeban harus positif');
-      const kelompok = new KelompokPelanggan(input);
+
+      // Cek duplikat sebelum simpan — beri pesan yang jelas
+      const existing = await KelompokPelanggan.findOne({
+        KodeKelompok: { $regex: `^${KodeKelompok.trim().toUpperCase()}$`, $options: 'i' },
+      });
+      if (existing) {
+        throw new Error(`Kode "${KodeKelompok.trim().toUpperCase()}" sudah digunakan. Gunakan kode lain atau edit yang sudah ada.`);
+      }
+
+      const kelompok = new KelompokPelanggan({ ...input, KodeKelompok: KodeKelompok.trim().toUpperCase() });
       await kelompok.save();
       await deleteCacheByPattern('kelompok:*');
       return kelompok;
