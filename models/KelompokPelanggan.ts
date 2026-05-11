@@ -4,19 +4,22 @@ import { Schema, model, Document } from 'mongoose';
 // Collection: kelompokpelanggans — shared across systems
 // Field names PascalCase agar sinkron dengan Ahmad
 
-export type KodeKelompokEnum =
-  | 'SOS-U' | 'SOS-K'
-  | 'RT-1' | 'RT-2' | 'RT-3' | 'RT-4'
-  | 'N-1' | 'N-2' | 'N-3'
-  | 'IP' | 'KH';
+// Enum dihapus untuk fleksibilitas demo/prod.
+// Validasi domain-specific dilakukan di resolver atau business logic layer.
 
-export type KategoriKelompokEnum =
-  | 'Sosial' | 'Non Niaga' | 'Niaga' | 'Instansi Pemerintah' | 'Khusus';
+// export type KodeKelompokEnum =
+//   | 'SOS-U' | 'SOS-K'
+//   | 'RT-1' | 'RT-2' | 'RT-3' | 'RT-4'
+//   | 'N-1' | 'N-2' | 'N-3'
+//   | 'IP' | 'KH';
+
+// export type KategoriKelompokEnum =
+//   | 'Sosial' | 'Non Niaga' | 'Niaga' | 'Instansi Pemerintah' | 'Khusus';
 
 export interface IKelompokPelanggan {
-  KodeKelompok: KodeKelompokEnum;
+  KodeKelompok: string;
   NamaKelompok: string;
-  Kategori: KategoriKelompokEnum;
+  Kategori: string;
   Deskripsi?: string;
   TarifRendah: number;
   TarifTinggi: number;
@@ -31,7 +34,6 @@ const KelompokPelangganSchema = new Schema<IKelompokPelanggan>(
   {
     KodeKelompok: {
       type: String,
-      enum: ['SOS-U', 'SOS-K', 'RT-1', 'RT-2', 'RT-3', 'RT-4', 'N-1', 'N-2', 'N-3', 'IP', 'KH'],
       required: true,
       unique: true,
     },
@@ -41,7 +43,6 @@ const KelompokPelangganSchema = new Schema<IKelompokPelanggan>(
     },
     Kategori: {
       type: String,
-      enum: ['Sosial', 'Non Niaga', 'Niaga', 'Instansi Pemerintah', 'Khusus'],
       required: true,
     },
     Deskripsi: {
