@@ -30,7 +30,7 @@ const calculateWaterBill = (totalPemakaian: number, kelompok: any) => {
 
 const getDueDate = (): Date => {
   const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth() + 1, 25);
+  return new Date(now.getFullYear(), now.getMonth(), 25);
 };
 
 // ─── Cron 1: Generate tagihan bulanan (1 tiap bulan, 00:01) ───────────────────

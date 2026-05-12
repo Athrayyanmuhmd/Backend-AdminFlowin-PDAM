@@ -34,11 +34,10 @@ const getCurrentPeriode = () => {
   return `${year}-${month}`;
 };
 
-// Helper function to get due date (25th of next month)
+// Helper function to get due date (25th of current month)
 const getDueDate = () => {
   const now = new Date();
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 25);
-  return nextMonth;
+  return new Date(now.getFullYear(), now.getMonth(), 25);
 };
 
 // Helper function to calculate denda (late fee)

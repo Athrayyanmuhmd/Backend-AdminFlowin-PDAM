@@ -152,7 +152,7 @@ export const tagihanResolvers = {
       const totalBiaya = biaya + biayaBeban;
 
       const [year, month] = Periode.split('-').map(Number);
-      const tenggatWaktu = new Date(year, month, 25);
+      const tenggatWaktu = new Date(year, month - 1, 25); // month dari Periode adalah 1-indexed, Date() pakai 0-indexed
       const userId = (meteran.IdKoneksiData as any)?.IdPelanggan || null;
 
       // Helper: buat Snap untuk billing id tertentu
@@ -264,7 +264,7 @@ export const tagihanResolvers = {
       const detailGagal: any[] = [];
 
       const [year, month] = Periode.split('-').map(Number);
-      const tenggatWaktu = new Date(year, month, 25);
+      const tenggatWaktu = new Date(year, month - 1, 25); // month dari Periode adalah 1-indexed, Date() pakai 0-indexed
 
       const meteranList = await Meteran.find({ _id: { $in: IdMeteranList } })
         .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan', select: 'namaLengkap' } })
