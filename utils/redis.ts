@@ -147,10 +147,16 @@ export async function deleteCache(key: string): Promise<boolean> {
 export async function deleteCacheByPattern(pattern: string): Promise<boolean> {
   try {
     if (upstashClient) {
-      // Upstash REST: scan + del
-      let cursor = 0;
+      // Upstash scan mengembalikan cursor sebagai string (mis. "0"); `cursor !== 0` salah → loop tak pernah selesai.
+      let cursor: string | number = 0;
       let deleted = 0;
+      let guard = 0;
+      const MAX_SCANS = 5000;
       do {
+        if (++guard > MAX_SCANS) {
+          console.error(`Redis SCAN pattern "${pattern}" exceeded ${MAX_SCANS} iterations — aborting`);
+          break;
+        }
         const result = await upstashClient.scan(cursor, { match: pattern, count: 100 });
         cursor = result[0];
         const keys = result[1] as string[];
@@ -158,7 +164,7 @@ export async function deleteCacheByPattern(pattern: string): Promise<boolean> {
           await upstashClient.del(...keys);
           deleted += keys.length;
         }
-      } while (cursor !== 0);
+      } while (String(cursor) !== '0');
       if (deleted > 0) console.log(`🗑️  Cache DELETED (pattern): ${pattern} (${deleted} keys)`);
       return true;
     }
