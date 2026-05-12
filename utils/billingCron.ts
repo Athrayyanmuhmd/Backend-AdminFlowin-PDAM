@@ -67,9 +67,13 @@ export const runBillingJob = async (): Promise<void> => {
               (sum: number, t: any) => sum + (t.TotalPemakaian ?? 0), 0
             );
             if (toDecrement > 0) {
-              await Meteran.findByIdAndUpdate(meteran._id, {
-                $inc: { pemakaianBelumTerbayar: -toDecrement },
-              });
+              await Meteran.findByIdAndUpdate(meteran._id, [{
+                $set: {
+                  pemakaianBelumTerbayar: {
+                    $max: [0, { $subtract: ['$pemakaianBelumTerbayar', toDecrement] }],
+                  },
+                },
+              }]);
               await Billing.updateMany(
                 { _id: { $in: settledUnaccounted.map((t: any) => t._id) } },
                 [{ $set: { Catatan: {
@@ -240,21 +244,29 @@ const deteksiTunggakanPemutusan = async (): Promise<void> => {
         { $set: { Menunggak: true } }
       );
 
-      // Notifikasi ke semua admin untuk pemutusan
-      const admins = await AdminAccount.find({}, '_id').lean();
-      if (admins.length > 0) {
-        const adminNotifs = admins.map((admin: any) => ({
-          IdAdmin: admin._id,
-          Judul: 'Pelanggan Perlu Pemutusan',
-          Pesan: `Pelanggan ID ${userId} menunggak ${pendingCount} bulan. Tagihan dapat dibayar sekaligus via 1 transaksi. Silakan lakukan pemutusan.`,
-          Kategori: 'PERINGATAN',
-          Link: '/billing/pemutusan',
-          isRead: false,
-        }));
-        await Notification.insertMany(adminNotifs, { ordered: false }).catch((e: any) =>
-          logger.error({ err: e }, 'Gagal kirim notifikasi pemutusan ke admin')
-        );
-        notifCount++;
+      // Notifikasi ke semua admin untuk pemutusan — dedup: skip jika sudah ada notif
+      // belum-dibaca dengan judul yang sama untuk pelanggan ini (cegah spam tiap bulan)
+      const sudahAdaNotif = await Notification.findOne({
+        Judul: 'Pelanggan Perlu Pemutusan',
+        Pesan: { $regex: userId },
+        isRead: false,
+      }).select('_id').lean();
+      if (!sudahAdaNotif) {
+        const admins = await AdminAccount.find({}, '_id').lean();
+        if (admins.length > 0) {
+          const adminNotifs = admins.map((admin: any) => ({
+            IdAdmin: admin._id,
+            Judul: 'Pelanggan Perlu Pemutusan',
+            Pesan: `Pelanggan ID ${userId} menunggak ${pendingCount} bulan. Tagihan dapat dibayar sekaligus via 1 transaksi. Silakan lakukan pemutusan.`,
+            Kategori: 'PERINGATAN',
+            Link: '/billing/pemutusan',
+            isRead: false,
+          }));
+          await Notification.insertMany(adminNotifs, { ordered: false }).catch((e: any) =>
+            logger.error({ err: e }, 'Gagal kirim notifikasi pemutusan ke admin')
+          );
+          notifCount++;
+        }
       }
     }
 

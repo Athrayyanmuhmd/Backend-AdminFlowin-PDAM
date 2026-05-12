@@ -284,7 +284,7 @@ export const tagihanResolvers = {
         IdMeteran: { $in: IdMeteranList },
         StatusPembayaran: 'pending',
         jenisBilling: { $ne: 'denda' },
-      }).select('_id IdMeteran TotalBiaya bulanCakupan').lean();
+      }).select('_id IdMeteran TotalBiaya bulanCakupan Periode').lean();
       const pendingMap = new Map(pendingBillings.map(b => [b.IdMeteran.toString(), b]));
 
       for (const idMeteran of IdMeteranList) {
