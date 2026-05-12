@@ -147,7 +147,7 @@ export const meteranResolvers = {
       const batasRendah = kelompok?.BatasRendah ?? 10;
       const biaya = pemakaian <= batasRendah
         ? pemakaian * (kelompok?.TarifRendah ?? 1500)
-        : batasRendah * (kelompok?.TarifRendah ?? 1500) + (pemakaian - batasRendah) * (kelompok?.TarifTinggi ?? 2000);
+        : pemakaian * (kelompok?.TarifTinggi ?? 2000);
       const biayaBeban = kelompok?.BiayaBeban ?? 5000;
       const result = {
         pemakaianBelumTerbayar: pemakaian,

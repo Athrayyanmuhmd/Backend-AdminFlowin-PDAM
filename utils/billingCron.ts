@@ -23,7 +23,7 @@ const calculateWaterBill = (totalPemakaian: number, kelompok: any) => {
   const batasRendah = kelompok?.BatasRendah ?? 10;
   const biaya = totalPemakaian <= batasRendah
     ? totalPemakaian * tarifRendah
-    : batasRendah * tarifRendah + (totalPemakaian - batasRendah) * tarifTinggi;
+    : totalPemakaian * tarifTinggi;
   const biayaBeban = kelompok?.BiayaBeban ?? 5000;
   return { biaya, biayaBeban, totalBiaya: biaya + biayaBeban };
 };

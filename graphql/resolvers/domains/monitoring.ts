@@ -226,7 +226,7 @@ function hitungEstimasiBiaya(pemakaian: number, kelompok: any) {
 
   const biayaPemakaian = pemakaian <= batas
     ? pemakaian * tarifR
-    : batas * tarifR + (pemakaian - batas) * tarifT;
+    : pemakaian * tarifT;
 
   return {
     pemakaianBelumTerbayar: pemakaian,
