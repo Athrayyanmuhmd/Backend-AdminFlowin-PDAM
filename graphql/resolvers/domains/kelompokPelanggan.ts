@@ -33,15 +33,14 @@ export const kelompokPelangganResolvers = {
       if (TarifTinggi != null && (TarifTinggi < 0 || !Number.isFinite(TarifTinggi))) throw new Error('TarifTinggi harus positif');
       if (BiayaBeban != null && (BiayaBeban < 0 || !Number.isFinite(BiayaBeban))) throw new Error('BiayaBeban harus positif');
 
-      // Cek duplikat sebelum simpan â€” beri pesan yang jelas
-      const existing = await KelompokPelanggan.findOne({
-        KodeKelompok: { $regex: `^${KodeKelompok.trim().toUpperCase()}$`, $options: 'i' },
-      });
+      // Cek duplikat — equality langsung (sudah uppercase, tidak perlu regex)
+      const normalizedKode = KodeKelompok.trim().toUpperCase();
+      const existing = await KelompokPelanggan.findOne({ KodeKelompok: normalizedKode });
       if (existing) {
-        throw new Error(`Kode "${KodeKelompok.trim().toUpperCase()}" sudah digunakan. Gunakan kode lain atau edit yang sudah ada.`);
+        throw new Error(`Kode “${normalizedKode}” sudah digunakan. Gunakan kode lain atau edit yang sudah ada.`);
       }
 
-      const kelompok = new KelompokPelanggan({ ...input, KodeKelompok: KodeKelompok.trim().toUpperCase() });
+      const kelompok = new KelompokPelanggan({ ...input, KodeKelompok: normalizedKode });
       await kelompok.save();
       await deleteCacheByPattern('kelompok:*');
       return kelompok;
@@ -58,7 +57,8 @@ export const kelompokPelangganResolvers = {
       return kelompok;
     },
 
-    deleteKelompokPelanggan: async (_, { id }) => {
+    deleteKelompokPelanggan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
       await KelompokPelanggan.findByIdAndDelete(id);
       await deleteCacheByPattern('kelompok:*');
       return { success: true, message: 'Kelompok Pelanggan deleted successfully' };

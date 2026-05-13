@@ -22,7 +22,7 @@ export const laporanResolvers = {
   Query: {
     getLaporan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Report.findById(id).populate('IdPengguna').populate('IdTeknisi');
+      return await Report.findById(id).populate('IdPengguna').populate('IdTeknisi').lean();
     },
 
     getAllLaporan: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
@@ -32,40 +32,46 @@ export const laporanResolvers = {
         .skip(offset)
         .limit(Math.min(limit, 500))
         .populate('IdPengguna')
-        .populate('IdTeknisi');
+        .populate('IdTeknisi')
+        .lean();
     },
 
     getLaporanByStatus: async (_, { status }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const dbStatus = statusGqlToDb[status] || status;
       return await Report.find({ Status: dbStatus })
+        .sort({ createdAt: -1 })
         .populate('IdPengguna')
-        .populate('IdTeknisi');
+        .populate('IdTeknisi')
+        .lean();
     },
 
     getLaporanByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       return await Report.find({ IdPengguna: idPelanggan })
+        .sort({ createdAt: -1 })
         .populate('IdPengguna')
-        .populate('IdTeknisi');
+        .populate('IdTeknisi')
+        .lean();
     },
 
     getPenyelesaianLaporan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PenyelesaianLaporan.findById(id).populate('idLaporan');
+      return await PenyelesaianLaporan.findById(id).populate('idLaporan').lean();
     },
 
     getPenyelesaianLaporanByLaporan: async (_, { idLaporan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await PenyelesaianLaporan.find({ idLaporan }).sort({ createdAt: -1 });
+      return await PenyelesaianLaporan.find({ idLaporan }).sort({ createdAt: -1 }).lean();
     },
 
     getAllPenyelesaianLaporan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       return await PenyelesaianLaporan.find()
+        .sort({ createdAt: -1 })
         .limit(500)
         .populate('idLaporan')
-        .sort({ createdAt: -1 });
+        .lean();
     },
   },
 

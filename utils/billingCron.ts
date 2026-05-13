@@ -94,6 +94,17 @@ export const runBillingJob = async (): Promise<void> => {
             }
           }
 
+          // Idempotency guard: skip jika billing periode ini sudah ada (cron restart protection)
+          const periodeExisting = await Billing.findOne({
+            IdMeteran: meteran._id,
+            Periode: periode,
+            jenisBilling: { $ne: 'denda' },
+          }).select('_id').lean();
+          if (periodeExisting) {
+            logger.info({ NomorMeteran: (meteran as any).NomorMeteran, periode }, 'Billing periode ini sudah ada, skip');
+            continue;
+          }
+
           const pemakaian = (meteran as any).pemakaianBelumTerbayar ?? 0;
           if (pemakaian === 0) {
             logger.info({ NomorMeteran: (meteran as any).NomorMeteran }, 'No usage to bill, skipping');

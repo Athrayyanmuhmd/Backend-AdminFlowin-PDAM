@@ -67,9 +67,10 @@ export const meteranResolvers = {
 
     getRiwayatPenggunaan: async (_, { meteranId, limit = 30 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // Opsi A: agregasi per hari dari HistoryUsage (riwayatpenggunaans)
-      // billingCron menulis raw entries; resolver ini mengelompokkan per hari WIB
       const { Types } = await import('mongoose');
+      if (!Types.ObjectId.isValid(meteranId)) {
+        throw new Error(`meteranId tidak valid: "${meteranId}"`);
+      }
       const records = await HistoryUsage.aggregate([
         { $match: { meteranId: new Types.ObjectId(meteranId) } },
         { $group: {

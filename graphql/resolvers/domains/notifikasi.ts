@@ -24,17 +24,17 @@ export const notifikasiResolvers = {
   Query: {
     getNotifikasi: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Notification.findById(id);
+      return await Notification.findById(id).lean();
     },
 
     getNotifikasiByAdmin: async (_, { idAdmin }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Notification.find({ IdAdmin: idAdmin }).sort({ createdAt: -1 });
+      return await Notification.find({ IdAdmin: idAdmin }).sort({ createdAt: -1 }).lean();
     },
 
     getUnreadNotifikasi: async (_, { idAdmin }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Notification.find({ IdAdmin: idAdmin, isRead: false }).sort({ createdAt: -1 });
+      return await Notification.find({ IdAdmin: idAdmin, isRead: false }).sort({ createdAt: -1 }).lean();
     },
 
     // Returns [] instead of throwing when token invalid â€” polled every 30s
@@ -46,7 +46,8 @@ export const notifikasiResolvers = {
         .populate('IdPelanggan', 'namaLengkap email')
         .populate('IdTeknisi', 'namaLengkap')
         .sort({ createdAt: -1 })
-        .limit(200);
+        .limit(200)
+        .lean();
     },
   },
 
@@ -64,13 +65,15 @@ export const notifikasiResolvers = {
       verifyAdminToken(token);
       const dbData = mapInputToDb(input);
       const pengguna = await User.find({}, '_id').lean();
-      return await Promise.all(
-        pengguna.map(p => new Notification({ ...dbData, IdPelanggan: p._id, isRead: false }).save()),
-      );
+      const notifList = pengguna.map(p => ({ ...dbData, IdPelanggan: p._id, isRead: false }));
+      if (notifList.length === 0) return [];
+      await Notification.insertMany(notifList, { ordered: false });
+      return Notification.find({ Judul: dbData.Judul, Pesan: dbData.Pesan }).sort({ createdAt: -1 }).limit(notifList.length).lean();
     },
 
-    markNotifikasiAsRead: async (_, { id }) => {
-      return await Notification.findByIdAndUpdate(id, { isRead: true }, { new: true });
+    markNotifikasiAsRead: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
+      return await Notification.findByIdAndUpdate(id, { isRead: true }, { new: true }).lean();
     },
   },
 };

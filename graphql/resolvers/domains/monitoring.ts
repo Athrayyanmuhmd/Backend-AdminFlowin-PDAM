@@ -348,24 +348,24 @@ export const monitoringResolvers = {
     getMonitoringHistori: async (_, { meteranId, jumlahBulan = 6 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
 
-      const histori: any[] = [];
       const now = new Date();
-
-      for (let i = 0; i < jumlahBulan; i++) {
+      const periodes = Array.from({ length: Math.min(jumlahBulan, 24) }, (_, i) => {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const periode = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      });
 
-        const data = await bacaDataHistoris(meteranId, periode).catch(() => null);
-        if (data && data.totalPenggunaan > 0) {
-          histori.push({
-            periode,
-            totalPenggunaan: data.totalPenggunaan,
-            dataHarian: data.dataHarian,
-          });
-        }
-      }
+      const results = await Promise.all(
+        periodes.map(periode =>
+          bacaDataHistoris(meteranId, periode)
+            .then(data => data && data.totalPenggunaan > 0
+              ? { periode, totalPenggunaan: data.totalPenggunaan, dataHarian: data.dataHarian }
+              : null
+            )
+            .catch(() => null)
+        )
+      );
 
-      return histori;
+      return results.filter(Boolean);
     },
 
     // â”€â”€ Data per jam untuk satu hari (drill-down harian) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

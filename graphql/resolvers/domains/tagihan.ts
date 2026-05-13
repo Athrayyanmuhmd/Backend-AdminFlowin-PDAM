@@ -24,6 +24,13 @@ const formatPeriode = (d: Date): string => {
   return `${y}-${m}`;
 };
 
+// Validasi format "YYYY-MM" dengan bulan 01–12
+function validatePeriode(periode: string): void {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(periode)) {
+    throw new Error(`Format Periode tidak valid: "${periode}". Gunakan YYYY-MM, contoh: 2026-05`);
+  }
+}
+
 // Hitung PeriodeAkhir dari Periode awal + bulanCakupan
 // Contoh: Periode="2026-02", bulanCakupan=3 â†’ "2026-04"
 function computePeriodeAkhir(periode: string, bulanCakupan: number): string {
@@ -74,17 +81,17 @@ export const tagihanResolvers = {
 
     getTagihanByMeteran: async (_, { IdMeteran }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ IdMeteran }).populate(TAGIHAN_POPULATE);
+      return await Billing.find({ IdMeteran }).sort({ createdAt: -1 }).populate(TAGIHAN_POPULATE).lean();
     },
 
     getTagihanByStatus: async (_, { status }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ StatusPembayaran: status }).populate(TAGIHAN_POPULATE);
+      return await Billing.find({ StatusPembayaran: status }).sort({ createdAt: -1 }).populate(TAGIHAN_POPULATE).lean();
     },
 
     getTunggakan: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      return await Billing.find({ Menunggak: true }).populate(TAGIHAN_POPULATE);
+      return await Billing.find({ Menunggak: true }).sort({ createdAt: -1 }).populate(TAGIHAN_POPULATE).lean();
     },
 
     getDaftarPemutusan: async (_, __, { token }: GraphQLContext) => {
@@ -135,6 +142,7 @@ export const tagihanResolvers = {
   Mutation: {
     generateTagihan: async (_, { IdMeteran, Periode }, { token }) => {
       verifyAdminToken(token);
+      validatePeriode(Periode);
       const meteran = await Meteran.findById(IdMeteran).populate('IdKoneksiData');
       if (!meteran) throw new Error('Meteran tidak ditemukan');
 
@@ -272,6 +280,10 @@ export const tagihanResolvers = {
 
     generateTagihanBulanan: async (_, { Periode, IdMeteranList }, { token }) => {
       verifyAdminToken(token);
+      validatePeriode(Periode);
+      if (!IdMeteranList || IdMeteranList.length === 0) {
+        return { berhasil: 0, gagal: 0, pesan: 'Tidak ada meteran yang dipilih', detailGagal: [] };
+      }
       let berhasil = 0;
       let gagal = 0;
       const detailGagal: any[] = [];

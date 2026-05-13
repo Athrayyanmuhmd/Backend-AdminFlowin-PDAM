@@ -105,7 +105,7 @@ export const pelangganResolvers = {
       const jumlahBulanTunggak = pendingBillings.reduce((sum, b: any) => sum + (b.bulanCakupan ?? 1), 0);
       if (jumlahBulanTunggak < 3) throw new Error('Pelanggan belum memenuhi syarat pemutusan (minimal 3 bulan menunggak)');
 
-      const dendaAmount = jumlahBulanTunggak >= 3 ? DENDA_BERAT : DENDA_RINGAN;
+      const dendaAmount = DENDA_BERAT; // guard di atas sudah pastikan jumlahBulanTunggak >= 3
 
       const meteranTagihan = pendingBillings[0];
       if (meteranTagihan) {
