@@ -30,7 +30,7 @@ export const dashboardResolvers = {
         if (startDate) filter.createdAt.$gte = new Date(startDate);
         if (endDate) filter.createdAt.$lte = new Date(endDate);
       }
-      return await AuditLog.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).populate('idAdmin', 'namaLengkap email');
+      return await AuditLog.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).populate('idAdmin', 'namaLengkap email').lean();
     },
 
     getDashboardStats: async (_, __, { token }: GraphQLContext) => {

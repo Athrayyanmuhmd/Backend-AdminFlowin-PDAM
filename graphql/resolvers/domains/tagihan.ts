@@ -403,27 +403,38 @@ export const tagihanResolvers = {
 
     updateStatusPembayaran: async (_, { id, status }, { token }) => {
       verifyAdminToken(token);
-      const tagihan = await Billing.findById(id);
+      const tagihan = await Billing.findById(id)
+        .select('StatusPembayaran IdMeteran TotalPemakaian Catatan')
+        .lean() as any;
       if (!tagihan) throw new Error('Tagihan tidak ditemukan');
 
-      const updateData: Record<string, any> = { StatusPembayaran: status };
+      if (status === 'settlement') {
+        const updateData: Record<string, any> = {
+          StatusPembayaran: 'settlement',
+          TanggalPembayaran: new Date(),
+          MetodePembayaran: 'manual_admin',
+          Catatan: tagihan.Catatan
+            ? `${tagihan.Catatan} [pemakaian_applied]`
+            : '[pemakaian_applied]',
+        };
 
-      // Jika admin manual set settlement dan sebelumnya BUKAN settlement,
-      // decrement pemakaianBelumTerbayar pada meteran.
-      // Guard "bukan settlement sebelumnya" mencegah double-decrement kalau webhook
-      // Midtrans sudah jalan lebih dulu (misal: admin update terlambat).
-      if (status === 'settlement' && tagihan.StatusPembayaran !== 'settlement') {
-        updateData.TanggalPembayaran = new Date();
-        updateData.MetodePembayaran = 'manual_admin';
-        // Append marker ke catatan lama â€” jangan overwrite info yang sudah ada
-        const catatanLama = (tagihan as any).Catatan;
-        updateData.Catatan = catatanLama
-          ? `${catatanLama} [pemakaian_applied]`
-          : '[pemakaian_applied]';
-        const pemakaian = (tagihan as any).TotalPemakaian ?? 0;
+        // Atomic: hanya satu request yang bisa mengubah status dari non-settlement ke settlement.
+        // Request lain yang tiba bersamaan akan mendapat null (dokumen sudah berstatus settlement).
+        const settled = await Billing.findOneAndUpdate(
+          { _id: id, StatusPembayaran: { $ne: 'settlement' } },
+          updateData,
+          { new: true },
+        ).populate(TAGIHAN_POPULATE);
+
+        if (!settled) {
+          // Tagihan sudah settlement oleh request lain (misal webhook Midtrans) — tidak perlu decrement ulang
+          return Billing.findById(id).populate(TAGIHAN_POPULATE);
+        }
+
+        // Decrement meteran hanya jika request ini yang berhasil memenangkan transisi
+        const pemakaian = tagihan.TotalPemakaian ?? 0;
         if (pemakaian > 0) {
-          // Atomic: $max + $subtract mencegah race condition dengan IoT cron
-          await Meteran.findByIdAndUpdate((tagihan as any).IdMeteran, [{
+          await Meteran.findByIdAndUpdate(tagihan.IdMeteran, [{
             $set: {
               pemakaianBelumTerbayar: {
                 $max: [0, { $subtract: ['$pemakaianBelumTerbayar', pemakaian] }],
@@ -431,9 +442,12 @@ export const tagihanResolvers = {
             },
           }]);
         }
+
+        return settled;
       }
 
-      return await Billing.findByIdAndUpdate(id, updateData, { new: true }).populate(TAGIHAN_POPULATE);
+      // Status non-settlement (pending, cancel, expired, dll) — update langsung
+      return Billing.findByIdAndUpdate(id, { StatusPembayaran: status }, { new: true }).populate(TAGIHAN_POPULATE);
     },
 
     buatSnapTagihan: async (_, { id }, { token }) => {
