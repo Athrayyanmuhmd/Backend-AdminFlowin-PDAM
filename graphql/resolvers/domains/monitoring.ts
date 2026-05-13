@@ -1,5 +1,4 @@
-// @ts-nocheck
-import Meteran from '../../../models/Meteran.js';
+﻿import Meteran from '../../../models/Meteran.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
 import User from '../../../models/User.js';
@@ -7,10 +6,10 @@ import { verifyAdminToken } from '../helpers.js';
 import { isRedisConnected, getRedisClient } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// ─── Konstanta timezone WIB (UTC+7) ──────────────────────────────────────────
+// â”€â”€â”€ Konstanta timezone WIB (UTC+7) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
 
-// ─── Nama bulan Indonesia ─────────────────────────────────────────────────────
+// â”€â”€â”€ Nama bulan Indonesia â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const NAMA_BULAN = ['Januari','Februari','Maret','April','Mei','Juni',
   'Juli','Agustus','September','Oktober','November','Desember'];
 
@@ -39,9 +38,9 @@ function hariSekarangDalamBulan(): number {
   return new Date().getDate();
 }
 
-// ─── Resolve userId dari meteranId via Meteran → IdKoneksiData → IdPelanggan ──
+// â”€â”€â”€ Resolve userId dari meteranId via Meteran â†’ IdKoneksiData â†’ IdPelanggan â”€â”€
 // Kunci Redis flowin: iot:{userId}:{meteranId}
-// Gunakan relasi ERD — bukan User.meteranId (legacy, sering null)
+// Gunakan relasi ERD â€” bukan User.meteranId (legacy, sering null)
 async function getUserIdByMeteranId(meteranId: string): Promise<string | null> {
   try {
     const meteran = await Meteran.findById(meteranId)
@@ -54,8 +53,8 @@ async function getUserIdByMeteranId(meteranId: string): Promise<string | null> {
   }
 }
 
-// ─── Baca data bulanan dari Redis flowin ──────────────────────────────────────
-// Format kunci flowin: iot:{userId}:{meteranId}  → Redis List
+// â”€â”€â”€ Baca data bulanan dari Redis flowin â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Format kunci flowin: iot:{userId}:{meteranId}  â†’ Redis List
 // Setiap entry: JSON.stringify({ usedWater: <liter float>, ts: <epoch ms UTC> })
 // Data masuk via: POST /iot/:userId/:meterId di flowin-recieve-iot
 async function bacaDataRedis(meteranId: string, userId: string, periode: string) {
@@ -90,7 +89,7 @@ async function bacaDataRedis(meteranId: string, userId: string, periode: string)
   if (entries.length === 0) return null;
 
   // Filter entries yang termasuk dalam periode yang diminta (berdasarkan WIB)
-  // Contoh: periode "2026-05" → WIB 2026-05-01 00:00 s/d 2026-05-31 23:59
+  // Contoh: periode "2026-05" â†’ WIB 2026-05-01 00:00 s/d 2026-05-31 23:59
   const [tahun, bulan] = periode.split('-').map(Number);
   // Awal bulan dalam WIB dinyatakan sebagai epoch UTC
   const startMs = Date.UTC(tahun, bulan - 1, 1) - TZ_OFFSET_MS;
@@ -124,9 +123,9 @@ async function bacaDataRedis(meteranId: string, userId: string, periode: string)
   return { dataHarian, totalPenggunaan, latestReading };
 }
 
-// ─── Baca data bulanan dari MongoDB flowin (riwayatpenggunaans) ───────────────
+// â”€â”€â”€ Baca data bulanan dari MongoDB flowin (riwayatpenggunaans) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Schema flowin: { MeterID: String, UserID: String, PenggunaanAir: Number, timestamp: Date }
-// Berbeda dari schema Aqualink RiwayatPenggunaan.ts, tapi koleksi sama → pakai .lean() agar field-nya tidak difilter schema
+// Berbeda dari schema Aqualink RiwayatPenggunaan.ts, tapi koleksi sama â†’ pakai .lean() agar field-nya tidak difilter schema
 async function bacaDataMongo(meteranId: string, periode: string) {
   const [tahun, bulan] = periode.split('-').map(Number);
   // Gunakan epoch eksplisit supaya benar di server UTC (bukan local time)
@@ -158,8 +157,8 @@ async function bacaDataMongo(meteranId: string, periode: string) {
   return { dataHarian, totalPenggunaan, latestReading: null as number | null };
 }
 
-// ─── Read-through cache: HistoryUsage → Redis → serve (Opsi A) ──────────────
-// Urutan: Redis cache → HistoryUsage aggregate (MongoDB) → RiwayatPenggunaan (fallback flowin)
+// â”€â”€â”€ Read-through cache: HistoryUsage â†’ Redis â†’ serve (Opsi A) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Urutan: Redis cache â†’ HistoryUsage aggregate (MongoDB) â†’ RiwayatPenggunaan (fallback flowin)
 const CACHE_TTL_SEC = 7 * 24 * 3600; // 7 hari
 
 async function bacaDataHistoris(meteranId: string, periode: string) {
@@ -194,7 +193,7 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
     {
       $group: {
         _id: { $dateToString: { format: '%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
-        totalLiter: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // m³ → liter
+        totalLiter: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // mÂ³ â†’ liter
       },
     },
     { $sort: { _id: 1 } },
@@ -217,7 +216,7 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
   return bacaDataMongo(meteranId, periode);
 }
 
-// ─── Hitung estimasi biaya berdasarkan tarif kelompok ────────────────────────
+// â”€â”€â”€ Hitung estimasi biaya berdasarkan tarif kelompok â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function hitungEstimasiBiaya(pemakaian: number, kelompok: any) {
   const batas = kelompok?.BatasRendah ?? 10;
   const tarifR = kelompok?.TarifRendah ?? 1500;
@@ -237,25 +236,25 @@ function hitungEstimasiBiaya(pemakaian: number, kelompok: any) {
   };
 }
 
-// ─── Evaluasi kategori pemakaian ─────────────────────────────────────────────
+// â”€â”€â”€ Evaluasi kategori pemakaian â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function evaluasiPemakaian(totalLiter: number): { kategori: string; deskripsi: string } {
   if (totalLiter < 5000) return { kategori: 'Hemat', deskripsi: 'Pemakaian air sangat efisien' };
   if (totalLiter < 15000) return { kategori: 'Normal', deskripsi: 'Pemakaian air dalam batas wajar' };
   return { kategori: 'Boros', deskripsi: 'Pemakaian air melebihi rata-rata normal' };
 }
 
-// ─── Build chart 7-14 hari terakhir ──────────────────────────────────────────
+// â”€â”€â”€ Build chart 7-14 hari terakhir â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function buildChartHarian(dataHarian: { tanggal: string; liter: number }[], maxDays = 14) {
   return dataHarian.slice(-maxDays);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // RESOLVERS
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export const monitoringResolvers = {
   Query: {
-    // ── Dashboard monitoring bulan berjalan ─────────────────────────────────
-    // Flow data: Redis (iot:{userId}:{meteranId} List) → fallback MongoDB flowin
+    // â”€â”€ Dashboard monitoring bulan berjalan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Flow data: Redis (iot:{userId}:{meteranId} List) â†’ fallback MongoDB flowin
     getMonitoringDashboard: async (_, { meteranId, periode: periodeParam }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
 
@@ -310,7 +309,7 @@ export const monitoringResolvers = {
         };
       }
 
-      // Estimasi biaya — pemakaianM3 = totalIni (liter) / 1000
+      // Estimasi biaya â€” pemakaianM3 = totalIni (liter) / 1000
       const pemakaianM3 = totalIni / 1000;
       const estimasiBiaya = hitungEstimasiBiaya(pemakaianM3, kelompok);
 
@@ -344,7 +343,7 @@ export const monitoringResolvers = {
       };
     },
 
-    // ── Histori pemakaian N bulan terakhir (dari MongoDB flowin) ────────────
+    // â”€â”€ Histori pemakaian N bulan terakhir (dari MongoDB flowin) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Setiap bulan: agregasi record { MeterID, PenggunaanAir, timestamp } per hari WIB
     getMonitoringHistori: async (_, { meteranId, jumlahBulan = 6 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
@@ -369,7 +368,7 @@ export const monitoringResolvers = {
       return histori;
     },
 
-    // ── Data per jam untuk satu hari (drill-down harian) ────────────────────
+    // â”€â”€ Data per jam untuk satu hari (drill-down harian) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Sumber utama: Redis flowin (iot:{userId}:{meteranId} List), filter per tanggal WIB
     // Fallback: MongoDB flowin jika Redis kosong (entry sudah dimigrasi cron harian)
     getMonitoringHarian: async (_, { meteranId, tanggal }, { token }: GraphQLContext) => {

@@ -1,10 +1,9 @@
-// @ts-nocheck
-import Meteran from '../../../models/Meteran.js';
+﻿import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
-// PemakaianHarian dihapus — Opsi A: query langsung ke HistoryUsage (riwayatpenggunaans)
+// PemakaianHarian dihapus â€” Opsi A: query langsung ke HistoryUsage (riwayatpenggunaans)
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, /* catatAuditLog */ } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
@@ -83,7 +82,7 @@ export const meteranResolvers = {
       ]);
       return records.map((r: any) => ({
         _id: r._id,
-        penggunaanAir: r.totalM3 * 1000, // m³ → liter (frontend expects liter)
+        penggunaanAir: r.totalM3 * 1000, // mÂ³ â†’ liter (frontend expects liter)
         createdAt: new Date(r._id).toISOString(),
       }));
     },
@@ -103,7 +102,7 @@ export const meteranResolvers = {
             tahun: { $year:  { date: '$createdAt', timezone: 'Asia/Jakarta' } },
             bulan: { $month: { date: '$createdAt', timezone: 'Asia/Jakarta' } },
           },
-          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // m³ → liter
+          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // mÂ³ â†’ liter
           jumlahRecord: { $sum: 1 },
         }},
         { $sort: { '_id.tahun': -1, '_id.bulan': -1 } },
@@ -130,7 +129,7 @@ export const meteranResolvers = {
         _id: r._id,
         periode: r.Periode,
         totalPenggunaan: r.TotalPenggunaan ?? 0,
-        createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+        createdAt: (r as any).createdAt ? new Date((r as any).createdAt).toISOString() : null,
       }));
     },
 
@@ -173,7 +172,7 @@ export const meteranResolvers = {
         IdKoneksiData: IdKoneksiData || null,
       });
       await meteran.save();
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_CREATE',
@@ -201,7 +200,7 @@ export const meteranResolvers = {
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const activeBilling = await Billing.findOne({ IdMeteran: id, StatusPembayaran: { $in: ['pending'] } });
       if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_DELETE',

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
+﻿import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken } from '../helpers.js';
 import { getCache, setCache, deleteCacheByPattern } from '../../../utils/redis.js';
 
@@ -34,7 +33,7 @@ export const kelompokPelangganResolvers = {
       if (TarifTinggi != null && (TarifTinggi < 0 || !Number.isFinite(TarifTinggi))) throw new Error('TarifTinggi harus positif');
       if (BiayaBeban != null && (BiayaBeban < 0 || !Number.isFinite(BiayaBeban))) throw new Error('BiayaBeban harus positif');
 
-      // Cek duplikat sebelum simpan — beri pesan yang jelas
+      // Cek duplikat sebelum simpan â€” beri pesan yang jelas
       const existing = await KelompokPelanggan.findOne({
         KodeKelompok: { $regex: `^${KodeKelompok.trim().toUpperCase()}$`, $options: 'i' },
       });

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import Billing from '../../../models/Billing.js';
+﻿import Billing from '../../../models/Billing.js';
 import Meteran from '../../../models/Meteran.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import User from '../../../models/User.js';
@@ -10,7 +9,7 @@ import type { GraphQLContext } from '../../../types/index.js';
 const DENDA_RINGAN = 150_000;
 const DENDA_BERAT = 1_500_000;
 
-// Populate path — disesuaikan dengan field names baru (PascalCase)
+// Populate path â€” disesuaikan dengan field names baru (PascalCase)
 const TAGIHAN_POPULATE = {
   path: 'IdMeteran',
   populate: {
@@ -26,7 +25,7 @@ const formatPeriode = (d: Date): string => {
 };
 
 // Hitung PeriodeAkhir dari Periode awal + bulanCakupan
-// Contoh: Periode="2026-02", bulanCakupan=3 → "2026-04"
+// Contoh: Periode="2026-02", bulanCakupan=3 â†’ "2026-04"
 function computePeriodeAkhir(periode: string, bulanCakupan: number): string {
   const [year, month] = periode.split('-').map(Number);
   const endIdx = year * 12 + (month - 1) + bulanCakupan - 1;
@@ -42,7 +41,7 @@ export const tagihanResolvers = {
       return await Billing.findById(id).populate(TAGIHAN_POPULATE);
     },
 
-    getAllTagihan: async (_, { limit = 100, offset = 0, status, filterPeriode } = {}, { token }: GraphQLContext) => {
+    getAllTagihan: async (_, { limit = 100, offset = 0, status, filterPeriode }: { limit?: number; offset?: number; status?: string; filterPeriode?: string } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const filter: Record<string, any> = {};
       if (status) filter.StatusPembayaran = status;
@@ -93,7 +92,7 @@ export const tagihanResolvers = {
       const inactiveUsers = await User.find({ accountStatus: 'inactive' }, '_id').lean();
       const inactiveIds = new Set(inactiveUsers.map((u: any) => u._id.toString()));
 
-      // Deteksi billing pending dengan bulanCakupan ≥3 — 1 record = beberapa bulan akumulasi
+      // Deteksi billing pending dengan bulanCakupan â‰¥3 â€” 1 record = beberapa bulan akumulasi
       const eligibleBillings = await Billing.find({
         StatusPembayaran: 'pending',
         jenisBilling: { $ne: 'denda' },
@@ -105,7 +104,7 @@ export const tagihanResolvers = {
       const allUserIds = [...new Set([...inactiveIds, ...tunggakanIds])];
       if (allUserIds.length === 0) return [];
 
-      // Batch fetch — 2 queries total menggantikan N×2 queries
+      // Batch fetch â€” 2 queries total menggantikan NÃ—2 queries
       const [users, allTagihanPending] = await Promise.all([
         User.find({ _id: { $in: allUserIds } }).lean(),
         Billing.find({ userId: { $in: allUserIds }, StatusPembayaran: 'pending' }).sort({ Periode: 1 }).lean(),
@@ -152,7 +151,7 @@ export const tagihanResolvers = {
       if (pendingCheck) {
         const periodeAkhirCheck = pendingCheck.PeriodeAkhir ?? computePeriodeAkhir(pendingCheck.Periode, pendingCheck.bulanCakupan ?? 1);
         if (Periode >= pendingCheck.Periode && Periode <= periodeAkhirCheck) {
-          throw new Error(`Periode ${Periode} sudah tercakup dalam tagihan aktif (${pendingCheck.Periode} – ${periodeAkhirCheck})`);
+          throw new Error(`Periode ${Periode} sudah tercakup dalam tagihan aktif (${pendingCheck.Periode} â€“ ${periodeAkhirCheck})`);
         }
       }
 
@@ -211,7 +210,7 @@ export const tagihanResolvers = {
             TenggatWaktu: tenggatWaktu,
             Menunggak: true,
             PeriodeAkhir: periodeAkhirBaru,
-            // Batalkan Snap lama — nominal berubah, order_id baru wajib dibuat
+            // Batalkan Snap lama â€” nominal berubah, order_id baru wajib dibuat
             MidtransOrderId: null,
             SnapToken: null,
             SnapRedirectUrl: null,
@@ -219,7 +218,7 @@ export const tagihanResolvers = {
         });
 
         // Buat Snap baru dengan nominal akumulasi terbaru
-        const periodeLabel = `${pendingBilling.Periode} – ${periodeAkhirBaru} (${bulanBaru} bulan)`;
+        const periodeLabel = `${pendingBilling.Periode} â€“ ${periodeAkhirBaru} (${bulanBaru} bulan)`;
         const snapUrl = await buatSnap(pendingBilling._id, totalBiayaBaru, periodeLabel, userId);
 
         if (userId) {
@@ -234,7 +233,7 @@ export const tagihanResolvers = {
         return await Billing.findById(pendingBilling._id).populate(TAGIHAN_POPULATE);
       }
 
-      // Tidak ada pending — buat billing baru
+      // Tidak ada pending â€” buat billing baru
       const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
       const billing = new Billing({
         userId,
@@ -262,7 +261,7 @@ export const tagihanResolvers = {
         await notifikasiUntukPelanggan(
           userId.toString(),
           'Tagihan Air Baru',
-          `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} m³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
+          `Tagihan air sebesar Rp${totalBiaya.toLocaleString('id-ID')} untuk periode ${Periode}. Total pemakaian: ${pemakaian} mÂ³. Jatuh tempo: ${tenggatWaktu.toLocaleDateString('id-ID')}.${snapUrl ? ` Bayar sekarang: ${snapUrl}` : ''}`,
           'PEMBAYARAN',
           '/tagihan',
         );
@@ -301,7 +300,7 @@ export const tagihanResolvers = {
       }).select('_id IdMeteran TotalBiaya bulanCakupan Periode').lean();
       const pendingMap = new Map(pendingBillings.map(b => [b.IdMeteran.toString(), b]));
 
-      // Kumpulkan operasi write — eksekusi batch setelah loop (bukan per-item)
+      // Kumpulkan operasi write â€” eksekusi batch setelah loop (bukan per-item)
       const updateOps: any[] = [];
       const insertDocs: any[] = [];
 
@@ -393,7 +392,7 @@ export const tagihanResolvers = {
         }
       }
 
-      // Eksekusi batch — jauh lebih cepat dari N individual queries
+      // Eksekusi batch â€” jauh lebih cepat dari N individual queries
       await Promise.all([
         updateOps.length > 0 ? Billing.bulkWrite(updateOps, { ordered: false }) : Promise.resolve(),
         insertDocs.length > 0 ? Billing.insertMany(insertDocs, { ordered: false }) : Promise.resolve(),
@@ -416,7 +415,7 @@ export const tagihanResolvers = {
       if (status === 'settlement' && tagihan.StatusPembayaran !== 'settlement') {
         updateData.TanggalPembayaran = new Date();
         updateData.MetodePembayaran = 'manual_admin';
-        // Append marker ke catatan lama — jangan overwrite info yang sudah ada
+        // Append marker ke catatan lama â€” jangan overwrite info yang sudah ada
         const catatanLama = (tagihan as any).Catatan;
         updateData.Catatan = catatanLama
           ? `${catatanLama} [pemakaian_applied]`

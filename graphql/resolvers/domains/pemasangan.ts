@@ -1,20 +1,19 @@
-// @ts-nocheck
-import Pemasangan from '../../../models/Pemasangan.js';
+﻿import Pemasangan from '../../../models/Pemasangan.js';
 import PengawasanPemasangan from '../../../models/PengawasanPemasangan.js';
 import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasangan.js';
 import { verifyAdminToken } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// Disesuaikan dengan Rafli — model simplified, no teknisiId/supervisorId/statusVerifikasi
+// Disesuaikan dengan Rafli â€” model simplified, no teknisiId/supervisorId/statusVerifikasi
 
-// Deep populate: Pemasangan → KoneksiData → Pengguna (IdPelanggan)
+// Deep populate: Pemasangan â†’ KoneksiData â†’ Pengguna (IdPelanggan)
 const PEMASANGAN_KONEKSI_POPULATE = {
   path: 'idKoneksiData',
   model: 'KoneksiData',
   populate: { path: 'IdPelanggan', model: 'Pengguna' },
 };
 
-// Deep populate: Pengawasan → Pemasangan → KoneksiData → Pengguna
+// Deep populate: Pengawasan â†’ Pemasangan â†’ KoneksiData â†’ Pengguna
 const PENGAWASAN_DEEP_POPULATE = {
   path: 'idPemasangan',
   model: 'Pemasangan',

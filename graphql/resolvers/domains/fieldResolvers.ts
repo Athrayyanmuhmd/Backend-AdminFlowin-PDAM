@@ -1,5 +1,4 @@
-// @ts-nocheck
-// Field resolvers — field names HARUS cocok persis dengan nama di GraphQL schema.
+﻿// Field resolvers â€” field names HARUS cocok persis dengan nama di GraphQL schema.
 // Schema sudah PascalCase sesuai Ahmad/Rafli, jadi semua FK field resolver ikut PascalCase.
 import AdminAccount from '../../../models/AdminAccount.js';
 import Technician from '../../../models/Technician.js';
@@ -10,10 +9,10 @@ import User from '../../../models/User.js';
 import GeoLokasi from '../../../models/GeoLokasi.js';
 import { getCache, setCache } from '../../../utils/redis.js';
 
-// Helper: serialize date → ISO string (null-safe)
+// Helper: serialize date â†’ ISO string (null-safe)
 const iso = (v: any): string | null => (v ? new Date(v).toISOString() : null);
 
-// Helper: safe _id → string conversion
+// Helper: safe _id â†’ string conversion
 // Handles ObjectId (.toHexString), Buffer (UUID binary from MongoDB), and plain strings
 const toId = (val: any): string | null => {
   if (!val) return null;
@@ -25,8 +24,8 @@ const toId = (val: any): string | null => {
   return String(val);
 };
 
-// Helper: safe ISO — handles epoch-ms strings (e.g. "1718000000000") from Rafli backend
-// new Date("1718000000000") → Invalid Date in Node.js; must convert to Number first
+// Helper: safe ISO â€” handles epoch-ms strings (e.g. "1718000000000") from Rafli backend
+// new Date("1718000000000") â†’ Invalid Date in Node.js; must convert to Number first
 const safeIso = (v: any): string | null => {
   if (!v) return null;
   try {
@@ -48,7 +47,7 @@ const normalizePaymentStatus = (v: string | undefined | null): string => {
 };
 
 export const fieldResolvers = {
-  // ─── Notifikasi — DB PascalCase → GQL camelCase ──────────────────────────────
+  // â”€â”€â”€ Notifikasi â€” DB PascalCase â†’ GQL camelCase â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Notifikasi: {
     idAdmin: async (parent) => {
       const ref = parent.IdAdmin || parent.idAdmin;
@@ -72,13 +71,13 @@ export const fieldResolvers = {
     pesan: (parent) => parent.Pesan || parent.pesan || '',
     kategori: (parent) => parent.Kategori || parent.kategori || 'INFORMASI',
     link: (parent) => parent.Link || parent.link || null,
-    // isRead: dokumen dari Ahmad tidak punya field ini → default false
+    // isRead: dokumen dari Ahmad tidak punya field ini â†’ default false
     isRead: (parent) => parent.isRead ?? false,
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Meteran — FK fields PascalCase sesuai schema ────────────────────────────
+  // â”€â”€â”€ Meteran â€” FK fields PascalCase sesuai schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Meteran: {
     IdKelompokPelanggan: async (parent) => {
       // Mendukung field baru (IdKelompokPelanggan) dan lama (idKelompokPelanggan)
@@ -104,9 +103,9 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Laporan — DB PascalCase → GQL mapping ──────────────────────────────────
+  // â”€â”€â”€ Laporan â€” DB PascalCase â†’ GQL mapping â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Laporan: {
-    // Explicit _id converter: some Ahmad docs use UUID Binary _id → would throw "ID cannot represent Buffer"
+    // Explicit _id converter: some Ahmad docs use UUID Binary _id â†’ would throw "ID cannot represent Buffer"
     _id: (parent) => toId(parent._id),
     idPengguna: async (parent) => {
       const ref = parent.IdPengguna || parent.idPengguna;
@@ -121,7 +120,7 @@ export const fieldResolvers = {
     jenisLaporan: (parent) => {
       const v = parent.JenisLaporan || parent.jenisLaporan;
       if (!v) return null;
-      // Map Ahmad DB PascalCase → GQL SCREAMING_SNAKE_CASE
+      // Map Ahmad DB PascalCase â†’ GQL SCREAMING_SNAKE_CASE
       const map: Record<string, string> = {
         AirTidakMengalir: 'AIR_TIDAK_MENGALIR',
         AirKeruh: 'AIR_KERUH',
@@ -135,21 +134,21 @@ export const fieldResolvers = {
         METERAN_BERMASALAH: 'METERAN_BERMASALAH',
         KENDALA_LAINNYA: 'KENDALA_LAINNYA',
       };
-      return map[v] ?? 'KENDALA_LAINNYA'; // unknown → fallback to safe enum value
+      return map[v] ?? 'KENDALA_LAINNYA'; // unknown â†’ fallback to safe enum value
     },
     catatan: (parent) => parent.Catatan || parent.catatan || null,
     status: (parent) => {
       const v = parent.Status || parent.status;
       if (!v) return 'DIAJUKAN';
-      // Map Ahmad DB PascalCase → GQL SCREAMING_SNAKE_CASE
+      // Map Ahmad DB PascalCase â†’ GQL SCREAMING_SNAKE_CASE
       // Includes legacy Ahmad values (Diajukan, ProsesPerbaikan) from older data
       const map: Record<string, string> = {
         Diajukan: 'DIAJUKAN',
-        Ditunda: 'DIAJUKAN',   // legacy — Ditunda diperlakukan sama dengan Diajukan
+        Ditunda: 'DIAJUKAN',   // legacy â€” Ditunda diperlakukan sama dengan Diajukan
         Ditugaskan: 'DITUGASKAN',
         DitinjauAdmin: 'DITINJAU_ADMIN',
         SedangDikerjakan: 'SEDANG_DIKERJAKAN',
-        ProsesPerbaikan: 'SEDANG_DIKERJAKAN', // legacy Ahmad — in-progress
+        ProsesPerbaikan: 'SEDANG_DIKERJAKAN', // legacy Ahmad â€” in-progress
         Selesai: 'SELESAI',
         Dibatalkan: 'DIBATALKAN',
         // Also handle if already in GQL format (idempotent)
@@ -160,14 +159,14 @@ export const fieldResolvers = {
         SELESAI: 'SELESAI',
         DIBATALKAN: 'DIBATALKAN',
       };
-      return map[v] ?? 'DIAJUKAN'; // unknown status → default DIAJUKAN
+      return map[v] ?? 'DIAJUKAN'; // unknown status â†’ default DIAJUKAN
     },
     koordinat: async (parent) => {
       // Koordinat is ObjectId ref to GeoLokasi model
       const ref = parent.Koordinat || parent.koordinat;
       if (!ref) return null;
       if (typeof ref === 'object' && ref.Latitude != null) {
-        // Convert _id to string — Buffer/Binary from MongoDB would cause "ID cannot represent Buffer" error
+        // Convert _id to string â€” Buffer/Binary from MongoDB would cause "ID cannot represent Buffer" error
         return { _id: ref._id?.toString() ?? null, latitude: ref.Latitude, longitude: ref.Longitude };
       }
       const geo = await GeoLokasi.findById(ref);
@@ -185,13 +184,13 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── PenyelesaianLaporan ──────────────────────────────────────────────────────
+  // â”€â”€â”€ PenyelesaianLaporan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   PenyelesaianLaporan: {
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Survei ───────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Survei â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Survei: {
     idKoneksiData: async (parent) => {
       const ref = parent.idKoneksiData;
@@ -211,12 +210,12 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── RABConnection ────────────────────────────────────────────────────────────
+  // â”€â”€â”€ RABConnection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   RABConnection: {
     idKoneksiData: async (parent) => {
       const ref = parent.idKoneksiData;
       if (!ref) return null;
-      // Already populated as Mongoose document — return as-is
+      // Already populated as Mongoose document â€” return as-is
       if (typeof ref === 'object' && ref._id) return ref;
       // Fallback: fetch from DB, populate IdPelanggan so KoneksiData.IdPelanggan resolver has a User object
       return await ConnectionData.findById(ref).populate('IdPelanggan').lean();
@@ -226,7 +225,7 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Tagihan — FK & date fields PascalCase sesuai schema ────────────────────
+  // â”€â”€â”€ Tagihan â€” FK & date fields PascalCase sesuai schema â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Field resolver juga normalize field lama (camelCase) dari dokumen Ahmad yg lebih lama
   Tagihan: {
     Periode: (parent) => parent.Periode || parent.periode || null,
@@ -250,14 +249,14 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Pengguna ──────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ Pengguna â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Pengguna: {
     _id: (parent) => toId(parent._id),
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Admin & Teknisi ───────────────────────────────────────────────────────────
+  // â”€â”€â”€ Admin & Teknisi â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Admin: {
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
@@ -268,26 +267,26 @@ export const fieldResolvers = {
     // resolver reads parent.id from a plain ObjectId object, Buffer.toJSON() returns
     // { type: "Buffer", data: [...] } which the ID scalar rejects. Use toId() to normalize.
     id: (parent) => toId(parent.id) ?? toId(parent._id) ?? null,
-    // namaLengkap: String! — non-nullable; fallback to '—' to prevent null propagation crash.
+    // namaLengkap: String! â€” non-nullable; fallback to 'â€”' to prevent null propagation crash.
     // Some Teknisi documents from Rafli backend may use different casing or missing values.
-    namaLengkap: (parent) => parent.namaLengkap ?? parent.NamaLengkap ?? parent.nama ?? '—',
+    namaLengkap: (parent) => parent.namaLengkap ?? parent.NamaLengkap ?? parent.nama ?? 'â€”',
     nip: (parent) => parent.nip ?? parent.NIP ?? parent.Nip ?? null,
     email: (parent) => parent.email ?? parent.Email ?? null,
     noHp: (parent) => parent.noHp ?? parent.noHP ?? parent.NoHp ?? parent.no_hp ?? null,
     divisi: (parent) => parent.divisi ?? parent.Divisi ?? null,
     isActive: (parent) => parent.isActive ?? null,
-    // safeIso: Rafli serializes Date via String(epochMs) → "1718000000000"
+    // safeIso: Rafli serializes Date via String(epochMs) â†’ "1718000000000"
     createdAt: (parent) => safeIso(parent.createdAt),
     updatedAt: (parent) => safeIso(parent.updatedAt),
   },
 
-  // ─── KelompokPelanggan ────────────────────────────────────────────────────────
+  // â”€â”€â”€ KelompokPelanggan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   KelompokPelanggan: {
     createdAt: (parent) => iso(parent.createdAt),
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── AuditLog ─────────────────────────────────────────────────────────────────
+  // â”€â”€â”€ AuditLog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   AuditLog: {
     nilaiBefore: (parent) => (parent.nilaiBefore ? JSON.stringify(parent.nilaiBefore) : null),
     nilaiAfter: (parent) => (parent.nilaiAfter ? JSON.stringify(parent.nilaiAfter) : null),
@@ -295,7 +294,7 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── KoneksiData — FK fields PascalCase sesuai Ahmad ─────────────────────────
+  // â”€â”€â”€ KoneksiData â€” FK fields PascalCase sesuai Ahmad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Collection koneksidatas memiliki DUA format: lama (camelCase) dan baru (PascalCase)
   // Setiap field resolver menormalisasi keduanya agar frontend tidak mendapat null/undefined.
   KoneksiData: {
@@ -324,7 +323,7 @@ export const fieldResolvers = {
     StatusPengajuan: (parent) => {
       const v = parent.StatusPengajuan || parent.statusVerifikasi || parent.statusPengajuan;
       if (!v) return 'PENDING';
-      // Old format uses: 'menunggu' → PENDING, 'disetujui' → APPROVED, 'ditolak' → REJECTED
+      // Old format uses: 'menunggu' â†’ PENDING, 'disetujui' â†’ APPROVED, 'ditolak' â†’ REJECTED
       const map: Record<string, string> = {
         menunggu: 'PENDING',
         disetujui: 'APPROVED',
@@ -355,12 +354,12 @@ export const fieldResolvers = {
     updatedAt: (parent) => iso(parent.updatedAt),
   },
 
-  // ─── Pemasangan & pengawasan ──────────────────────────────────────────────────
+  // â”€â”€â”€ Pemasangan & pengawasan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   Pemasangan: {
     idKoneksiData: async (parent) => {
       const ref = parent.idKoneksiData;
       if (!ref) return null;
-      // Already populated (deep populate from resolver) — return as-is
+      // Already populated (deep populate from resolver) â€” return as-is
       if (typeof ref === 'object' && ref._id) return ref;
       // Fallback: fetch and deep-populate IdPelanggan
       return await ConnectionData.findById(ref).populate('IdPelanggan').lean();

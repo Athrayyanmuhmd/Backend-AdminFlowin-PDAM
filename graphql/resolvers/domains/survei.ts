@@ -1,5 +1,4 @@
-// @ts-nocheck
-import SurveyData from '../../../models/SurveyData.js';
+﻿import SurveyData from '../../../models/SurveyData.js';
 import RabConnection from '../../../models/RabConnection.js';
 import { verifyAdminToken, /* catatAuditLog */ } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
@@ -140,7 +139,7 @@ export const surveiResolvers = {
       const rab = await RabConnection.findById(id);
       if (!rab) throw new Error('RAB Connection tidak ditemukan');
       if (rab.statusPembayaran !== 'settlement') {
-        throw new Error('Pembayaran belum settlement — tidak dapat dikonfirmasi');
+        throw new Error('Pembayaran belum settlement â€” tidak dapat dikonfirmasi');
       }
       (rab as any).statusKonfirmasiPembayaran = 'dikonfirmasi';
       (rab as any).catatanKonfirmasi = catatan ?? null;
@@ -152,7 +151,7 @@ export const surveiResolvers = {
       verifyAdminToken(token);
       const rab = await RabConnection.findById(id);
       if (!rab) throw new Error('RAB Connection tidak ditemukan');
-      // Loket/cash payment — mark both payment and confirmation
+      // Loket/cash payment â€” mark both payment and confirmation
       (rab as any).statusPembayaran = 'settlement';
       (rab as any).statusKonfirmasiPembayaran = 'dikonfirmasi';
       (rab as any).catatanKonfirmasi = catatan ?? 'Dibayar tunai di loket';

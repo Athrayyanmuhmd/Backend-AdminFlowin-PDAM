@@ -1,14 +1,13 @@
-// @ts-nocheck
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
 import Notification from '../../../models/Notification.js';
 import User from '../../../models/User.js';
 import { verifyAdminToken } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// Disesuaikan dengan Ahmad — Notification model fields PascalCase (IdAdmin, IdPelanggan, IdTeknisi, Judul, Pesan, Kategori, Link)
-// GQL input uses camelCase → map to PascalCase for DB
+// Disesuaikan dengan Ahmad â€” Notification model fields PascalCase (IdAdmin, IdPelanggan, IdTeknisi, Judul, Pesan, Kategori, Link)
+// GQL input uses camelCase â†’ map to PascalCase for DB
 
-// Helper: map GQL camelCase input → DB PascalCase
+// Helper: map GQL camelCase input â†’ DB PascalCase
 const mapInputToDb = (input: any) => {
   const mapped: any = {};
   if (input.idPelanggan !== undefined) mapped.IdPelanggan = input.idPelanggan;
@@ -38,7 +37,7 @@ export const notifikasiResolvers = {
       return await Notification.find({ IdAdmin: idAdmin, isRead: false }).sort({ createdAt: -1 });
     },
 
-    // Returns [] instead of throwing when token invalid — polled every 30s
+    // Returns [] instead of throwing when token invalid â€” polled every 30s
     // Returns ALL notifications (admin oversight: sent to pelanggan, teknisi, or admin)
     getAllNotifikasiAdmin: async (_, __, { token }) => {
       try { verifyAdminToken(token); } catch { return []; }

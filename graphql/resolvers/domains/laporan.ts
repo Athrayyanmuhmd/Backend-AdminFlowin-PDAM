@@ -1,15 +1,14 @@
-// @ts-nocheck
-import Report from '../../../models/Report.js';
+﻿import Report from '../../../models/Report.js';
 import PenyelesaianLaporan from '../../../models/PenyelesaianLaporan.js';
 import Technician from '../../../models/Technician.js';
 import { verifyAdminToken, notifikasiSemuaAdmin, notifikasiUntukPelanggan } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// Disesuaikan dengan Ahmad — Report model fields PascalCase (IdPengguna, Status, etc.)
+// Disesuaikan dengan Ahmad â€” Report model fields PascalCase (IdPengguna, Status, etc.)
 // DB status values: Diajukan, Ditunda, Ditugaskan, DitinjauAdmin, SedangDikerjakan, Selesai, Dibatalkan
 // GQL enum maps these via fieldResolvers (DITUNDA, DITUGASKAN, etc.)
 
-// Map GQL SCREAMING_SNAKE status → DB PascalCase
+// Map GQL SCREAMING_SNAKE status â†’ DB PascalCase
 const statusGqlToDb: Record<string, string> = {
   DIAJUKAN: 'Diajukan',
   DITUGASKAN: 'Ditugaskan',
@@ -89,7 +88,7 @@ export const laporanResolvers = {
         const namaTeknisi = (updated.IdTeknisi as any)?.namaLengkap ?? 'teknisi';
 
         if (dbStatus === 'Ditugaskan') {
-          // Notifikasi ke pelanggan — sertakan nama teknisi jika ada
+          // Notifikasi ke pelanggan â€” sertakan nama teknisi jika ada
           if (idPelanggan) {
             await notifikasiUntukPelanggan(
               idPelanggan,

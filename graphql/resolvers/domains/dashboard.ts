@@ -1,5 +1,4 @@
-// @ts-nocheck
-import User from '../../../models/User.js';
+﻿import User from '../../../models/User.js';
 import Technician from '../../../models/Technician.js';
 import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
@@ -11,11 +10,11 @@ import { verifyAdminToken } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// Disesuaikan dengan Ahmad/Rafli — DB fields PascalCase
+// Disesuaikan dengan Ahmad/Rafli â€” DB fields PascalCase
 // Billing: TotalBiaya, StatusPembayaran (lowercase: pending/settlement/cancel/etc.), Menunggak, IdMeteran
 // Report: Status (Ditunda/Ditugaskan/DitinjauAdmin/SedangDikerjakan/Selesai/Dibatalkan)
-// Meteran: IdKelompokPelanggan, NomorMeteran, NomorAkun — collection 'meterans'
-// KelompokPelanggan: NamaKelompok — collection 'kelompokpelanggans'
+// Meteran: IdKelompokPelanggan, NomorMeteran, NomorAkun â€” collection 'meterans'
+// KelompokPelanggan: NamaKelompok â€” collection 'kelompokpelanggans'
 
 const namaBulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
 

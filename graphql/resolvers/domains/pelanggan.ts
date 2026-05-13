@@ -1,5 +1,4 @@
-// @ts-nocheck
-import bcrypt from 'bcryptjs';
+﻿import bcrypt from 'bcryptjs';
 import User from '../../../models/User.js';
 import Meteran from '../../../models/Meteran.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
@@ -180,12 +179,12 @@ export const pelangganResolvers = {
       const user = await User.findById(userId);
       if (!user) throw new Error('Pelanggan tidak ditemukan');
 
-      // Activate user account (mandatory — always runs first)
+      // Activate user account (mandatory â€” always runs first)
       user.isVerified = true;
       user.accountStatus = 'active';
       await user.save();
 
-      // Activate meter if found — tolerate absence (meter may be linked via different field)
+      // Activate meter if found â€” tolerate absence (meter may be linked via different field)
       const meteran = await Meteran.findOne({ IdKoneksiData: koneksiDataId }).catch(() => null);
       if (meteran) {
         await Meteran.findByIdAndUpdate(meteran._id, { statusAktif: true }).catch(() => {});

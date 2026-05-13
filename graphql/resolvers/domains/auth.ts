@@ -1,5 +1,4 @@
-// @ts-nocheck
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import AdminAccount from '../../../models/AdminAccount.js';
 import Technician from '../../../models/Technician.js';
@@ -25,7 +24,7 @@ export const authResolvers = {
       return { token, admin: { ...admin.toObject(), token } };
     },
 
-    // Login teknisi ke admin panel — pakai Technician model lokal (bukan Rafli)
+    // Login teknisi ke admin panel â€” pakai Technician model lokal (bukan Rafli)
     loginTechnician: async (_, { email, password }) => {
       const teknisi = await Technician.findOne({ email: email?.toLowerCase().trim() });
       if (!teknisi) throw new Error('Email atau kata sandi salah.');
@@ -65,7 +64,7 @@ export const authResolvers = {
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({ ...input, password: hashedPassword });
       const saved = await admin.save();
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_CREATE',
@@ -80,7 +79,7 @@ export const authResolvers = {
       verifyAdminToken(token);
       if (input.password) input.password = await bcrypt.hash(input.password, 10);
       const updated = await AdminAccount.findByIdAndUpdate(id, input, { new: true });
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_UPDATE',
@@ -95,7 +94,7 @@ export const authResolvers = {
       verifyAdminToken(token);
       const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_DELETE',

@@ -1,5 +1,4 @@
-// @ts-nocheck
-import KoneksiData from '../../../models/ConnectionData.js';
+﻿import KoneksiData from '../../../models/ConnectionData.js';
 import User from '../../../models/User.js';
 import SurveyData from '../../../models/SurveyData.js';
 import RabConnection from '../../../models/RabConnection.js';
@@ -18,7 +17,7 @@ export const koneksiDataResolvers = {
       verifyAdminToken(token);
       const data = await KoneksiData.findById(id).populate('IdPelanggan');
       if (data) {
-        // [akseslog nonaktif — uncomment untuk mengaktifkan kembali]
+        // [akseslog nonaktif â€” uncomment untuk mengaktifkan kembali]
         // catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
       }
       return data;
@@ -81,19 +80,19 @@ export const koneksiDataResolvers = {
     getDetailSambungan: async (_, { id }, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
 
-      // First fetch koneksiData — needed to determine if APPROVED before fetching children
+      // First fetch koneksiData â€” needed to determine if APPROVED before fetching children
       const koneksiData = await KoneksiData.findById(id).populate('IdPelanggan');
       if (!koneksiData) throw new Error('Data sambungan tidak ditemukan');
 
       const isApproved = koneksiData.StatusPengajuan === 'APPROVED'
-        || koneksiData.statusPengajuan === 'approved'
-        || koneksiData.statusVerifikasi === 'disetujui';
+        || (koneksiData as any).statusPengajuan === 'approved'
+        || (koneksiData as any).statusVerifikasi === 'disetujui';
 
       if (!isApproved) {
         return { koneksiData, survei: null, rab: null, meteran: null, pemasangan: null, pengawasan: null, pengawasanSetelah: null, workOrders: [] };
       }
 
-      // Fetch all sub-documents in parallel — single server-side round
+      // Fetch all sub-documents in parallel â€” single server-side round
       const [survei, rab, meteran, pemasangan, workOrders] = await Promise.all([
         SurveyData.findOne({ idKoneksiData: id, isDraft: { $ne: true } })
           .populate({ path: 'idKoneksiData', populate: { path: 'IdPelanggan' } }),
@@ -130,7 +129,7 @@ export const koneksiDataResolvers = {
         })(),
       ]);
 
-      // Pengawasan requires pemasangan._id — fetch after pemasangan resolves
+      // Pengawasan requires pemasangan._id â€” fetch after pemasangan resolves
       let pengawasan = null;
       let pengawasanSetelah = null;
       if (pemasangan?._id) {
@@ -205,7 +204,7 @@ export const koneksiDataResolvers = {
 
       const result = await KoneksiData.findByIdAndUpdate(id, updateData, { new: true })
         .populate('IdPelanggan');
-      /* [auditlog nonaktif — uncomment untuk mengaktifkan kembali]
+      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'KONEKSI_VERIFY',
@@ -215,7 +214,7 @@ export const koneksiDataResolvers = {
         nilaiAfter: { StatusPengajuan: status, AlasanPenolakan: alasanPenolakan },
       }); */
 
-      // Kirim notifikasi ke pelanggan — dibaca oleh Ahmad's user app
+      // Kirim notifikasi ke pelanggan â€” dibaca oleh Ahmad's user app
       const pelangganId = (result?.IdPelanggan as any)?._id?.toString()
         ?? (result?.IdPelanggan as any)?.toString();
       if (pelangganId) {
