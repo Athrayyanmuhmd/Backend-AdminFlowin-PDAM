@@ -10,7 +10,7 @@ import type { GraphQLContext } from '../../../types/index.js';
 export const authResolvers = {
   Query: {
     loginAdmin: async (_, { email, password }) => {
-      const admin = await AdminAccount.findOne({ email });
+      const admin = await AdminAccount.findOne({ email: email?.toLowerCase().trim() });
       if (!admin) throw new Error('Email atau kata sandi salah.');
       const isValid = await bcrypt.compare(password, admin.password);
       if (!isValid) throw new Error('Email atau kata sandi salah.');
@@ -27,7 +27,7 @@ export const authResolvers = {
 
     // Login teknisi ke admin panel — pakai Technician model lokal (bukan Rafli)
     loginTechnician: async (_, { email, password }) => {
-      const teknisi = await Technician.findOne({ email });
+      const teknisi = await Technician.findOne({ email: email?.toLowerCase().trim() });
       if (!teknisi) throw new Error('Email atau kata sandi salah.');
       const isValid = await bcrypt.compare(password, teknisi.password);
       if (!isValid) throw new Error('Email atau kata sandi salah.');
@@ -56,6 +56,7 @@ export const authResolvers = {
   Mutation: {
     createAdmin: async (_, { input }, { token }) => {
       verifyAdminToken(token);
+      input.email = input.email?.toLowerCase().trim();
       if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
       validatePassword(input.password);
       validatePhone(input.noHP);

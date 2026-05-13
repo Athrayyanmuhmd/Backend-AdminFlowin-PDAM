@@ -9,39 +9,43 @@ import Notification from '../../../models/Notification.js';
 import { verifyAdminToken, validateEmail, validatePassword, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
+// Helper: batch populate alamat dari ConnectionData untuk users yang belum punya address
+async function batchPopulateAlamat(users: any[]): Promise<Map<string, string>> {
+  const missingIds = users.filter((u: any) => !u.address).map((u: any) => u._id);
+  const alamatMap = new Map<string, string>();
+  if (missingIds.length === 0) return alamatMap;
+  const koneksiList = await ConnectionData.find(
+    { IdPelanggan: { $in: missingIds } },
+    'IdPelanggan Alamat'
+  ).sort({ createdAt: -1 }).lean();
+  (koneksiList as any[]).forEach((k: any) => {
+    const key = k.IdPelanggan?.toString();
+    if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
+  });
+  return alamatMap;
+}
+
+// Helper: serialize user plain object dengan ISO dates
+function serializeUser(u: any, alamatMap?: Map<string, string>) {
+  const obj = { ...u, createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
+  if (!obj.address && alamatMap) obj.address = alamatMap.get(u._id.toString()) ?? null;
+  return obj;
+}
+
 export const pelangganResolvers = {
   Query: {
     getPengguna: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const user = await User.findById(id);
+      const user = await User.findById(id).lean() as any;
       if (!user) return null;
-      return { ...user.toObject(), createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null, updatedAt: user.updatedAt ? new Date(user.updatedAt).toISOString() : null };
+      return serializeUser(user);
     },
 
     getAllPengguna: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500));
-
-      // Batch-populate address dari ConnectionData untuk user yang address-nya kosong
-      // Mencegah tampilan "—" di list pelanggan untuk pelanggan yang didaftarkan via admin
-      const missingIds = users.filter(u => !u.address).map(u => u._id);
-      const alamatMap = new Map<string, string>();
-      if (missingIds.length > 0) {
-        const koneksiList = await ConnectionData.find(
-          { IdPelanggan: { $in: missingIds } },
-          'IdPelanggan Alamat'
-        ).sort({ createdAt: -1 }).lean();
-        koneksiList.forEach((k: any) => {
-          const key = k.IdPelanggan?.toString();
-          if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
-        });
-      }
-
-      return users.map(u => {
-        const obj = { ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
-        if (!obj.address) obj.address = alamatMap.get(u._id.toString()) ?? null;
-        return obj;
-      });
+      const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500)).lean() as any[];
+      const alamatMap = await batchPopulateAlamat(users);
+      return users.map(u => serializeUser(u, alamatMap));
     },
 
     searchPengguna: async (_, { search }, { token }: GraphQLContext) => {
@@ -52,48 +56,34 @@ export const pelangganResolvers = {
           { email: { $regex: search, $options: 'i' } },
           { noHP: { $regex: search, $options: 'i' } },
         ],
-      }).sort({ createdAt: -1 });
-
-      // Batch-populate address dari ConnectionData (sama dengan getAllPengguna)
-      const missingIds = users.filter(u => !u.address).map(u => u._id);
-      const alamatMap = new Map<string, string>();
-      if (missingIds.length > 0) {
-        const koneksiList = await ConnectionData.find(
-          { IdPelanggan: { $in: missingIds } },
-          'IdPelanggan Alamat'
-        ).sort({ createdAt: -1 }).lean();
-        koneksiList.forEach((k: any) => {
-          const key = k.IdPelanggan?.toString();
-          if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
-        });
-      }
-
-      return users.map(u => {
-        const obj = { ...u.toObject(), createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
-        if (!obj.address) obj.address = alamatMap.get(u._id.toString()) ?? null;
-        return obj;
-      });
+      }).sort({ createdAt: -1 }).lean() as any[];
+      const alamatMap = await batchPopulateAlamat(users);
+      return users.map(u => serializeUser(u, alamatMap));
     },
   },
 
   Mutation: {
-    createPelanggan: async (_, { input }) => {
-      if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
+    createPelanggan: async (_, { input }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      const email = input.email?.toLowerCase().trim();
+      if (!validateEmail(email)) throw new Error('Format email tidak valid');
       validatePhone(input.noHP);
-      const existing = await User.findOne({ email: input.email });
+      const existing = await User.findOne({ email });
       if (existing) throw new Error('Email sudah terdaftar');
-      // Jika password tidak disediakan (registrasi oleh admin), gunakan NIK sebagai password default
       const rawPassword = input.password || input.nik;
       if (!rawPassword) throw new Error('Password atau NIK wajib diisi');
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
-      return await new User({ ...input, password: hashedPassword, isVerified: false }).save();
+      return await new User({ ...input, email, password: hashedPassword, isVerified: false }).save();
     },
 
-    updatePelanggan: async (_, { id, input }) => {
+    updatePelanggan: async (_, { id, input }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      if (input.email) input.email = input.email.toLowerCase().trim();
       return await User.findByIdAndUpdate(id, input, { new: true });
     },
 
-    deletePelanggan: async (_, { id }) => {
+    deletePelanggan: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
       await User.findByIdAndDelete(id);
       return { success: true, message: 'Pelanggan deleted successfully' };
     },

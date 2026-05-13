@@ -159,5 +159,8 @@ billingSchema.index({ userId: 1, Periode: 1 });
 billingSchema.index({ IdMeteran: 1, Periode: 1 });
 billingSchema.index({ StatusPembayaran: 1, TenggatWaktu: 1 });
 billingSchema.index({ Menunggak: 1 });
+// Query sering: cari pending per user (pemutusan, pembayaran) dan per meteran
+billingSchema.index({ userId: 1, StatusPembayaran: 1 });
+billingSchema.index({ IdMeteran: 1, StatusPembayaran: 1 });
 
 export default model<IBilling>('Tagihan', billingSchema);

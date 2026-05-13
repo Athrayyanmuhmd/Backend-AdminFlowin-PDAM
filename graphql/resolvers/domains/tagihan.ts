@@ -105,11 +105,25 @@ export const tagihanResolvers = {
       const allUserIds = [...new Set([...inactiveIds, ...tunggakanIds])];
       if (allUserIds.length === 0) return [];
 
+      // Batch fetch — 2 queries total menggantikan N×2 queries
+      const [users, allTagihanPending] = await Promise.all([
+        User.find({ _id: { $in: allUserIds } }).lean(),
+        Billing.find({ userId: { $in: allUserIds }, StatusPembayaran: 'pending' }).sort({ Periode: 1 }).lean(),
+      ]);
+      const userMap = new Map((users as any[]).map((u: any) => [u._id.toString(), u]));
+      const tagihanByUser = new Map<string, any[]>();
+      for (const t of allTagihanPending as any[]) {
+        const uid = t.userId?.toString();
+        if (!uid) continue;
+        if (!tagihanByUser.has(uid)) tagihanByUser.set(uid, []);
+        tagihanByUser.get(uid)!.push(t);
+      }
+
       const result = [];
       for (const uid of allUserIds) {
-        const user = await User.findById(uid).lean();
+        const user = userMap.get(uid);
         if (!user) continue;
-        const tagihanTunggakan = await Billing.find({ userId: uid, StatusPembayaran: 'pending' }).sort({ Periode: 1 }).lean();
+        const tagihanTunggakan = tagihanByUser.get(uid) ?? [];
         const jumlahBulanTunggak = tagihanTunggakan.reduce((sum: number, b: any) => sum + (b.bulanCakupan ?? 1), 0);
         const totalTunggakan = tagihanTunggakan.reduce((sum: number, b: any) => sum + (b.TotalBiaya ?? 0), 0);
         const denda = jumlahBulanTunggak >= 3 ? DENDA_BERAT : DENDA_RINGAN;
@@ -287,6 +301,10 @@ export const tagihanResolvers = {
       }).select('_id IdMeteran TotalBiaya bulanCakupan Periode').lean();
       const pendingMap = new Map(pendingBillings.map(b => [b.IdMeteran.toString(), b]));
 
+      // Kumpulkan operasi write — eksekusi batch setelah loop (bukan per-item)
+      const updateOps: any[] = [];
+      const insertDocs: any[] = [];
+
       for (const idMeteran of IdMeteranList) {
         try {
           const meteran = meteranMap.get(idMeteran.toString()) as any;
@@ -323,23 +341,27 @@ export const tagihanResolvers = {
             // Akumulasi ke billing pending yang ada
             const bulanBaru = (pendingBilling.bulanCakupan ?? 1) + 1;
             const periodeAkhirBaru = computePeriodeAkhir(pendingBilling.Periode as string, bulanBaru);
-            await Billing.findByIdAndUpdate(pendingBilling._id, {
-              $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
-              $set: {
-                PenggunaanSekarang: meteran.totalPemakaian || 0,
-                TenggatWaktu: tenggatWaktu,
-                Menunggak: true,
-                PeriodeAkhir: periodeAkhirBaru,
-                // Batalkan Snap lama — nominal berubah
-                MidtransOrderId: null,
-                SnapToken: null,
-                SnapRedirectUrl: null,
+            updateOps.push({
+              updateOne: {
+                filter: { _id: pendingBilling._id },
+                update: {
+                  $inc: { TotalPemakaian: pemakaian, Biaya: biaya, BiayaBeban: biayaBeban, TotalBiaya: totalBiaya, bulanCakupan: 1 },
+                  $set: {
+                    PenggunaanSekarang: meteran.totalPemakaian || 0,
+                    TenggatWaktu: tenggatWaktu,
+                    Menunggak: true,
+                    PeriodeAkhir: periodeAkhirBaru,
+                    MidtransOrderId: null,
+                    SnapToken: null,
+                    SnapRedirectUrl: null,
+                  },
+                },
               },
             });
           } else {
-            // Buat billing baru
+            // Billing baru
             const penggunaanSebelum = Math.max(0, (meteran.totalPemakaian || 0) - pemakaian);
-            await new Billing({
+            insertDocs.push({
               userId,
               IdMeteran: meteran._id,
               Periode,
@@ -355,7 +377,7 @@ export const tagihanResolvers = {
               Menunggak: false,
               Denda: 0,
               bulanCakupan: 1,
-            }).save();
+            });
           }
           berhasil++;
         } catch (err: any) {
@@ -370,6 +392,13 @@ export const tagihanResolvers = {
           });
         }
       }
+
+      // Eksekusi batch — jauh lebih cepat dari N individual queries
+      await Promise.all([
+        updateOps.length > 0 ? Billing.bulkWrite(updateOps, { ordered: false }) : Promise.resolve(),
+        insertDocs.length > 0 ? Billing.insertMany(insertDocs, { ordered: false }) : Promise.resolve(),
+      ]);
+
       return { berhasil, gagal, pesan: `Generate selesai: ${berhasil} berhasil, ${gagal} gagal`, detailGagal };
     },
 
