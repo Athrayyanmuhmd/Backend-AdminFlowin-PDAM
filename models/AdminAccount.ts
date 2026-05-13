@@ -8,6 +8,7 @@ export interface IAdminAccount extends MongooseTimestamps {
   password: string;
   noHP: string;
   token?: string;
+  isActive: boolean;
 }
 
 export interface IAdminAccountDocument extends IAdminAccount, Document {}
@@ -40,6 +41,10 @@ const AdminAccountSchema = new Schema<IAdminAccount>(
     },
     token: {
       type: String,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
   },
   { timestamps: true, collection: 'admins' }

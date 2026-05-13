@@ -13,6 +13,7 @@ export const authResolvers = {
       if (!admin) throw new Error('Email atau kata sandi salah.');
       const isValid = await bcrypt.compare(password, admin.password);
       if (!isValid) throw new Error('Email atau kata sandi salah.');
+      if (admin.isActive === false) throw new Error('Akun admin ini telah dinonaktifkan. Hubungi administrator.');
       const token = jwt.sign(
         { id: admin._id, email: admin.email, role: 'admin' },
         process.env.JWT_SECRET,
@@ -88,6 +89,14 @@ export const authResolvers = {
         nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email },
       }); */
       return updated;
+    },
+
+    toggleAdminActive: async (_, { id }, { token }: GraphQLContext) => {
+      verifyAdminToken(token);
+      const admin = await AdminAccount.findById(id).select('isActive namaLengkap').lean() as any;
+      if (!admin) throw new Error('Admin tidak ditemukan');
+      const newStatus = admin.isActive === false ? true : false;
+      return AdminAccount.findByIdAndUpdate(id, { isActive: newStatus }, { new: true });
     },
 
     deleteAdmin: async (_, { id }, { token }) => {

@@ -7,6 +7,7 @@ export const authTypeDefs = gql`
     namaLengkap: String
     email: String
     noHP: String
+    isActive: Boolean
     createdAt: String
     updatedAt: String
   }
@@ -49,6 +50,7 @@ export const authTypeDefs = gql`
     createAdmin(input: CreateAdminInput!): Admin!
     updateAdmin(id: ID!, input: UpdateAdminInput!): Admin!
     deleteAdmin(id: ID!): DeleteResponse!
+    toggleAdminActive(id: ID!): Admin!
     logoutAdmin: Boolean!
     logoutTechnician: Boolean!
   }
