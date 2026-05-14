@@ -1,14 +1,13 @@
-﻿import bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 import User from '../../../models/User.js';
 import Meteran from '../../../models/Meteran.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import Notification from '../../../models/Notification.js';
-import { verifyAdminToken, validateEmail, validatePassword, validatePhone } from '../helpers.js';
+import { verifyAdminToken, catatAuditLog, validateEmail, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-// Helper: batch populate alamat dari ConnectionData untuk users yang belum punya address
 async function batchPopulateAlamat(users: any[]): Promise<Map<string, string>> {
   const missingIds = users.filter((u: any) => !u.address).map((u: any) => u._id);
   const alamatMap = new Map<string, string>();
@@ -24,7 +23,6 @@ async function batchPopulateAlamat(users: any[]): Promise<Map<string, string>> {
   return alamatMap;
 }
 
-// Helper: serialize user plain object dengan ISO dates
 function serializeUser(u: any, alamatMap?: Map<string, string>) {
   const obj = { ...u, createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
   if (!obj.address && alamatMap) obj.address = alamatMap.get(u._id.toString()) ?? null;
@@ -72,24 +70,49 @@ export const pelangganResolvers = {
       const rawPassword = input.password || input.nik;
       if (!rawPassword) throw new Error('Password atau NIK wajib diisi');
       const hashedPassword = await bcrypt.hash(rawPassword, 10);
-      return await new User({ ...input, email, password: hashedPassword, isVerified: false }).save();
+      const user = await new User({ ...input, email, password: hashedPassword, isVerified: false }).save();
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_CREATE',
+        resource: 'Pengguna',
+        resourceId: user._id,
+        nilaiAfter: { namaLengkap: input.namaLengkap, email, noHP: input.noHP },
+      });
+      return user;
     },
 
     updatePelanggan: async (_, { id, input }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       if (input.email) input.email = input.email.toLowerCase().trim();
-      return await User.findByIdAndUpdate(id, input, { new: true });
+      const before = await User.findById(id, 'namaLengkap email noHP accountStatus').lean() as any;
+      const updated = await User.findByIdAndUpdate(id, input, { new: true });
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_UPDATE',
+        resource: 'Pengguna',
+        resourceId: id,
+        nilaiBefore: before ? { namaLengkap: before.namaLengkap, email: before.email, noHP: before.noHP } : null,
+        nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email, noHP: input.noHP },
+      });
+      return updated;
     },
 
     deletePelanggan: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
+      const before = await User.findById(id, 'namaLengkap email noHP').lean() as any;
       await User.findByIdAndDelete(id);
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_DELETE',
+        resource: 'Pengguna',
+        resourceId: id,
+        nilaiBefore: before ? { namaLengkap: before.namaLengkap, email: before.email, noHP: before.noHP } : null,
+      });
       return { success: true, message: 'Pelanggan deleted successfully' };
     },
 
     deactivateCustomer: async (_, { userId }, { token }) => {
       verifyAdminToken(token);
-      const DENDA_RINGAN = 150_000;
       const DENDA_BERAT = 1_500_000;
 
       const user = await User.findById(userId);
@@ -105,8 +128,7 @@ export const pelangganResolvers = {
       const jumlahBulanTunggak = pendingBillings.reduce((sum, b: any) => sum + (b.bulanCakupan ?? 1), 0);
       if (jumlahBulanTunggak < 3) throw new Error('Pelanggan belum memenuhi syarat pemutusan (minimal 3 bulan menunggak)');
 
-      const dendaAmount = DENDA_BERAT; // guard di atas sudah pastikan jumlahBulanTunggak >= 3
-
+      const dendaAmount = DENDA_BERAT;
       const meteranTagihan = pendingBillings[0];
       if (meteranTagihan) {
         await Billing.create({
@@ -131,6 +153,15 @@ export const pelangganResolvers = {
       user.accountStatus = 'inactive';
       await user.save();
 
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_DEACTIVATE',
+        resource: 'Pengguna',
+        resourceId: userId,
+        nilaiBefore: { accountStatus: 'active' },
+        nilaiAfter: { accountStatus: 'inactive', jumlahBulanTunggak, dendaAmount },
+      });
+
       await Notification.create({
         IdPelanggan: userId,
         Judul: 'ID Pelanggan Dinonaktifkan',
@@ -149,6 +180,7 @@ export const pelangganResolvers = {
       if (!user) throw new Error('Pelanggan tidak ditemukan');
 
       const now = new Date();
+      const tagihanCount = await Billing.countDocuments({ userId, StatusPembayaran: 'pending' });
       await Billing.updateMany(
         { userId, StatusPembayaran: 'pending' },
         { $set: { StatusPembayaran: 'settlement', TanggalPembayaran: now, MetodePembayaran: 'Loket', Menunggak: false } },
@@ -156,6 +188,15 @@ export const pelangganResolvers = {
 
       user.accountStatus = 'active';
       await user.save();
+
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_KONFIRMASI_LOKET',
+        resource: 'Pengguna',
+        resourceId: userId,
+        nilaiBefore: { accountStatus: user.accountStatus },
+        nilaiAfter: { accountStatus: 'active', tagihanDilunasi: tagihanCount, metodePembayaran: 'Loket' },
+      });
 
       await Notification.create({
         IdPelanggan: userId,
@@ -179,18 +220,23 @@ export const pelangganResolvers = {
       const user = await User.findById(userId);
       if (!user) throw new Error('Pelanggan tidak ditemukan');
 
-      // Activate user account (mandatory â€” always runs first)
       user.isVerified = true;
       user.accountStatus = 'active';
       await user.save();
 
-      // Activate meter if found â€” tolerate absence (meter may be linked via different field)
       const meteran = await Meteran.findOne({ IdKoneksiData: koneksiDataId }).catch(() => null);
       if (meteran) {
         await Meteran.findByIdAndUpdate(meteran._id, { statusAktif: true }).catch(() => {});
       }
 
-      // Notifikasi ke pelanggan
+      await catatAuditLog({
+        token,
+        aksi: 'PELANGGAN_AKTIVASI',
+        resource: 'Pengguna',
+        resourceId: userId,
+        nilaiAfter: { accountStatus: 'active', isVerified: true, koneksiDataId, meteranId: meteran?._id?.toString() ?? null },
+      });
+
       const tanggalAktif = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
       const kelompok = meteran
         ? await KelompokPelanggan.findById((meteran as any).IdKelompokPelanggan).catch(() => null)

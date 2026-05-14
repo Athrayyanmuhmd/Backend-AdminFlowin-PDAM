@@ -1,11 +1,10 @@
-﻿import Meteran from '../../../models/Meteran.js';
+import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
 import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
-// PemakaianHarian dihapus â€” Opsi A: query langsung ke HistoryUsage (riwayatpenggunaans)
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
-import { verifyAdminToken, /* catatAuditLog */ } from '../helpers.js';
+import { verifyAdminToken, catatAuditLog } from '../helpers.js';
 import { getCache, setCache } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
@@ -34,7 +33,6 @@ export const meteranResolvers = {
 
     getMeteranByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // Cari KoneksiData milik pelanggan (field PascalCase sesuai Ahmad)
       const connections = await ConnectionData.find({
         $or: [{ IdPelanggan: idPelanggan }, { userId: idPelanggan }],
       }).lean();
@@ -83,7 +81,7 @@ export const meteranResolvers = {
       ]);
       return records.map((r: any) => ({
         _id: r._id,
-        penggunaanAir: r.totalM3 * 1000, // mÂ³ â†’ liter (frontend expects liter)
+        penggunaanAir: r.totalM3 * 1000,
         createdAt: new Date(r._id).toISOString(),
       }));
     },
@@ -94,7 +92,6 @@ export const meteranResolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      // Opsi A: agregasi bulanan dari HistoryUsage dengan timezone WIB
       const { Types } = await import('mongoose');
       const hasil = await HistoryUsage.aggregate([
         { $match: { meteranId: new Types.ObjectId(meteranId) } },
@@ -103,7 +100,7 @@ export const meteranResolvers = {
             tahun: { $year:  { date: '$createdAt', timezone: 'Asia/Jakarta' } },
             bulan: { $month: { date: '$createdAt', timezone: 'Asia/Jakarta' } },
           },
-          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // mÂ³ â†’ liter
+          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } },
           jumlahRecord: { $sum: 1 },
         }},
         { $sort: { '_id.tahun': -1, '_id.bulan': -1 } },
@@ -120,8 +117,6 @@ export const meteranResolvers = {
 
     getRiwayatBulananAhmad: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // Baca dari Ahmad's RiwayatPenggunaan (collection: riwayatpenggunaas)
-      // MeteranId di Ahmad adalah ObjectId ref ke Meter
       const records = await RiwayatPenggunaan.find({ MeteranId: meteranId })
         .sort({ Periode: -1 })
         .limit(24)
@@ -173,14 +168,13 @@ export const meteranResolvers = {
         IdKoneksiData: IdKoneksiData || null,
       });
       await meteran.save();
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_CREATE',
         resource: 'Meteran',
         resourceId: meteran._id,
-        nilaiAfter: { NomorMeteran, NomorAkun, IdKoneksiData },
-      }); */
+        nilaiAfter: { NomorMeteran, NomorAkun, IdKoneksiData, IdKelompokPelanggan },
+      });
       return await Meteran.findById(meteran._id)
         .populate('IdKelompokPelanggan')
         .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } });
@@ -188,27 +182,35 @@ export const meteranResolvers = {
 
     updateMeteran: async (_, { id, ...updates }, { token }) => {
       verifyAdminToken(token);
+      const before = await Meteran.findById(id, 'NomorMeteran NomorAkun IdKelompokPelanggan IdKoneksiData').lean() as any;
       const meteran = await Meteran.findByIdAndUpdate(id, updates, { new: true })
         .populate('IdKelompokPelanggan')
         .populate({ path: 'IdKoneksiData', populate: { path: 'IdPelanggan' } });
       if (!meteran) throw new Error('Meteran tidak ditemukan');
+      await catatAuditLog({
+        token,
+        aksi: 'METERAN_UPDATE',
+        resource: 'Meteran',
+        resourceId: id,
+        nilaiBefore: before ? { NomorMeteran: before.NomorMeteran, NomorAkun: before.NomorAkun } : null,
+        nilaiAfter: { ...updates },
+      });
       return meteran;
     },
 
     deleteMeteran: async (_, { id }, { token }) => {
       verifyAdminToken(token);
-      const meteran = await Meteran.findById(id);
+      const meteran = await Meteran.findById(id).lean() as any;
       if (!meteran) throw new Error('Meteran tidak ditemukan');
       const activeBilling = await Billing.findOne({ IdMeteran: id, StatusPembayaran: { $in: ['pending'] } });
       if (activeBilling) throw new Error('Meteran masih memiliki tagihan yang belum dibayar');
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'METERAN_DELETE',
         resource: 'Meteran',
         resourceId: id,
-        nilaiBefore: { NomorMeteran: (meteran as any).NomorMeteran, NomorAkun: (meteran as any).NomorAkun },
-      }); */
+        nilaiBefore: { NomorMeteran: meteran.NomorMeteran, NomorAkun: meteran.NomorAkun },
+      });
       await Meteran.findByIdAndDelete(id);
       return { success: true, message: 'Meteran berhasil dihapus' };
     },

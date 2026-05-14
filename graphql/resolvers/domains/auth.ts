@@ -1,9 +1,9 @@
-﻿import jwt from 'jsonwebtoken';
+import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import AdminAccount from '../../../models/AdminAccount.js';
 import Technician from '../../../models/Technician.js';
 import logger from '../../../utils/logger.js';
-import { verifyAdminToken, verifyAdminOnlyToken, /* catatAuditLog, */ validateEmail, validatePassword, validatePhone } from '../helpers.js';
+import { verifyAdminToken, verifyAdminOnlyToken, catatAuditLog, validateEmail, validatePassword, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const authResolvers = {
@@ -25,7 +25,6 @@ export const authResolvers = {
       return { token, admin: { ...admin.toObject(), token } };
     },
 
-    // Login teknisi ke admin panel â€” pakai Technician model lokal (bukan Rafli)
     loginTechnician: async (_, { email, password }) => {
       const teknisi = await Technician.findOne({ email: email?.toLowerCase().trim() });
       if (!teknisi) throw new Error('Email atau kata sandi salah.');
@@ -65,55 +64,63 @@ export const authResolvers = {
       const hashedPassword = await bcrypt.hash(input.password, 10);
       const admin = new AdminAccount({ ...input, password: hashedPassword });
       const saved = await admin.save();
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_CREATE',
         resource: 'Admin',
         resourceId: saved._id,
         nilaiAfter: { NIP: input.NIP, namaLengkap: input.namaLengkap, email: input.email },
-      }); */
+      });
       return saved;
     },
 
     updateAdmin: async (_, { id, input }, { token }) => {
       verifyAdminOnlyToken(token);
+      const before = await AdminAccount.findById(id, 'namaLengkap email noHP NIP').lean() as any;
       if (input.password) {
         validatePassword(input.password);
         input.password = await bcrypt.hash(input.password, 10);
       }
       const updated = await AdminAccount.findByIdAndUpdate(id, input, { new: true });
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_UPDATE',
         resource: 'Admin',
         resourceId: id,
-        nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email },
-      }); */
+        nilaiBefore: before ? { namaLengkap: before.namaLengkap, email: before.email, noHP: before.noHP, NIP: before.NIP } : null,
+        nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email, noHP: input.noHP, NIP: input.NIP },
+      });
       return updated;
     },
 
     toggleAdminActive: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminOnlyToken(token);
-      const admin = await AdminAccount.findById(id).select('isActive namaLengkap').lean() as any;
+      const admin = await AdminAccount.findById(id).select('isActive namaLengkap email').lean() as any;
       if (!admin) throw new Error('Admin tidak ditemukan');
-      const newStatus = admin.isActive === false ? true : false;
-      return AdminAccount.findByIdAndUpdate(id, { isActive: newStatus }, { new: true });
+      const newStatus = !admin.isActive;
+      const updated = await AdminAccount.findByIdAndUpdate(id, { isActive: newStatus }, { new: true });
+      await catatAuditLog({
+        token,
+        aksi: newStatus ? 'ADMIN_ACTIVATE' : 'ADMIN_DEACTIVATE',
+        resource: 'Admin',
+        resourceId: id,
+        nilaiBefore: { isActive: admin.isActive, namaLengkap: admin.namaLengkap },
+        nilaiAfter: { isActive: newStatus, namaLengkap: admin.namaLengkap },
+      });
+      return updated;
     },
 
     deleteAdmin: async (_, { id }, { token }) => {
       verifyAdminOnlyToken(token);
-      const existing = await AdminAccount.findById(id, 'namaLengkap email');
+      const existing = await AdminAccount.findById(id, 'namaLengkap email NIP').lean() as any;
       await AdminAccount.findByIdAndDelete(id);
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
         token,
         aksi: 'ADMIN_DELETE',
         resource: 'Admin',
         resourceId: id,
-        nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email } : null,
-      }); */
+        nilaiBefore: existing ? { namaLengkap: existing.namaLengkap, email: existing.email, NIP: existing.NIP } : null,
+      });
       return { success: true, message: 'Admin berhasil dihapus' };
     },
 

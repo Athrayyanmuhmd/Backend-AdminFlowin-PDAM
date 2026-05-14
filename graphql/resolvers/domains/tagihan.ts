@@ -3,7 +3,7 @@ import Meteran from '../../../models/Meteran.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import User from '../../../models/User.js';
 import midtransClient from '../../../middleware/midtrans.js';
-import { verifyAdminToken, notifikasiUntukPelanggan } from '../helpers.js';
+import { verifyAdminToken, catatAuditLog, notifikasiUntukPelanggan } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 const DENDA_RINGAN = 150_000;
@@ -241,6 +241,13 @@ export const tagihanResolvers = {
             '/tagihan',
           );
         }
+        await catatAuditLog({
+          token,
+          aksi: 'TAGIHAN_AKUMULASI',
+          resource: 'Billing',
+          resourceId: pendingBilling._id,
+          nilaiAfter: { IdMeteran, Periode, tambahBulan: 1 },
+        });
         return await Billing.findById(pendingBilling._id).populate(TAGIHAN_POPULATE);
       }
 
@@ -278,6 +285,13 @@ export const tagihanResolvers = {
         );
       }
 
+      await catatAuditLog({
+        token,
+        aksi: 'TAGIHAN_GENERATE',
+        resource: 'Billing',
+        resourceId: billing._id,
+        nilaiAfter: { IdMeteran, Periode, TotalBiaya: totalBiaya, pemakaian },
+      });
       return await Billing.findById(billing._id).populate(TAGIHAN_POPULATE);
     },
 
@@ -446,6 +460,15 @@ export const tagihanResolvers = {
           return Billing.findById(id).populate(TAGIHAN_POPULATE);
         }
 
+        await catatAuditLog({
+          token,
+          aksi: 'TAGIHAN_SETTLEMENT',
+          resource: 'Billing',
+          resourceId: id,
+          nilaiBefore: { StatusPembayaran: tagihan.StatusPembayaran },
+          nilaiAfter: { StatusPembayaran: 'settlement', MetodePembayaran: 'manual_admin' },
+        });
+
         // Decrement meteran hanya jika request ini yang berhasil memenangkan transisi
         const pemakaian = tagihan.TotalPemakaian ?? 0;
         if (pemakaian > 0) {
@@ -462,6 +485,14 @@ export const tagihanResolvers = {
       }
 
       // Status non-settlement (pending, cancel, expired, dll) — update langsung
+      await catatAuditLog({
+        token,
+        aksi: 'TAGIHAN_UPDATE_STATUS',
+        resource: 'Billing',
+        resourceId: id,
+        nilaiBefore: { StatusPembayaran: tagihan.StatusPembayaran },
+        nilaiAfter: { StatusPembayaran: status },
+      });
       return Billing.findByIdAndUpdate(id, { StatusPembayaran: status }, { new: true }).populate(TAGIHAN_POPULATE);
     },
 

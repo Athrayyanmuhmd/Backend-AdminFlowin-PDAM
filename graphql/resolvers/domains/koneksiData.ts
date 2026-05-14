@@ -1,4 +1,4 @@
-﻿import KoneksiData from '../../../models/ConnectionData.js';
+import KoneksiData from '../../../models/ConnectionData.js';
 import User from '../../../models/User.js';
 import SurveyData from '../../../models/SurveyData.js';
 import RabConnection from '../../../models/RabConnection.js';
@@ -8,7 +8,7 @@ import PengawasanPemasangan from '../../../models/PengawasanPemasangan.js';
 import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasangan.js';
 import { teknisiGraphQL } from '../../../utils/teknisiClient.js';
 import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
-import { verifyAdminToken, /* catatAuditLog, catatAksesLog, */ notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
+import { verifyAdminToken, catatAuditLog, catatAksesLog, notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const koneksiDataResolvers = {
@@ -17,8 +17,7 @@ export const koneksiDataResolvers = {
       verifyAdminToken(token);
       const data = await KoneksiData.findById(id).populate('IdPelanggan');
       if (data) {
-        // [akseslog nonaktif â€” uncomment untuk mengaktifkan kembali]
-        // catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
+        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
       }
       return data;
     },
@@ -29,7 +28,7 @@ export const koneksiDataResolvers = {
         .sort({ createdAt: -1 })
         .populate('IdPelanggan');
       if (data) {
-        // catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: String(data._id), namaOperasi: 'getKoneksiDataByPelanggan' });
+        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: String(data._id), namaOperasi: 'getKoneksiDataByPelanggan' });
       }
       return data;
     },
@@ -45,7 +44,6 @@ export const koneksiDataResolvers = {
 
     getPendingKoneksiData: async (_, __, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      // Mendukung format baru (PascalCase) dan lama (camelCase Ahmad)
       return await KoneksiData.find({
         $or: [
           { StatusPengajuan: 'PENDING' },
@@ -80,7 +78,6 @@ export const koneksiDataResolvers = {
     getDetailSambungan: async (_, { id }, ctx: GraphQLContext) => {
       verifyAdminToken(ctx.token);
 
-      // First fetch koneksiData â€” needed to determine if APPROVED before fetching children
       const koneksiData = await KoneksiData.findById(id).populate('IdPelanggan');
       if (!koneksiData) throw new Error('Data sambungan tidak ditemukan');
 
@@ -92,7 +89,6 @@ export const koneksiDataResolvers = {
         return { koneksiData, survei: null, rab: null, meteran: null, pemasangan: null, pengawasan: null, pengawasanSetelah: null, workOrders: [] };
       }
 
-      // Fetch all sub-documents in parallel â€” single server-side round
       const [survei, rab, meteran, pemasangan, workOrders] = await Promise.all([
         SurveyData.findOne({ idKoneksiData: id, isDraft: { $ne: true } })
           .populate({ path: 'idKoneksiData', populate: { path: 'IdPelanggan' } }),
@@ -129,7 +125,6 @@ export const koneksiDataResolvers = {
         })(),
       ]);
 
-      // Pengawasan requires pemasangan._id â€” fetch after pemasangan resolves
       let pengawasan = null;
       let pengawasanSetelah = null;
       if (pemasangan?._id) {
@@ -167,7 +162,6 @@ export const koneksiDataResolvers = {
       });
       await koneksi.save();
 
-      // Sync NIK dan Alamat ke User agar langsung tampil di list pelanggan
       if (input.IdPelanggan) {
         User.findByIdAndUpdate(input.IdPelanggan, {
           ...(input.NIK && { nik: input.NIK }),
@@ -175,7 +169,14 @@ export const koneksiDataResolvers = {
         }).catch(() => {});
       }
 
-      // Notify semua admin bahwa ada pengajuan sambungan baru
+      await catatAuditLog({
+        token,
+        aksi: 'KONEKSI_CREATE',
+        resource: 'KoneksiData',
+        resourceId: koneksi._id,
+        nilaiAfter: { IdPelanggan: input.IdPelanggan, NIK: input.NIK, Alamat: input.Alamat, StatusPengajuan: 'PENDING' },
+      });
+
       await notifikasiSemuaAdmin(
         'Pengajuan Sambungan Baru',
         'Ada pengajuan sambungan air baru yang menunggu verifikasi.',
@@ -194,7 +195,7 @@ export const koneksiDataResolvers = {
       if (status === 'REJECTED' && !alasanPenolakan) {
         throw new Error('Alasan penolakan wajib diisi saat menolak pengajuan');
       }
-      const before = await KoneksiData.findById(id, 'StatusPengajuan');
+      const before = await KoneksiData.findById(id, 'StatusPengajuan').lean() as any;
       const updateData: any = {
         StatusPengajuan: status,
         TanggalVerifikasi: status !== 'PENDING' ? new Date() : null,
@@ -204,7 +205,7 @@ export const koneksiDataResolvers = {
 
       const result = await KoneksiData.findByIdAndUpdate(id, updateData, { new: true })
         .populate('IdPelanggan');
-      /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
+
       await catatAuditLog({
         token,
         aksi: 'KONEKSI_VERIFY',
@@ -212,9 +213,8 @@ export const koneksiDataResolvers = {
         resourceId: id,
         nilaiBefore: { StatusPengajuan: before?.StatusPengajuan },
         nilaiAfter: { StatusPengajuan: status, AlasanPenolakan: alasanPenolakan },
-      }); */
+      });
 
-      // Kirim notifikasi ke pelanggan â€” dibaca oleh Ahmad's user app
       const pelangganId = (result?.IdPelanggan as any)?._id?.toString()
         ?? (result?.IdPelanggan as any)?.toString();
       if (pelangganId) {
@@ -242,12 +242,30 @@ export const koneksiDataResolvers = {
 
     updateKoneksiData: async (_, { id, input }, { token }) => {
       verifyAdminToken(token);
-      return await KoneksiData.findByIdAndUpdate(id, input, { new: true }).populate('IdPelanggan');
+      const before = await KoneksiData.findById(id, 'StatusPengajuan NIK Alamat catatan').lean() as any;
+      const updated = await KoneksiData.findByIdAndUpdate(id, input, { new: true }).populate('IdPelanggan');
+      await catatAuditLog({
+        token,
+        aksi: 'KONEKSI_UPDATE',
+        resource: 'KoneksiData',
+        resourceId: id,
+        nilaiBefore: before ? { StatusPengajuan: before.StatusPengajuan, NIK: before.NIK, Alamat: before.Alamat } : null,
+        nilaiAfter: { ...input },
+      });
+      return updated;
     },
 
     deleteKoneksiData: async (_, { id }, { token }) => {
       verifyAdminToken(token);
+      const existing = await KoneksiData.findById(id, 'IdPelanggan NIK Alamat StatusPengajuan').lean() as any;
       await KoneksiData.findByIdAndDelete(id);
+      await catatAuditLog({
+        token,
+        aksi: 'KONEKSI_DELETE',
+        resource: 'KoneksiData',
+        resourceId: id,
+        nilaiBefore: existing ? { IdPelanggan: existing.IdPelanggan, NIK: existing.NIK, Alamat: existing.Alamat, StatusPengajuan: existing.StatusPengajuan } : null,
+      });
       return { success: true, message: 'KoneksiData berhasil dihapus' };
     },
   },
