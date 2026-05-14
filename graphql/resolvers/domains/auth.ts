@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import AdminAccount from '../../../models/AdminAccount.js';
 import Technician from '../../../models/Technician.js';
 import logger from '../../../utils/logger.js';
-import { verifyAdminToken, /* catatAuditLog, */ validateEmail, validatePassword, validatePhone } from '../helpers.js';
+import { verifyAdminToken, verifyAdminOnlyToken, /* catatAuditLog, */ validateEmail, validatePassword, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const authResolvers = {
@@ -55,7 +55,7 @@ export const authResolvers = {
 
   Mutation: {
     createAdmin: async (_, { input }, { token }) => {
-      verifyAdminToken(token);
+      verifyAdminOnlyToken(token);
       input.email = input.email?.toLowerCase().trim();
       if (!validateEmail(input.email)) throw new Error('Format email tidak valid');
       validatePassword(input.password);
@@ -77,8 +77,11 @@ export const authResolvers = {
     },
 
     updateAdmin: async (_, { id, input }, { token }) => {
-      verifyAdminToken(token);
-      if (input.password) input.password = await bcrypt.hash(input.password, 10);
+      verifyAdminOnlyToken(token);
+      if (input.password) {
+        validatePassword(input.password);
+        input.password = await bcrypt.hash(input.password, 10);
+      }
       const updated = await AdminAccount.findByIdAndUpdate(id, input, { new: true });
       /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]
       await catatAuditLog({
@@ -92,7 +95,7 @@ export const authResolvers = {
     },
 
     toggleAdminActive: async (_, { id }, { token }: GraphQLContext) => {
-      verifyAdminToken(token);
+      verifyAdminOnlyToken(token);
       const admin = await AdminAccount.findById(id).select('isActive namaLengkap').lean() as any;
       if (!admin) throw new Error('Admin tidak ditemukan');
       const newStatus = admin.isActive === false ? true : false;
@@ -100,7 +103,7 @@ export const authResolvers = {
     },
 
     deleteAdmin: async (_, { id }, { token }) => {
-      verifyAdminToken(token);
+      verifyAdminOnlyToken(token);
       const existing = await AdminAccount.findById(id, 'namaLengkap email');
       await AdminAccount.findByIdAndDelete(id);
       /* [auditlog nonaktif â€” uncomment untuk mengaktifkan kembali]

@@ -110,11 +110,21 @@ function uploadStream(buffer: Buffer, options: object): Promise<string> {
  *
  * Gunakan fungsi ini untuk semua dokumen kredensial: NIK, KK, IMB, foto survei, RAB.
  */
+const ALLOWED_MIMETYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
 export const uploadDocument = async (
   fileBuffer: Buffer,
   folder = 'aqualink',
   mimetype = 'application/pdf'
 ): Promise<string> => {
+  if (!ALLOWED_MIMETYPES.includes(mimetype)) {
+    throw new Error(`Tipe file tidak diizinkan: ${mimetype}. Hanya PDF, JPEG, PNG yang diterima.`);
+  }
+  if (fileBuffer.length > MAX_FILE_SIZE) {
+    throw new Error(`Ukuran file terlalu besar (${(fileBuffer.length / 1024 / 1024).toFixed(1)}MB). Maksimal 5MB.`);
+  }
+
   if (mimetype === 'application/pdf') {
     const watermarked = await applyPdfWatermark(fileBuffer);
     const url = await uploadStream(watermarked, {

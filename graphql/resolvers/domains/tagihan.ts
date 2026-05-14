@@ -66,7 +66,10 @@ export const tagihanResolvers = {
             $lt:  new Date(now.getFullYear(), now.getMonth(), 1),
           };
         } else {
-          // Treat as exact Periode string, e.g. "2026-04"
+          // Exact Periode string e.g. "2026-04" — validate format before use
+          if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(filterPeriode)) {
+            throw new Error(`Format filterPeriode tidak valid: "${filterPeriode}". Gunakan YYYY-MM.`);
+          }
           filter.Periode = filterPeriode;
         }
       }
