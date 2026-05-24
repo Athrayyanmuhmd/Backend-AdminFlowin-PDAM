@@ -1,36 +1,62 @@
 import { Schema, model, Types, Document } from 'mongoose';
 
-// Disesuaikan dengan Ahmad (flowin-backend/RiwayatPenggunaan.ts)
-// Collection: riwayatpenggunaans — shared across systems
-// Ahmad mengisi collection ini tiap akhir bulan dari Redis data IoT
+// Schema untuk collection riwayatpenggunaans
+// Mendukung DUA tipe dokumen:
+// 1. Raw IoT record — dari flowin-recieve-iot (cron migrate): { MeterID, UserID, PenggunaanAir, timestamp }
+// 2. Aggregated monthly — { MeteranId, Periode, TotalPenggunaan, DataHarian, DataPerJam }
+//
+// Semua field optional karena dokumen hanya punya salah satu tipe
 
 export interface IRiwayatPenggunaan {
-  MeteranId: Types.ObjectId; // ref: Meter (Ahmad's collection)
-  Periode: string;            // Format: "YYYY-MM"
-  TotalPenggunaan: number;    // Total liter dalam bulan
-  DataHarian: Map<string, number>;  // { "01": 45.7, "02": 38.2, ... }
-  DataPerJam: Map<string, number>;  // { "01-08": 5.3, "01-09": 4.1, ... }
+  // Raw IoT record fields (dari flowin-recieve-iot cron)
+  MeterID?: string;
+  UserID?: string;
+  PenggunaanAir?: number;
+  timestamp?: Date;
+
+  // Aggregated monthly fields (untuk monitoring lengkap)
+  MeteranId?: Types.ObjectId;
+  Periode?: string;               // Format: "YYYY-MM"
+  TotalPenggunaan?: number;       // Total liter dalam bulan
+  DataHarian?: Map<string, number>;   // { "01": 45.7, "02": 38.2, ... }
+  DataPerJam?: Map<string, number>;   // { "01-08": 5.3, "01-09": 4.1, ... }
 }
 
 export interface IRiwayatPenggunaanDocument extends IRiwayatPenggunaan, Document {}
 
 const RiwayatPenggunaanSchema = new Schema<IRiwayatPenggunaan>(
   {
+    // ── Raw IoT record fields ──────────────────────────────
+    MeterID: {
+      type: String,
+      index: true,
+    },
+    UserID: {
+      type: String,
+      index: true,
+    },
+    PenggunaanAir: {
+      type: Number,
+      default: 0,
+    },
+    timestamp: {
+      type: Date,
+      index: true,
+    },
+
+    // ── Aggregated monthly fields ────────────────────────────
     MeteranId: {
       type: Schema.Types.ObjectId,
-      ref: 'Meter', // Ahmad's Meter model (collection: meters)
-      required: true,
+      ref: 'Meteran',
       index: true,
     },
     Periode: {
       type: String,
-      required: true,
       match: [/^\d{4}-\d{2}$/, 'Periode must be in YYYY-MM format'],
       index: true,
     },
     TotalPenggunaan: {
       type: Number,
-      required: true,
       min: 0,
       default: 0,
     },
@@ -47,12 +73,14 @@ const RiwayatPenggunaanSchema = new Schema<IRiwayatPenggunaan>(
   },
   {
     timestamps: true,
-    collection: 'riwayatpenggunaans', // Ahmad's collection name
+    collection: 'riwayatpenggunaans',
   }
 );
 
-// Compound index — satu record per meteran per bulan
+// Compound index untuk aggregated data
 RiwayatPenggunaanSchema.index({ MeteranId: 1, Periode: -1 });
-RiwayatPenggunaanSchema.index({ MeteranId: 1, Periode: 1 }, { unique: true });
+RiwayatPenggunaanSchema.index({ MeteranId: 1, Periode: 1 }, { unique: true, sparse: true });
+// Index untuk raw IoT records
+RiwayatPenggunaanSchema.index({ MeterID: 1, timestamp: -1 });
 
 export default model<IRiwayatPenggunaan>('RiwayatPenggunaanBulanan', RiwayatPenggunaanSchema, 'riwayatpenggunaans');

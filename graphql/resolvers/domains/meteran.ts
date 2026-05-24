@@ -1,7 +1,6 @@
 import Meteran from '../../../models/Meteran.js';
 import Billing from '../../../models/Billing.js';
 import ConnectionData from '../../../models/ConnectionData.js';
-import HistoryUsage from '../../../models/HistoryUsage.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
 import KelompokPelanggan from '../../../models/KelompokPelanggan.js';
 import { verifyAdminToken, catatAuditLog } from '../helpers.js';
@@ -65,24 +64,21 @@ export const meteranResolvers = {
 
     getRiwayatPenggunaan: async (_, { meteranId, limit = 30 }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const { Types } = await import('mongoose');
-      if (!Types.ObjectId.isValid(meteranId)) {
-        throw new Error(`meteranId tidak valid: "${meteranId}"`);
+      // Query langsung ke riwayatpenggunaans dengan field MeterID (dari IoT cron)
+      // Gunakan .lean() agar bypass schema validation
+      const records = await RiwayatPenggunaan.find({ MeterID: meteranId })
+        .sort({ timestamp: -1 })
+        .limit(Math.min(limit, 100))
+        .lean() as any[];
+
+      if (!records || records.length === 0) {
+        return [];
       }
-      const records = await HistoryUsage.aggregate([
-        { $match: { meteranId: new Types.ObjectId(meteranId) } },
-        { $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
-          totalM3: { $sum: '$penggunaanAir' },
-          jumlahEntry: { $sum: 1 },
-        }},
-        { $sort: { _id: -1 } },
-        { $limit: Math.min(limit, 90) },
-      ]);
-      return records.map((r: any) => ({
-        _id: r._id,
-        penggunaanAir: r.totalM3 * 1000,
-        createdAt: new Date(r._id).toISOString(),
+
+      return records.map((r) => ({
+        _id: r._id?.toString() ?? new Date(r.timestamp).toISOString(),
+        penggunaanAir: r.PenggunaanAir ?? 0,
+        createdAt: r.timestamp ? new Date(r.timestamp).toISOString() : null,
       }));
     },
 
@@ -92,25 +88,43 @@ export const meteranResolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      const { Types } = await import('mongoose');
-      const hasil = await HistoryUsage.aggregate([
-        { $match: { meteranId: new Types.ObjectId(meteranId) } },
-        { $group: {
-          _id: {
-            tahun: { $year:  { date: '$createdAt', timezone: 'Asia/Jakarta' } },
-            bulan: { $month: { date: '$createdAt', timezone: 'Asia/Jakarta' } },
-          },
-          totalPemakaian: { $sum: { $multiply: ['$penggunaanAir', 1000] } },
-          jumlahRecord: { $sum: 1 },
-        }},
-        { $sort: { '_id.tahun': -1, '_id.bulan': -1 } },
-        { $limit: 12 },
-      ]);
-      const result = hasil.map((item: any) => ({
-        bulan: `${namaBulan[item._id.bulan - 1]} ${item._id.tahun}`,
-        totalPemakaian: item.totalPemakaian,
-        jumlahRecord: item.jumlahRecord,
-      }));
+      // Ambil semua record IoT untuk meteran ini
+      const records = await RiwayatPenggunaan.find({ MeterID: meteranId })
+        .sort({ timestamp: 1 })
+        .lean() as any[];
+
+      if (!records || records.length === 0) {
+        return [];
+      }
+
+      // Aggregate per bulan (WIB)
+      const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
+      const bulananMap: Record<string, { total: number; count: number }> = {};
+
+      for (const r of records) {
+        const ts = r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp);
+        const wibDate = new Date(ts + TZ_OFFSET_MS);
+        const tahun = wibDate.getUTCFullYear();
+        const bulan = wibDate.getUTCMonth() + 1;
+        const key = `${tahun}-${String(bulan).padStart(2, '0')}`;
+
+        if (!bulananMap[key]) bulananMap[key] = { total: 0, count: 0 };
+        bulananMap[key].total += r.PenggunaanAir ?? 0;
+        bulananMap[key].count += 1;
+      }
+
+      const result = Object.entries(bulananMap)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .slice(0, 12)
+        .map(([key, val]) => {
+          const [tahun, bulan] = key.split('-');
+          return {
+            bulan: `${namaBulan[parseInt(bulan, 10) - 1]} ${tahun}`,
+            totalPemakaian: val.total,
+            jumlahRecord: val.count,
+          };
+        });
+
       await setCache(cacheKey, result, 300);
       return result;
     },
