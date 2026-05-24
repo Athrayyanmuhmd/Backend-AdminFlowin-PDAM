@@ -131,16 +131,28 @@ export const meteranResolvers = {
 
     getRiwayatBulananAhmad: async (_, { meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const records = await RiwayatPenggunaan.find({ MeteranId: meteranId })
-        .sort({ Periode: -1 })
-        .limit(24)
-        .lean();
-      return records.map((r) => ({
-        _id: r._id,
-        periode: r.Periode,
-        totalPenggunaan: r.TotalPenggunaan ?? 0,
-        createdAt: (r as any).createdAt ? new Date((r as any).createdAt).toISOString() : null,
-      }));
+      // Aggregate daily docs menjadi summary per bulan (YYYY-MM)
+      const dailyDocs = await RiwayatPenggunaan.find({
+        MeterID: meteranId,
+        tanggal: { $exists: true },
+      }).lean() as any[];
+
+      const bulananMap: Record<string, number> = {};
+      for (const d of dailyDocs) {
+        if (!d.tanggal) continue;
+        const periode = (d.tanggal as string).substring(0, 7); // YYYY-MM
+        bulananMap[periode] = (bulananMap[periode] ?? 0) + (d.totalPenggunaan ?? 0);
+      }
+
+      return Object.entries(bulananMap)
+        .sort(([a], [b]) => b.localeCompare(a))
+        .slice(0, 24)
+        .map(([periode, total]) => ({
+          _id: periode,
+          periode,
+          totalPenggunaan: total,
+          createdAt: null,
+        }));
     },
 
     getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {
