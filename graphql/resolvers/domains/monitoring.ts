@@ -306,9 +306,10 @@ export const monitoringResolvers = {
         };
       }
 
-      // Estimasi biaya â€” pemakaianM3 = totalIni (liter) / 1000
-      const pemakaianM3 = totalIni / 1000;
-      const estimasiBiaya = hitungEstimasiBiaya(pemakaianM3, kelompok);
+      // Estimasi biaya — pakai pemakaianBelumTerbayar dari DB (akumulasi real),
+      // bukan totalIni/1000 (hanya periode ini dari Redis)
+      const pemakaianBelumTerbayar = (meteran as any).pemakaianBelumTerbayar ?? 0;
+      const estimasiBiaya = hitungEstimasiBiaya(pemakaianBelumTerbayar, kelompok);
 
       return {
         meteranId,
