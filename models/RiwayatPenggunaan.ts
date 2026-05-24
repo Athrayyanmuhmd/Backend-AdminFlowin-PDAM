@@ -1,4 +1,4 @@
-import { Schema, model, Types, Document } from 'mongoose';
+import mongoose, { Schema, model, Model, Types, Document } from 'mongoose';
 
 // Schema untuk collection riwayatpenggunaans
 // Mendukung DUA tipe dokumen:
@@ -83,4 +83,5 @@ RiwayatPenggunaanSchema.index({ MeteranId: 1, Periode: 1 }, { unique: true, spar
 // Index untuk raw IoT records
 RiwayatPenggunaanSchema.index({ MeterID: 1, timestamp: -1 });
 
-export default model<IRiwayatPenggunaan>('RiwayatPenggunaanBulanan', RiwayatPenggunaanSchema, 'riwayatpenggunaans');
+const MODEL_NAME = 'RiwayatPenggunaanBulanan';
+export default (mongoose.models[MODEL_NAME] as Model<IRiwayatPenggunaan>) ?? model<IRiwayatPenggunaan>(MODEL_NAME, RiwayatPenggunaanSchema, 'riwayatpenggunaans');
