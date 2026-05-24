@@ -204,9 +204,27 @@ process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'Unhandled Promise Rejection');
 });
 
+// Drop index lama dari schema sebelumnya agar tidak konflik dengan schema baru
+async function cleanupStaleIndexes(): Promise<void> {
+  try {
+    const col = mongoose.connection.collection('riwayatpenggunaans');
+    const indexes = await col.indexes();
+    const stale = ['MeteranId_1_Periode_1', 'MeteranId_1_Periode_-1'];
+    for (const name of stale) {
+      if (indexes.some((idx: any) => idx.name === name)) {
+        await col.dropIndex(name);
+        logger.info({ index: name }, 'Dropped stale index from riwayatpenggunaans');
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'cleanupStaleIndexes: non-critical, lanjut');
+  }
+}
+
 // Initialization promise — runs once on cold start (Vercel) or on startup (local)
 const initPromise = connectDB()
   .then(async () => {
+    await cleanupStaleIndexes();
     await setupApolloServer(app);
     logger.info('Server initialized (DB + Apollo ready)');
   })
