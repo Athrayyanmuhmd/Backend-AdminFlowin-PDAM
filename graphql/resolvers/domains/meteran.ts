@@ -88,28 +88,23 @@ export const meteranResolvers = {
       const cached = await getCache(cacheKey);
       if (cached) return cached;
 
-      // Ambil semua record IoT untuk meteran ini
-      const records = await RiwayatPenggunaan.find({ MeterID: meteranId })
-        .sort({ timestamp: 1 })
-        .lean() as any[];
+      // Ambil daily aggregate docs (tanggal YYYY-MM-DD) untuk meteran ini
+      const dailyDocs = await RiwayatPenggunaan.find({
+        MeterID: meteranId,
+        tanggal: { $exists: true },
+      }).lean() as any[];
 
-      if (!records || records.length === 0) {
+      if (!dailyDocs || dailyDocs.length === 0) {
         return [];
       }
 
-      // Aggregate per bulan (WIB)
-      const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
+      // Group per bulan dari tanggal (YYYY-MM-DD → YYYY-MM)
       const bulananMap: Record<string, { total: number; count: number }> = {};
-
-      for (const r of records) {
-        const ts = r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp);
-        const wibDate = new Date(ts + TZ_OFFSET_MS);
-        const tahun = wibDate.getUTCFullYear();
-        const bulan = wibDate.getUTCMonth() + 1;
-        const key = `${tahun}-${String(bulan).padStart(2, '0')}`;
-
+      for (const d of dailyDocs) {
+        if (!d.tanggal) continue;
+        const key = (d.tanggal as string).substring(0, 7); // YYYY-MM
         if (!bulananMap[key]) bulananMap[key] = { total: 0, count: 0 };
-        bulananMap[key].total += r.PenggunaanAir ?? 0;
+        bulananMap[key].total += d.totalPenggunaan ?? 0;
         bulananMap[key].count += 1;
       }
 
@@ -117,9 +112,10 @@ export const meteranResolvers = {
         .sort(([a], [b]) => b.localeCompare(a))
         .slice(0, 12)
         .map(([key, val]) => {
-          const [tahun, bulan] = key.split('-');
+          const parts = key.split('-');
+          const bulanIdx = parseInt(parts[1], 10) - 1;
           return {
-            bulan: `${namaBulan[parseInt(bulan, 10) - 1]} ${tahun}`,
+            bulan: namaBulan[bulanIdx] + ' ' + parts[0],
             totalPemakaian: val.total,
             jumlahRecord: val.count,
           };
