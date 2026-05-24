@@ -1,7 +1,7 @@
 import cron from 'node-cron';
 import Billing from '../models/Billing.js';
 import Meteran from '../models/Meteran.js';
-import RiwayatPenggunaan from '../models/RiwayatPenggunaan.js';
+import HistoryUsage from '../models/HistoryUsage.js';
 import Notification from '../models/Notification.js';
 import AdminAccount from '../models/AdminAccount.js';
 import logger from './logger.js';
@@ -463,43 +463,18 @@ export const runIotSyncJob = async (): Promise<void> => {
 
           if (totalM3 <= 0) { skipCount++; continue; }
 
-          // ─── Upsert daily aggregate ke riwayatpenggunaans ────────────────────────
-          // Setiap entry IoT dikelompokkan per hari WIB, lalu di-upsert sebagai
-          // satu dokumen per hari (field: tanggal, totalPenggunaan, perJam).
-          // $inc pada totalPenggunaan + perJam.HH memastikan run berikutnya
-          // menambah ke nilai yang sudah ada — tidak reset.
-          const TZ_OFFSET_MS = 7 * 60 * 60 * 1000;
-          const dailyMap: Record<string, { total: number; perJam: Record<string, number> }> = {};
-
-          for (const e of newEntries) {
-            const wibTs  = e.ts + TZ_OFFSET_MS;
-            const wibDate = new Date(wibTs);
-            const tanggal = [
-              wibDate.getUTCFullYear(),
-              String(wibDate.getUTCMonth() + 1).padStart(2, '0'),
-              String(wibDate.getUTCDate()).padStart(2, '0'),
-            ].join('-');
-            const jam = String(wibDate.getUTCHours()).padStart(2, '0');
-
-            if (!dailyMap[tanggal]) dailyMap[tanggal] = { total: 0, perJam: {} };
-            dailyMap[tanggal].total += e.usedWater;
-            dailyMap[tanggal].perJam[jam] = (dailyMap[tanggal].perJam[jam] ?? 0) + e.usedWater;
-          }
-
-          for (const [tanggal, data] of Object.entries(dailyMap)) {
-            const incUpdate: Record<string, number> = { totalPenggunaan: data.total };
-            for (const [jam, liter] of Object.entries(data.perJam)) {
-              incUpdate[`perJam.${jam}`] = liter;
-            }
-            await RiwayatPenggunaan.findOneAndUpdate(
-              { MeterID: meteran._id.toString(), tanggal },
-              {
-                $setOnInsert: { UserID: userId },
-                $inc: incUpdate as any,
-                $set: { lastSyncAt: new Date() },
-              },
-              { upsert: true }
-            );
+          // ─── Persist raw entries ke riwayatpenggunaans (Opsi A) ──────────────────
+          // Setiap entry IoT disimpan sebagai dokumen individual dengan timestamp asli.
+          // createdAt di-set dari e.ts (waktu IoT aktual), bukan waktu sync.
+          // Resolver monitoring lalu agregasi per hari via $group + timezone WIB.
+          const entriesToInsert = newEntries.map((e: any) => ({
+            userId,
+            meteranId: meteran._id,
+            penggunaanAir: e.usedWater / 1000, // liter → m³, sesuai konvensi Meteran
+            createdAt: new Date(e.ts),
+          }));
+          if (entriesToInsert.length > 0) {
+            await HistoryUsage.collection.insertMany(entriesToInsert, { ordered: false });
           }
 
           await Meteran.findByIdAndUpdate(meteran._id, {
