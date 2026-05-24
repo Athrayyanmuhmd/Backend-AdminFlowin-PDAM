@@ -129,18 +129,11 @@ export const meteranResolvers = {
       return result;
     },
 
-    getRiwayatBulananAhmad: async (_, { meteranId }, { token }: GraphQLContext) => {
+    getRiwayatBulananAhmad: async (_, { meteranId: _meteranId }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const records = await RiwayatPenggunaan.find({ MeteranId: meteranId })
-        .sort({ Periode: -1 })
-        .limit(24)
-        .lean();
-      return records.map((r) => ({
-        _id: r._id,
-        periode: r.Periode,
-        totalPenggunaan: r.TotalPenggunaan ?? 0,
-        createdAt: (r as any).createdAt ? new Date((r as any).createdAt).toISOString() : null,
-      }));
+      // Field Periode/TotalPenggunaan sudah dihapus — digantikan daily aggregate (tanggal/totalPenggunaan)
+      // Query monitoring historis kini melalui getMonitoringHistori / getMonitoringDashboard
+      return [];
     },
 
     getEstimasiBiaya: async (_, { meteranId }, { token }: GraphQLContext) => {

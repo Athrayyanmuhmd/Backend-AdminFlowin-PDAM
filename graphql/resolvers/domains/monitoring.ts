@@ -1,7 +1,5 @@
 ﻿import Meteran from '../../../models/Meteran.js';
 import RiwayatPenggunaan from '../../../models/RiwayatPenggunaan.js';
-import HistoryUsage from '../../../models/HistoryUsage.js';
-import User from '../../../models/User.js';
 import { verifyAdminToken } from '../helpers.js';
 import { isRedisConnected, getRedisClient } from '../../../utils/redis.js';
 import type { GraphQLContext } from '../../../types/index.js';
@@ -181,43 +179,35 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
     } catch { /* lanjut ke MongoDB */ }
   }
 
-  // 2. Agregasi dari HistoryUsage (raw entries dari IoT sync cron, Opsi A)
-  // Batas bulan pakai WIB offset agar tidak ada data yang terpotong di ujung bulan
-  const [tahun, bulan] = periode.split('-').map(Number);
-  const startDate = new Date(Date.UTC(tahun, bulan - 1, 1) - TZ_OFFSET_MS);
-  const endDate   = new Date(Date.UTC(tahun, bulan,     1) - TZ_OFFSET_MS); // exclusive
+  // 2. Query daily aggregate docs (field: tanggal) dari riwayatpenggunaans
+  // String YYYY-MM-DD terurut leksikografis — range query aman tanpa konversi Date
+  const [tahun, bulan] = periode.split("-").map(Number);
+  const startTanggal = tahun + "-" + String(bulan).padStart(2, "0") + "-01";
+  const nextBulan    = bulan === 12
+    ? (tahun + 1) + "-01"
+    : tahun + "-" + String(bulan + 1).padStart(2, "0");
 
-  const { Types } = await import('mongoose');
-  const aggRecords = await HistoryUsage.aggregate([
-    {
-      $match: {
-        meteranId: new Types.ObjectId(meteranId),
-        createdAt: { $gte: startDate, $lt: endDate },
-      },
-    },
-    {
-      $group: {
-        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
-        totalLiter: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // mÂ³ â†’ liter
-      },
-    },
-    { $sort: { _id: 1 } },
-  ]);
+  const harianDocs = await RiwayatPenggunaan.find({
+    MeterID: meteranId,
+    tanggal: { $gte: startTanggal, $lt: nextBulan },
+  }).lean() as any[];
 
-  if (aggRecords.length > 0) {
-    const dataHarian = aggRecords.map((r: any) => ({ tanggal: r._id, liter: r.totalLiter }));
-    const totalPenggunaan = aggRecords.reduce((s: number, r: any) => s + r.totalLiter, 0);
+  if (harianDocs.length > 0) {
+    const dataHarian = harianDocs
+      .map((d: any) => ({ tanggal: d.tanggal, liter: d.totalPenggunaan ?? 0 }))
+      .sort((a: any, b: any) => a.tanggal.localeCompare(b.tanggal));
+    const totalPenggunaan = harianDocs.reduce((s: number, d: any) => s + (d.totalPenggunaan ?? 0), 0);
     const result = { dataHarian, totalPenggunaan, latestReading: null as number | null };
 
     if (client) {
       try {
-        await client.set(cacheKey, JSON.stringify(result), 'EX', CACHE_TTL_SEC);
+        await client.set(cacheKey, JSON.stringify(result), { ex: CACHE_TTL_SEC });
       } catch { /* Redis write non-critical */ }
     }
     return result;
   }
 
-  // 3. Fallback ke RiwayatPenggunaan (data flowin lama / Ahmad monthly)
+  // 3. Fallback ke raw records flowin (field: timestamp) jika aggregate belum ada
   return bacaDataMongo(meteranId, periode);
 }
 
@@ -424,24 +414,21 @@ export const monitoringResolvers = {
         }
       }
 
-      // Fallback ke MongoDB flowin jika Redis kosong atau userId tidak ditemukan
+      // Fallback ke daily aggregate doc (field: perJam) jika Redis kosong
       if (dataPerJam.length === 0) {
-        const records = await RiwayatPenggunaan.find({
+        const harianDoc = await RiwayatPenggunaan.findOne({
           MeterID: meteranId,
-          timestamp: { $gte: new Date(startMs), $lte: new Date(endMs) },
-        }).lean() as any[];
+          tanggal,
+        }).lean() as any;
 
-        const hourlyMap: Record<string, number> = {};
-        for (const r of records) {
-          const ts = r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp);
-          const wibDate = new Date(ts + TZ_OFFSET_MS);
-          const hour = String(wibDate.getUTCHours()).padStart(2, '0');
-          hourlyMap[hour] = (hourlyMap[hour] ?? 0) + (r.PenggunaanAir ?? 0);
+        if (harianDoc?.perJam) {
+          const perJamObj = harianDoc.perJam instanceof Map
+            ? Object.fromEntries(harianDoc.perJam)
+            : harianDoc.perJam;
+          dataPerJam = Object.entries(perJamObj as Record<string, number>)
+            .map(([jam, liter]) => ({ jam, liter: liter as number }))
+            .sort((a, b) => a.jam.localeCompare(b.jam));
         }
-
-        dataPerJam = Object.entries(hourlyMap)
-          .map(([jam, liter]) => ({ jam, liter }))
-          .sort((a, b) => a.jam.localeCompare(b.jam));
       }
 
       const totalHari = dataPerJam.reduce((s, d) => s + d.liter, 0);
