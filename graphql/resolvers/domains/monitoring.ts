@@ -98,13 +98,15 @@ async function bacaDataRedis(meteranId: string, userId: string, periode: string)
   const filtered = entries.filter((e) => e.ts >= startMs && e.ts < endMs);
   if (filtered.length === 0) return null;
 
-  // Agregasi per hari (WIB)
+  // Agregasi per hari (WIB) — return tanggal lengkap YYYY-MM-DD
   const dailyMap: Record<string, number> = {};
   for (const e of filtered) {
-    // Tambah offset WIB agar UTC method mengembalikan waktu WIB yang benar
     const wibDate = new Date(e.ts + TZ_OFFSET_MS);
+    const year = wibDate.getUTCFullYear();
+    const month = String(wibDate.getUTCMonth() + 1).padStart(2, '0');
     const day = String(wibDate.getUTCDate()).padStart(2, '0');
-    dailyMap[day] = (dailyMap[day] ?? 0) + e.usedWater;
+    const fullDate = `${year}-${month}-${day}`;
+    dailyMap[fullDate] = (dailyMap[fullDate] ?? 0) + e.usedWater;
   }
 
   const dataHarian = Object.entries(dailyMap)
@@ -139,13 +141,16 @@ async function bacaDataMongo(meteranId: string, periode: string) {
 
   if (!records.length) return null;
 
-  // Agregasi per hari (WIB)
+  // Agregasi per hari (WIB) — return tanggal lengkap YYYY-MM-DD
   const dailyMap: Record<string, number> = {};
   for (const r of records) {
     const ts = r.timestamp instanceof Date ? r.timestamp.getTime() : Number(r.timestamp);
     const wibDate = new Date(ts + TZ_OFFSET_MS);
+    const year = wibDate.getUTCFullYear();
+    const month = String(wibDate.getUTCMonth() + 1).padStart(2, '0');
     const day = String(wibDate.getUTCDate()).padStart(2, '0');
-    dailyMap[day] = (dailyMap[day] ?? 0) + (r.PenggunaanAir ?? 0);
+    const fullDate = `${year}-${month}-${day}`;
+    dailyMap[fullDate] = (dailyMap[fullDate] ?? 0) + (r.PenggunaanAir ?? 0);
   }
 
   const dataHarian = Object.entries(dailyMap)
@@ -192,7 +197,7 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
     },
     {
       $group: {
-        _id: { $dateToString: { format: '%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'Asia/Jakarta' } },
         totalLiter: { $sum: { $multiply: ['$penggunaanAir', 1000] } }, // mÂ³ â†’ liter
       },
     },
