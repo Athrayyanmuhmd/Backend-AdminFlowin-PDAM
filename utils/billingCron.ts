@@ -453,7 +453,7 @@ export const runIotSyncJob = async (): Promise<void> => {
               } catch { return null; }
             })
             .filter(Boolean)
-            .filter((e: any) => e.ts > lastSync);
+            .filter((e: any) => e.ts > lastSync && e.ts >= 1577836800000); // skip ts=0 / pre-2020
 
           if (newEntries.length === 0) { skipCount++; continue; }
 

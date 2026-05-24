@@ -91,7 +91,7 @@ export const meteranResolvers = {
       // Ambil daily aggregate docs (tanggal YYYY-MM-DD) untuk meteran ini
       const dailyDocs = await RiwayatPenggunaan.find({
         MeterID: meteranId,
-        tanggal: { $exists: true },
+        tanggal: { $exists: true, $gt: '2020-01-01' },
       }).lean() as any[];
 
       if (!dailyDocs || dailyDocs.length === 0) {
@@ -130,7 +130,7 @@ export const meteranResolvers = {
       // Aggregate daily docs menjadi summary per bulan (YYYY-MM)
       const dailyDocs = await RiwayatPenggunaan.find({
         MeterID: meteranId,
-        tanggal: { $exists: true },
+        tanggal: { $exists: true, $gt: '2020-01-01' },
       }).lean() as any[];
 
       const bulananMap: Record<string, number> = {};
