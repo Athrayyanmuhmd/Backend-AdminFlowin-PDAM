@@ -29,8 +29,9 @@ const verifyCronSecret = (req: Request, res: Response): boolean => {
   return true;
 };
 
-// POST /api/cron/billing — Generate tagihan bulanan (1st of month 00:01)
-router.post('/billing', async (req: Request, res: Response) => {
+// GET /api/cron/billing — Generate tagihan bulanan (1st of month 00:01)
+// Vercel Cron Jobs selalu kirim GET request, bukan POST
+router.get('/billing', async (req: Request, res: Response) => {
   if (!verifyCronSecret(req, res)) return;
   logger.info('Vercel Cron: memulai runBillingJob');
   try {
@@ -42,8 +43,8 @@ router.post('/billing', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/cron/overdue — Tandai tagihan overdue (daily 00:05)
-router.post('/overdue', async (req: Request, res: Response) => {
+// GET /api/cron/overdue — Tandai tagihan overdue (daily 00:05)
+router.get('/overdue', async (req: Request, res: Response) => {
   if (!verifyCronSecret(req, res)) return;
   logger.info('Vercel Cron: memulai runOverdueJob');
   try {
@@ -55,8 +56,8 @@ router.post('/overdue', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/cron/reminder — Kirim reminder jatuh tempo (daily 08:00)
-router.post('/reminder', async (req: Request, res: Response) => {
+// GET /api/cron/reminder — Kirim reminder jatuh tempo (daily 08:00)
+router.get('/reminder', async (req: Request, res: Response) => {
   if (!verifyCronSecret(req, res)) return;
   logger.info('Vercel Cron: memulai runReminderJob');
   try {
@@ -68,8 +69,8 @@ router.post('/reminder', async (req: Request, res: Response) => {
   }
 });
 
-// POST /api/cron/iot-sync — Sync IoT Redis → Meteran (every hour)
-router.post('/iot-sync', async (req: Request, res: Response) => {
+// GET /api/cron/iot-sync — Sync IoT Redis → Meteran + riwayatpenggunaans (daily 02:00 UTC)
+router.get('/iot-sync', async (req: Request, res: Response) => {
   if (!verifyCronSecret(req, res)) return;
   logger.info('Vercel Cron: memulai runIotSyncJob');
   try {
