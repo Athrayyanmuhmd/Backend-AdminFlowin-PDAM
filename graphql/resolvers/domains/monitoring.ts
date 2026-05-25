@@ -336,7 +336,7 @@ export const monitoringResolvers = {
         perbandingan,
         evaluasi: evaluasiPemakaian(totalIni),
         estimasiBiayaBulanIni: estimasiBiaya,
-        chartHarian: buildChartHarian(dataHarianIni),
+        chartHarian: buildChartHarian(dataHarianIni, 31),
         latestReading,
         lastUpdate: new Date().toISOString(),
         redisConnected: isRedisConnected(),
