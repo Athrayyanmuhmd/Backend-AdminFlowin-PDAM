@@ -4,7 +4,8 @@ import { getCache, setCache, deleteCacheByPattern } from '../../../utils/redis.j
 
 export const kelompokPelangganResolvers = {
   Query: {
-    getKelompokPelanggan: async (_, { id }) => {
+    getKelompokPelanggan: async (_, { id }, { token }) => {
+      verifyAdminToken(token);
       const cacheKey = `kelompok:${id}`;
       const cached = await getCache(cacheKey);
       if (cached) return cached;
@@ -13,7 +14,8 @@ export const kelompokPelangganResolvers = {
       return kelompok;
     },
 
-    getAllKelompokPelanggan: async () => {
+    getAllKelompokPelanggan: async (_, __, { token }) => {
+      verifyAdminToken(token);
       const cacheKey = 'kelompok:all';
       const cached = await getCache(cacheKey);
       if (cached) return cached;

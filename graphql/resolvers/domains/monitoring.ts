@@ -162,7 +162,8 @@ async function bacaDataMongo(meteranId: string, periode: string) {
 
 // â”€â”€â”€ Read-through cache: HistoryUsage â†’ Redis â†’ serve (Opsi A) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Urutan: Redis cache â†’ HistoryUsage aggregate (MongoDB) â†’ RiwayatPenggunaan (fallback flowin)
-const CACHE_TTL_SEC = 7 * 24 * 3600; // 7 hari
+const CACHE_TTL_LALU_SEC = 7 * 24 * 3600; // bulan lampau: data final
+const CACHE_TTL_INI_SEC  = 5 * 60;        // bulan berjalan: data masih bertambah tiap hari
 
 async function bacaDataHistoris(meteranId: string, periode: string) {
   const cacheKey = `monitoring:agg:${meteranId}:${periode}`;
@@ -203,7 +204,8 @@ async function bacaDataHistoris(meteranId: string, periode: string) {
 
     if (client) {
       try {
-        await client.set(cacheKey, JSON.stringify(result), { ex: CACHE_TTL_SEC });
+        const ttl = periode === periodeSekarang() ? CACHE_TTL_INI_SEC : CACHE_TTL_LALU_SEC;
+        await client.set(cacheKey, JSON.stringify(result), { ex: ttl });
       } catch { /* Redis write non-critical */ }
     }
     return result;
