@@ -86,13 +86,27 @@ export const pelangganResolvers = {
       if (input.email) input.email = input.email.toLowerCase().trim();
       const before = await User.findById(id, 'namaLengkap email noHP accountStatus').lean() as any;
       const updated = await User.findByIdAndUpdate(id, input, { new: true });
+
+      // Hanya catat field yang benar-benar berubah
+      const trackedFields = ['namaLengkap', 'email', 'noHP'] as const;
+      const diffBefore: Record<string, any> = {};
+      const diffAfter: Record<string, any> = {};
+      for (const key of trackedFields) {
+        const valBefore = before?.[key] ?? null;
+        const valAfter = input[key] !== undefined ? input[key] : null;
+        if (valAfter !== null && String(valBefore) !== String(valAfter)) {
+          diffBefore[key] = valBefore;
+          diffAfter[key] = valAfter;
+        }
+      }
+
       await catatAuditLog({
         token,
         aksi: 'PELANGGAN_UPDATE',
         resource: 'Pengguna',
         resourceId: id,
-        nilaiBefore: before ? { namaLengkap: before.namaLengkap, email: before.email, noHP: before.noHP } : null,
-        nilaiAfter: { namaLengkap: input.namaLengkap, email: input.email, noHP: input.noHP },
+        nilaiBefore: Object.keys(diffBefore).length > 0 ? diffBefore : null,
+        nilaiAfter: Object.keys(diffAfter).length > 0 ? diffAfter : null,
       });
       return updated;
     },
