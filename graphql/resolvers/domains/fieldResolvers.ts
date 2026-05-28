@@ -69,7 +69,7 @@ export const fieldResolvers = {
     },
     judul: (parent) => parent.Judul || parent.judul || '(tanpa judul)',
     pesan: (parent) => parent.Pesan || parent.pesan || '',
-    kategori: (parent) => parent.Kategori || parent.kategori || 'INFORMASI',
+    kategori: (parent) => (parent.Kategori || parent.kategori || 'INFORMASI').toUpperCase(),
     link: (parent) => parent.Link || parent.link || null,
     // isRead: dokumen dari Ahmad tidak punya field ini â†’ default false
     isRead: (parent) => parent.isRead ?? false,
