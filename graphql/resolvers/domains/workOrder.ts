@@ -566,6 +566,18 @@ export const workOrderResolvers = {
       const isPenyelesaianLaporan = input.jenisPekerjaan === 'penyelesaian_laporan';
 
       if (isPenyelesaianLaporan) {
+        // Reset Laporan ke 'Diajukan' jika stuck di 'ProsesPerbaikan'.
+        // Terjadi saat WO sebelumnya dibatalkan via penerimaan penolakan teknisi —
+        // Rafli tidak mereset status Laporan saat reviewPenolakan(true).
+        if (input.idLaporan && mongoose.Types.ObjectId.isValid(input.idLaporan)) {
+          try {
+            await mongoose.connection.db?.collection('laporans').updateOne(
+              { _id: new mongoose.Types.ObjectId(input.idLaporan), Status: 'ProsesPerbaikan' },
+              { $set: { Status: 'Diajukan', updatedAt: new Date() } }
+            );
+          } catch { /* non-fatal — Rafli akan validasi lagi */ }
+        }
+
         // Auto-populate idKoneksiData dari user yang lapor (pasti punya KoneksiData APPROVED)
         if (input.idLaporan && (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData))) {
           const laporan = await Report.findById(input.idLaporan, 'IdPengguna').lean() as any;
