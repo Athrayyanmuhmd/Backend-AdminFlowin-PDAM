@@ -380,9 +380,8 @@ export const workOrderResolvers = {
           });
         }
 
-        // ── Enrichment Block 2: penyelesaian_laporan tanpa idKoneksiData sama sekali ─────────
-        // Safety net untuk WO yang tidak ada di local DB (tidak pernah lewat buatWorkOrder kita).
-        // Path A: idPenyelesaianLaporan dari Rafli → PenyelesaianLaporan.idLaporan → IdPengguna
+        // ── Enrichment Block 2: penyelesaian_laporan via idPenyelesaianLaporan ──────────────────
+        // Path: idPenyelesaianLaporan dari Rafli → PenyelesaianLaporan.idLaporan → IdPengguna
         const penyelesaianStillMissing = result.data.filter(
           (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap
         );
@@ -405,6 +404,52 @@ export const workOrderResolvers = {
                 const laporanId = plMap.get(wo.idPenyelesaianLaporan?.toString());
                 if (!laporanId) return wo;
                 const pengguna = (laporanMap.get(laporanId) as any)?.IdPengguna;
+                if (!pengguna?._id) return wo;
+                return {
+                  ...wo,
+                  pelangganLaporan: {
+                    id: pengguna._id.toString(),
+                    namaLengkap: pengguna.namaLengkap ?? null,
+                    email: pengguna.email ?? null,
+                    noHp: pengguna.noHP ?? null,
+                    alamat: null,
+                  },
+                };
+              });
+            }
+          }
+        }
+
+        // ── Enrichment Block 3: fallback via idLaporan di PekerjaanTeknisi lokal ──────────────
+        // Covers: WO tanpa idKoneksiData (user tanpa APPROVED ConnectionData) DAN belum selesai
+        // (idPenyelesaianLaporan null). idLaporan disimpan lokal saat buatWorkOrder.
+        const penyelesaianBlock3 = result.data.filter(
+          (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap
+        );
+        if (penyelesaianBlock3.length > 0) {
+          const woIds = penyelesaianBlock3
+            .map((wo: any) => wo.id)
+            .filter((id: any) => mongoose.Types.ObjectId.isValid(id))
+            .map((id: any) => new mongoose.Types.ObjectId(id));
+          if (woIds.length > 0) {
+            const localWOs = await PekerjaanTeknisi.find(
+              { _id: { $in: woIds }, jenisPekerjaan: 'penyelesaian_laporan', idLaporan: { $ne: null } },
+              { idLaporan: 1 }
+            ).lean();
+            const woToLaporan = new Map(
+              localWOs.map((lwo: any) => [lwo._id.toString(), (lwo as any).idLaporan?.toString()])
+            );
+            const laporanIds3 = [...new Set(Array.from(woToLaporan.values()).filter(Boolean))];
+            if (laporanIds3.length > 0) {
+              const laporans3 = await Report.find({ _id: { $in: laporanIds3 } })
+                .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
+                .lean();
+              const laporanMap3 = new Map(laporans3.map((l: any) => [l._id.toString(), l]));
+              result.data = result.data.map((wo: any) => {
+                if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
+                const laporanId = woToLaporan.get(wo.id?.toString());
+                if (!laporanId) return wo;
+                const pengguna = (laporanMap3.get(laporanId) as any)?.IdPengguna;
                 if (!pengguna?._id) return wo;
                 return {
                   ...wo,
