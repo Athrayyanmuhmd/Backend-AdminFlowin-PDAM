@@ -392,6 +392,9 @@ export const workOrderResolvers = {
           const woToLaporanId = new Map<string, string>();
 
           // Primary: idLaporan langsung dari Rafli
+          console.log('[enrichPL] missing:', penyelesaianStillMissing.map((w: any) => ({
+            id: w.id, idLaporan: w.idLaporan, idKoneksiData: w.idKoneksiData, idPenyelesaianLaporan: w.idPenyelesaianLaporan
+          })));
           for (const wo of penyelesaianStillMissing) {
             if (wo.idLaporan) woToLaporanId.set(wo.id?.toString(), wo.idLaporan?.toString());
           }
@@ -430,10 +433,12 @@ export const workOrderResolvers = {
 
           // Satu query Report untuk semua laporanId
           const allLaporanIds = [...new Set(woToLaporanId.values())].filter(Boolean);
+          console.log('[enrichPL] woToLaporanId:', Object.fromEntries(woToLaporanId), 'allLaporanIds:', allLaporanIds);
           if (allLaporanIds.length > 0) {
             const laporans = await Report.find({ _id: { $in: allLaporanIds } })
               .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
               .lean();
+            console.log('[enrichPL] laporans found:', laporans.map((l: any) => ({ id: l._id, IdPengguna: l.IdPengguna })));
             const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
             result.data = result.data.map((wo: any) => {
               if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
