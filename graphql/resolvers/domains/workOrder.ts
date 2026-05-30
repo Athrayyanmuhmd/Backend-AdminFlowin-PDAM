@@ -570,11 +570,16 @@ export const workOrderResolvers = {
         // Terjadi saat WO sebelumnya dibatalkan via penerimaan penolakan teknisi —
         // Rafli tidak mereset status Laporan saat reviewPenolakan(true).
         if (input.idLaporan && mongoose.Types.ObjectId.isValid(input.idLaporan)) {
-          // Gunakan Report.findOneAndUpdate agar pasti terhubung ke DB yang benar
-          await Report.findOneAndUpdate(
-            { _id: new mongoose.Types.ObjectId(input.idLaporan), Status: 'ProsesPerbaikan' },
-            { $set: { Status: 'Diajukan', updatedAt: new Date() } }
-          ).catch(() => {});
+          // Persis seperti Rafli's updateLaporanStatus — raw collection access, no Mongoose casting
+          const laporanDb = mongoose.connection.db;
+          if (laporanDb) {
+            await laporanDb.collection('laporans').updateOne(
+              { _id: new mongoose.Types.ObjectId(input.idLaporan) },
+              { $set: { Status: 'Diajukan', updatedAt: new Date() } }
+            ).catch(err => console.error('[buatWO] reset laporan gagal:', err.message));
+          } else {
+            console.error('[buatWO] mongoose.connection.db null — laporan tidak di-reset');
+          }
         }
 
         // Auto-populate idKoneksiData dari user yang lapor (pasti punya KoneksiData APPROVED)
