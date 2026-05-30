@@ -17,7 +17,6 @@ export type StatusLaporan =
   | 'Ditugaskan'
   | 'DitinjauAdmin'
   | 'SedangDikerjakan'
-  | 'ProsesPerbaikan'  // diset oleh Rafli saat WO penyelesaian_laporan dibuat
   | 'Selesai'
   | 'Dibatalkan';
 
@@ -85,7 +84,7 @@ const ReportSchema = new Schema<IReport>(
     },
     Status: {
       type: String,
-      enum: ['Diajukan', 'Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan', 'ProsesPerbaikan', 'Selesai', 'Dibatalkan'],
+      enum: ['Diajukan', 'Ditunda', 'Ditugaskan', 'DitinjauAdmin', 'SedangDikerjakan', 'Selesai', 'Dibatalkan'],
       required: true,
       default: 'Diajukan',
     },
