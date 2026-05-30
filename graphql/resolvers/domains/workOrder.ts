@@ -433,26 +433,44 @@ export const workOrderResolvers = {
 
           // Satu query Report untuk semua laporanId
           const allLaporanIds = [...new Set(woToLaporanId.values())].filter(Boolean);
-          console.log('[enrichPL] woToLaporanId:', Object.fromEntries(woToLaporanId), 'allLaporanIds:', allLaporanIds);
+          console.log('[enrichPL] woToLaporanId size:', woToLaporanId.size, 'allLaporanIds:', allLaporanIds);
           if (allLaporanIds.length > 0) {
-            const laporans = await Report.find({ _id: { $in: allLaporanIds } })
-              .populate({ path: 'IdPengguna', model: 'Pengguna', select: 'namaLengkap email noHP' })
-              .lean();
-            console.log('[enrichPL] laporans found:', laporans.map((l: any) => ({ id: l._id, IdPengguna: l.IdPengguna })));
-            const laporanMap = new Map(laporans.map((l: any) => [l._id.toString(), l]));
+            // Step 1: ambil IdPengguna dari laporans (tanpa populate)
+            const laporans = await Report.find(
+              { _id: { $in: allLaporanIds } },
+              { IdPengguna: 1 }
+            ).lean();
+            console.log('[enrichPL] laporans found:', laporans.length, laporans.map((l: any) => ({ id: l._id?.toString(), IdPengguna: l.IdPengguna?.toString() })));
+
+            // Step 2: ambil namaLengkap dari penggunas langsung
+            const userIds = laporans.map((l: any) => l.IdPengguna).filter(Boolean);
+            const users = await User.find(
+              { _id: { $in: userIds } },
+              { namaLengkap: 1, email: 1, noHP: 1 }
+            ).lean();
+            console.log('[enrichPL] users found:', users.length, users.map((u: any) => ({ id: u._id?.toString(), namaLengkap: u.namaLengkap })));
+
+            // Map: laporanId → user
+            const laporanToUser = new Map<string, any>();
+            const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
+            for (const laporan of laporans) {
+              const uid = (laporan as any).IdPengguna?.toString();
+              if (uid) laporanToUser.set((laporan as any)._id.toString(), userMap.get(uid));
+            }
+
             result.data = result.data.map((wo: any) => {
               if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
               const laporanId = woToLaporanId.get(wo.id?.toString());
               if (!laporanId) return wo;
-              const pengguna = (laporanMap.get(laporanId) as any)?.IdPengguna;
-              if (!pengguna?._id) return wo;
+              const pengguna = laporanToUser.get(laporanId);
+              if (!pengguna) return wo;
               return {
                 ...wo,
                 pelangganLaporan: {
-                  id: pengguna._id.toString(),
-                  namaLengkap: pengguna.namaLengkap ?? null,
-                  email: pengguna.email ?? null,
-                  noHp: pengguna.noHP ?? null,
+                  id: (pengguna as any)._id.toString(),
+                  namaLengkap: (pengguna as any).namaLengkap ?? null,
+                  email: (pengguna as any).email ?? null,
+                  noHp: (pengguna as any).noHP ?? null,
                   alamat: null,
                 },
               };
