@@ -570,12 +570,11 @@ export const workOrderResolvers = {
         // Terjadi saat WO sebelumnya dibatalkan via penerimaan penolakan teknisi —
         // Rafli tidak mereset status Laporan saat reviewPenolakan(true).
         if (input.idLaporan && mongoose.Types.ObjectId.isValid(input.idLaporan)) {
-          try {
-            await mongoose.connection.db?.collection('laporans').updateOne(
-              { _id: new mongoose.Types.ObjectId(input.idLaporan), Status: 'ProsesPerbaikan' },
-              { $set: { Status: 'Diajukan', updatedAt: new Date() } }
-            );
-          } catch { /* non-fatal — Rafli akan validasi lagi */ }
+          // Gunakan Report.findOneAndUpdate agar pasti terhubung ke DB yang benar
+          await Report.findOneAndUpdate(
+            { _id: new mongoose.Types.ObjectId(input.idLaporan), Status: 'ProsesPerbaikan' },
+            { $set: { Status: 'Diajukan', updatedAt: new Date() } }
+          ).catch(() => {});
         }
 
         // Auto-populate idKoneksiData dari user yang lapor (pasti punya KoneksiData APPROVED)
