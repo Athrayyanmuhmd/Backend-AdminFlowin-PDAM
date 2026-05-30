@@ -146,6 +146,13 @@ export const workOrderTypeDefs = gql`
     message: String!
   }
 
+  type ResetLaporanResponse {
+    success: Boolean!
+    message: String!
+    statusSebelum: String
+    statusSesudah: String
+  }
+
   # ─── Inputs (mirror Rafli) ────────────────────────────────────────────────
 
   input WorkOrderFilterInput {
@@ -222,5 +229,10 @@ export const workOrderTypeDefs = gql`
 
     # Admin: Batalkan work order — proxy ke Rafli
     batalkanWorkOrder(id: ID!, catatan: String): BatalkanWorkOrderResponse!
+
+    # Admin: Reset status Laporan ke "Diajukan" sebelum reassign.
+    # Diperlukan karena Rafli's reviewPenolakan(true) membatalkan WO tetapi tidak
+    # mereset status Laporan dari "ProsesPerbaikan" → reassign gagal validasi.
+    resetLaporanStatusUntukReassign(idLaporan: ID!): ResetLaporanResponse!
   }
 `;

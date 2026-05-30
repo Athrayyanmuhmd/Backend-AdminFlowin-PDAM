@@ -566,22 +566,6 @@ export const workOrderResolvers = {
       const isPenyelesaianLaporan = input.jenisPekerjaan === 'penyelesaian_laporan';
 
       if (isPenyelesaianLaporan) {
-        // Reset Laporan ke 'Diajukan' jika stuck di 'ProsesPerbaikan'.
-        // Terjadi saat WO sebelumnya dibatalkan via penerimaan penolakan teknisi —
-        // Rafli tidak mereset status Laporan saat reviewPenolakan(true).
-        if (input.idLaporan && mongoose.Types.ObjectId.isValid(input.idLaporan)) {
-          // Persis seperti Rafli's updateLaporanStatus — raw collection access, no Mongoose casting
-          const laporanDb = mongoose.connection.db;
-          if (laporanDb) {
-            await laporanDb.collection('laporans').updateOne(
-              { _id: new mongoose.Types.ObjectId(input.idLaporan) },
-              { $set: { Status: 'Diajukan', updatedAt: new Date() } }
-            ).catch(err => console.error('[buatWO] reset laporan gagal:', err.message));
-          } else {
-            console.error('[buatWO] mongoose.connection.db null — laporan tidak di-reset');
-          }
-        }
-
         // Auto-populate idKoneksiData dari user yang lapor (pasti punya KoneksiData APPROVED)
         if (input.idLaporan && (!input.idKoneksiData || !mongoose.Types.ObjectId.isValid(input.idKoneksiData))) {
           const laporan = await Report.findById(input.idLaporan, 'IdPengguna').lean() as any;
@@ -842,6 +826,51 @@ export const workOrderResolvers = {
       } catch (err: any) {
         console.error('[batalkanWorkOrder] Rafli backend error:', err.message);
         return { success: false, message: `Sistem teknisi tidak tersedia: ${err.message}` };
+      }
+    },
+
+    resetLaporanStatusUntukReassign: async (_: any, { idLaporan }: any, ctx: GraphQLContext) => {
+      verifyAdminToken(ctx.token);
+
+      if (!mongoose.Types.ObjectId.isValid(idLaporan)) {
+        return { success: false, message: 'idLaporan tidak valid', statusSebelum: null, statusSesudah: null };
+      }
+
+      const db = mongoose.connection.db;
+      if (!db) {
+        return { success: false, message: 'Database belum terkoneksi', statusSebelum: null, statusSesudah: null };
+      }
+
+      try {
+        const _id = new mongoose.Types.ObjectId(idLaporan);
+        const before = await db.collection('laporans').findOne({ _id }, { projection: { Status: 1 } });
+        if (!before) {
+          return { success: false, message: `Laporan ${idLaporan} tidak ditemukan`, statusSebelum: null, statusSesudah: null };
+        }
+        const statusSebelum = (before as any).Status as string;
+
+        if (statusSebelum === 'Diajukan') {
+          return { success: true, message: 'Laporan sudah dalam status Diajukan', statusSebelum, statusSesudah: statusSebelum };
+        }
+
+        const result = await db.collection('laporans').updateOne(
+          { _id },
+          { $set: { Status: 'Diajukan', updatedAt: new Date() } }
+        );
+
+        if (result.matchedCount === 0) {
+          return { success: false, message: 'Update gagal — Laporan tidak ditemukan', statusSebelum, statusSesudah: null };
+        }
+
+        return {
+          success: true,
+          message: `Laporan berhasil di-reset dari ${statusSebelum} → Diajukan`,
+          statusSebelum,
+          statusSesudah: 'Diajukan',
+        };
+      } catch (err: any) {
+        console.error('[resetLaporanStatusUntukReassign] error:', err.message);
+        return { success: false, message: `Gagal reset Laporan: ${err.message}`, statusSebelum: null, statusSesudah: null };
       }
     },
   },
