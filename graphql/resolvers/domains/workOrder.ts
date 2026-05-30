@@ -380,98 +380,52 @@ export const workOrderResolvers = {
           });
         }
 
-        // ── Enrichment Block 2: penyelesaian_laporan via idLaporan ───────────────────────────────
-        // Primary: idLaporan langsung dari Rafli (paling reliable — Rafli stores it on WO).
-        // Fallback A: idPenyelesaianLaporan → PenyelesaianLaporan.idLaporan (WO sudah selesai).
-        // Fallback B: PekerjaanTeknisi lokal (disimpan saat buatWorkOrder, last resort).
+        // ── Enrichment Block 2: penyelesaian_laporan via Rafli laporan query ────────────────────
+        // Pakai Rafli langsung (sama seperti detail page) — dijamin data ada dan benar.
+        // Rafli punya laporan(id) → pengguna { namaLengkap } yang sudah terintegrasi.
         const penyelesaianStillMissing = result.data.filter(
-          (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap
+          (wo: any) => wo.jenisPekerjaan === 'penyelesaian_laporan' && !wo.pelangganLaporan?.namaLengkap && wo.idLaporan
         );
         if (penyelesaianStillMissing.length > 0) {
-          // Map: woId → laporanId (diisi dari semua path)
-          const woToLaporanId = new Map<string, string>();
-
-          // Primary: idLaporan langsung dari Rafli
-          console.log('[enrichPL] missing:', penyelesaianStillMissing.map((w: any) => ({
-            id: w.id, idLaporan: w.idLaporan, idKoneksiData: w.idKoneksiData, idPenyelesaianLaporan: w.idPenyelesaianLaporan
-          })));
-          for (const wo of penyelesaianStillMissing) {
-            if (wo.idLaporan) woToLaporanId.set(wo.id?.toString(), wo.idLaporan?.toString());
-          }
-
-          // Fallback A: via idPenyelesaianLaporan
-          const wosNoLaporan = penyelesaianStillMissing.filter(
-            (wo: any) => !woToLaporanId.has(wo.id?.toString()) && wo.idPenyelesaianLaporan
+          const token = getToken(ctx);
+          const laporanResults = await Promise.all(
+            penyelesaianStillMissing.map(async (wo: any) => {
+              try {
+                const lData = await teknisiGraphQL(
+                  `query GetLaporanPengguna($id: ID!) {
+                    laporan(id: $id) {
+                      id
+                      pengguna { id namaLengkap email noHp alamat }
+                    }
+                  }`,
+                  { id: wo.idLaporan },
+                  token
+                );
+                const pengguna = (lData as any)?.laporan?.pengguna ?? null;
+                return { woId: wo.id?.toString(), pengguna };
+              } catch {
+                return { woId: wo.id?.toString(), pengguna: null };
+              }
+            })
           );
-          if (wosNoLaporan.length > 0) {
-            const pls = await PenyelesaianLaporan.find(
-              { _id: { $in: wosNoLaporan.map((wo: any) => wo.idPenyelesaianLaporan) } },
-              { idLaporan: 1 }
-            ).lean();
-            const plMap = new Map(pls.map((p: any) => [p._id.toString(), (p as any).idLaporan?.toString()]));
-            for (const wo of wosNoLaporan) {
-              const lid = plMap.get(wo.idPenyelesaianLaporan?.toString());
-              if (lid) woToLaporanId.set(wo.id?.toString(), lid);
-            }
-          }
-
-          // Fallback B: via PekerjaanTeknisi lokal
-          const wosStillNoLaporan = penyelesaianStillMissing.filter(
-            (wo: any) => !woToLaporanId.has(wo.id?.toString()) && mongoose.Types.ObjectId.isValid(wo.id)
+          const woToPengguna = new Map(
+            laporanResults
+              .filter((r: any) => r.pengguna?.namaLengkap)
+              .map((r: any) => [r.woId, r.pengguna])
           );
-          if (wosStillNoLaporan.length > 0) {
-            const localWOs = await PekerjaanTeknisi.find(
-              { _id: { $in: wosStillNoLaporan.map((wo: any) => new mongoose.Types.ObjectId(wo.id)) },
-                jenisPekerjaan: 'penyelesaian_laporan', idLaporan: { $ne: null } },
-              { idLaporan: 1 }
-            ).lean();
-            for (const lwo of localWOs) {
-              const lid = (lwo as any).idLaporan?.toString();
-              if (lid) woToLaporanId.set(lwo._id.toString(), lid);
-            }
-          }
-
-          // Satu query Report untuk semua laporanId
-          const allLaporanIds = [...new Set(woToLaporanId.values())].filter(Boolean);
-          console.log('[enrichPL] woToLaporanId size:', woToLaporanId.size, 'allLaporanIds:', allLaporanIds);
-          if (allLaporanIds.length > 0) {
-            // Step 1: ambil IdPengguna dari laporans (tanpa populate)
-            const laporans = await Report.find(
-              { _id: { $in: allLaporanIds } },
-              { IdPengguna: 1 }
-            ).lean();
-            console.log('[enrichPL] laporans found:', laporans.length, laporans.map((l: any) => ({ id: l._id?.toString(), IdPengguna: l.IdPengguna?.toString() })));
-
-            // Step 2: ambil namaLengkap dari penggunas langsung
-            const userIds = laporans.map((l: any) => l.IdPengguna).filter(Boolean);
-            const users = await User.find(
-              { _id: { $in: userIds } },
-              { namaLengkap: 1, email: 1, noHP: 1 }
-            ).lean();
-            console.log('[enrichPL] users found:', users.length, users.map((u: any) => ({ id: u._id?.toString(), namaLengkap: u.namaLengkap })));
-
-            // Map: laporanId → user
-            const laporanToUser = new Map<string, any>();
-            const userMap = new Map(users.map((u: any) => [u._id.toString(), u]));
-            for (const laporan of laporans) {
-              const uid = (laporan as any).IdPengguna?.toString();
-              if (uid) laporanToUser.set((laporan as any)._id.toString(), userMap.get(uid));
-            }
-
+          if (woToPengguna.size > 0) {
             result.data = result.data.map((wo: any) => {
               if (wo.jenisPekerjaan !== 'penyelesaian_laporan' || wo.pelangganLaporan?.namaLengkap) return wo;
-              const laporanId = woToLaporanId.get(wo.id?.toString());
-              if (!laporanId) return wo;
-              const pengguna = laporanToUser.get(laporanId);
+              const pengguna = woToPengguna.get(wo.id?.toString());
               if (!pengguna) return wo;
               return {
                 ...wo,
                 pelangganLaporan: {
-                  id: (pengguna as any)._id.toString(),
-                  namaLengkap: (pengguna as any).namaLengkap ?? null,
-                  email: (pengguna as any).email ?? null,
-                  noHp: (pengguna as any).noHP ?? null,
-                  alamat: null,
+                  id: pengguna.id ?? null,
+                  namaLengkap: pengguna.namaLengkap ?? null,
+                  email: pengguna.email ?? null,
+                  noHp: pengguna.noHp ?? null,
+                  alamat: pengguna.alamat ?? null,
                 },
               };
             });
