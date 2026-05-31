@@ -211,8 +211,8 @@ export async function setupApolloServer(app: Express): Promise<ApolloServer<any>
   const server = new ApolloServer<any>({
     typeDefs,
     resolvers,
-    // Introspection selalu aktif agar GraphiQL Explorer dan Apollo Studio bisa membaca schema
-    introspection: true,
+    // Introspection hanya aktif di development — dimatikan di production untuk keamanan
+    introspection: process.env.NODE_ENV !== 'production',
     validationRules: [depthLimit(7)],
     formatError: (error: any) => {
       logger.error({ err: error }, 'GraphQL Error');
