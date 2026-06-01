@@ -204,8 +204,10 @@ process.on('unhandledRejection', (reason) => {
   logger.error({ reason }, 'Unhandled Promise Rejection');
 });
 
-// Drop index lama dari schema sebelumnya agar tidak konflik dengan schema baru
+// Drop index lama dari schema sebelumnya agar tidak konflik dengan schema baru.
+// Idempotent: aman dijalankan tiap startup karena cek dulu sebelum drop.
 async function cleanupStaleIndexes(): Promise<void> {
+  // riwayatpenggunaans — sisa dari skema lama
   try {
     const col = mongoose.connection.collection('riwayatpenggunaans');
     const indexes = await col.indexes();
@@ -217,7 +219,25 @@ async function cleanupStaleIndexes(): Promise<void> {
       }
     }
   } catch (err) {
-    logger.warn({ err }, 'cleanupStaleIndexes: non-critical, lanjut');
+    logger.warn({ err }, 'cleanupStaleIndexes (riwayatpenggunaans): non-critical, lanjut');
+  }
+
+  // meters — field di-rename dari camelCase ke PascalCase (NomorAkun, NomorMeteran)
+  // Index unique legacy (nomorAkun_1, nomorMeteran_1) non-sparse → trigger
+  // E11000 duplicate key { nomorAkun: null } pada insert dokumen baru karena
+  // dokumen baru hanya punya field PascalCase, lowercase-nya dianggap null.
+  try {
+    const col = mongoose.connection.collection('meters');
+    const indexes = await col.indexes();
+    const legacy = ['nomorAkun_1', 'nomorMeteran_1'];
+    for (const name of legacy) {
+      if (indexes.some((idx: any) => idx.name === name)) {
+        await col.dropIndex(name);
+        logger.info({ index: name }, 'Dropped legacy lowercase index from meters');
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'cleanupStaleIndexes (meters): non-critical, lanjut');
   }
 }
 
