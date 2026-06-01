@@ -55,44 +55,9 @@ export const runBillingJob = async (): Promise<void> => {
           const koneksiData = (meteran as any).IdKoneksiData;
           const userId      = koneksiData?.IdPelanggan?._id ?? null;
 
-          // Sync pemakaianBelumTerbayar dari tagihan settlement yang belum di-apply
-          const settledUnaccounted = await Billing.find({
-            IdMeteran: meteran._id,
-            StatusPembayaran: 'settlement',
-            Catatan: { $not: /\[pemakaian_applied\]/ },
-          }).select('TotalPemakaian Catatan').lean();
-
-          if (settledUnaccounted.length > 0) {
-            const toDecrement = settledUnaccounted.reduce(
-              (sum: number, t: any) => sum + (t.TotalPemakaian ?? 0), 0
-            );
-            if (toDecrement > 0) {
-              await Meteran.findByIdAndUpdate(meteran._id, [{
-                $set: {
-                  pemakaianBelumTerbayar: {
-                    $max: [0, { $subtract: ['$pemakaianBelumTerbayar', toDecrement] }],
-                  },
-                },
-              }]);
-              await Billing.updateMany(
-                { _id: { $in: settledUnaccounted.map((t: any) => t._id) } },
-                [{ $set: { Catatan: {
-                  $cond: [
-                    { $or: [{ $eq: ['$Catatan', null] }, { $eq: ['$Catatan', ''] }] },
-                    '[pemakaian_applied]',
-                    { $concat: ['$Catatan', ' [pemakaian_applied]'] },
-                  ],
-                }}}]
-              );
-              (meteran as any).pemakaianBelumTerbayar = Math.max(
-                0, ((meteran as any).pemakaianBelumTerbayar ?? 0) - toDecrement
-              );
-              logger.info(
-                { NomorMeteran: (meteran as any).NomorMeteran, toDecrement },
-                'Synced pemakaianBelumTerbayar from settled tagihans'
-              );
-            }
-          }
+          // Catatan: rekonsiliasi pemakaianBelumTerbayar dari tagihan settlement
+          // sudah ditangani oleh paymentWebhookController saat pembayaran sukses
+          // (atomic $inc dengan idempotency guard). Tidak perlu sync ulang di sini.
 
           // Idempotency guard: skip jika billing periode ini sudah ada (cron restart protection)
           const periodeExisting = await Billing.findOne({
