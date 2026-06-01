@@ -8,29 +8,21 @@ import PengawasanPemasangan from '../../../models/PengawasanPemasangan.js';
 import PengawasanSetelahPemasangan from '../../../models/PengawasanSetelahPemasangan.js';
 import { teknisiGraphQL } from '../../../utils/teknisiClient.js';
 import PekerjaanTeknisi from '../../../models/PekerjaanTeknisi.js';
-import { verifyAdminToken, catatAuditLog, catatAksesLog, notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
+import { verifyAdminToken, catatAuditLog, notifikasiUntukPelanggan, notifikasiSemuaAdmin } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
 export const koneksiDataResolvers = {
   Query: {
-    getKoneksiData: async (_, { id }, { token, req }: GraphQLContext) => {
+    getKoneksiData: async (_, { id }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const data = await KoneksiData.findById(id).populate('IdPelanggan');
-      if (data) {
-        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: id, namaOperasi: 'getKoneksiData' });
-      }
-      return data;
+      return await KoneksiData.findById(id).populate('IdPelanggan');
     },
 
-    getKoneksiDataByPelanggan: async (_, { idPelanggan }, { token, req }: GraphQLContext) => {
+    getKoneksiDataByPelanggan: async (_, { idPelanggan }, { token }: GraphQLContext) => {
       verifyAdminToken(token);
-      const data = await KoneksiData.findOne({ IdPelanggan: idPelanggan })
+      return await KoneksiData.findOne({ IdPelanggan: idPelanggan })
         .sort({ createdAt: -1 })
         .populate('IdPelanggan');
-      if (data) {
-        catatAksesLog({ token, req, jenisDokumen: 'NIK,KK,IMB', idPemilik: String(data._id), namaOperasi: 'getKoneksiDataByPelanggan' });
-      }
-      return data;
     },
 
     getAllKoneksiData: async (_, { limit = 50, offset = 0 } = {}, { token }: GraphQLContext) => {
