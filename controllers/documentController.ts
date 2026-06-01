@@ -4,11 +4,37 @@ import multer from 'multer';
 import AksesLog from '../models/AksesLog.js';
 import logger from '../utils/logger.js';
 import { generateFingerprintHash, applyCanary, decodeCanary } from '../utils/canary.js';
+import cloudinaryV2 from '../utils/cloudinary.js';
 
 // ─── Feature Flags ────────────────────────────────────────────────────────────
-// Bisa dimatikan via .env tanpa perlu deploy ulang (hanya restart)
 const PROXY_ENABLED   = () => process.env.PROXY_DOCUMENT_ENABLED  !== 'false';
 const CANARY_ENABLED  = () => process.env.CANARY_DOCUMENT_ENABLED !== 'false';
+
+// ─── Cloudinary URL Helper ────────────────────────────────────────────────────
+
+/**
+ * Untuk URL Cloudinary /raw/upload/ (PDF lama), generate signed URL via SDK
+ * agar bisa diakses tanpa bergantung pada access_mode di akun Cloudinary.
+ * URL /image/upload/ dikembalikan apa adanya (sudah publik by default).
+ */
+function resolveCloudinaryFetchUrl(storedUrl: string): string {
+  if (!storedUrl.includes('/raw/upload/')) return storedUrl;
+
+  const match = storedUrl.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
+  if (!match) return storedUrl;
+
+  const publicId = match[1]; // e.g. "aqualink/dokumen-pengajuan/abc123.pdf"
+  try {
+    return cloudinaryV2.url(publicId, {
+      resource_type: 'raw',
+      type: 'upload',
+      sign_url: true,
+      secure: true,
+    });
+  } catch {
+    return storedUrl; // fallback ke URL asli jika signing gagal
+  }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -112,8 +138,10 @@ export const viewDocument = async (req: Request, res: Response): Promise<void> =
   const { id: adminId, nama: namaAdmin } = getAdminFromReq(req);
 
   try {
-    // Fetch file dari Cloudinary sebagai buffer
-    const response = await axios.get<Buffer>(url, {
+    // Fetch file dari Cloudinary sebagai buffer.
+    // Raw URLs (/raw/upload/) di-sign dulu agar reliabel di semua konfigurasi Cloudinary.
+    const fetchUrl = resolveCloudinaryFetchUrl(url);
+    const response = await axios.get<Buffer>(fetchUrl, {
       responseType: 'arraybuffer',
       timeout: 30_000,
     });
@@ -148,12 +176,22 @@ export const viewDocument = async (req: Request, res: Response): Promise<void> =
     res.end(fileBuffer);
 
   } catch (err: any) {
-    logger.error({ err }, 'Error saat proxy dokumen');
-    const status = err.response?.status ?? 500;
-    if (status === 404) {
-      res.status(404).json({ status: 404, pesan: 'Dokumen tidak ditemukan di Cloudinary.' });
+    const axiosStatus = err.response?.status;
+    const axiosCode   = err.code ?? '';
+    logger.error({ err, url, axiosStatus, axiosCode }, 'Error saat proxy dokumen');
+
+    if (axiosStatus === 404) {
+      res.status(404).json({ status: 404, pesan: 'Dokumen tidak ditemukan di Cloudinary.', url });
+    } else if (axiosStatus === 403) {
+      res.status(403).json({ status: 403, pesan: 'Akses ke Cloudinary ditolak (403). File mungkin private.', url });
     } else {
-      res.status(500).json({ status: 500, pesan: 'Gagal mengambil dokumen.' });
+      res.status(500).json({
+        status: 500,
+        pesan: 'Gagal mengambil dokumen.',
+        detail: err?.message ?? String(err),
+        code: axiosCode,
+        cloudinaryStatus: axiosStatus ?? null,
+      });
     }
   }
 };

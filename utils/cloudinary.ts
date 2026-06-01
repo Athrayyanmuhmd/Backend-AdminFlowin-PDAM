@@ -127,11 +127,12 @@ export const uploadDocument = async (
 
   if (mimetype === 'application/pdf') {
     const watermarked = await applyPdfWatermark(fileBuffer);
+    // resource_type: 'image' agar PDF bisa diakses langsung via /image/upload/ CDN URL
+    // (raw URLs kadang butuh signed access di beberapa konfigurasi Cloudinary)
     const url = await uploadStream(watermarked, {
       folder,
-      resource_type: 'raw',
+      resource_type: 'image',
       format: 'pdf',
-      access_mode: 'public',
     });
     return url.endsWith('.pdf') ? url : `${url}.pdf`;
   }
