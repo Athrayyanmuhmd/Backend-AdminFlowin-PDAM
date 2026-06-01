@@ -148,7 +148,7 @@ export const fieldResolvers = {
         Ditugaskan: 'DITUGASKAN',
         DitinjauAdmin: 'DITINJAU_ADMIN',
         SedangDikerjakan: 'SEDANG_DIKERJAKAN',
-        ProsesPerbaikan: 'SEDANG_DIKERJAKAN', // legacy Ahmad â€” in-progress
+        ProsesPerbaikan: 'SEDANG_DIKERJAKAN', // Rafli's active enum for laporan in-progress (workOrderService.ts:924)
         Selesai: 'SELESAI',
         Dibatalkan: 'DIBATALKAN',
         // Also handle if already in GQL format (idempotent)
