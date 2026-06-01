@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import axios from 'axios';
 import multer from 'multer';
 import AksesLog from '../models/AksesLog.js';
 import logger from '../utils/logger.js';
@@ -56,12 +57,20 @@ async function logAccess(params: {
 
 // ─── Endpoint: View Document ──────────────────────────────────────────────────
 
+function detectMimetype(url: string, headers: Record<string, string>): string {
+  const ct = headers['content-type'] ?? '';
+  if (ct.includes('pdf') || url.toLowerCase().endsWith('.pdf')) return 'application/pdf';
+  if (ct.includes('jpeg') || ct.includes('jpg')) return 'image/jpeg';
+  if (ct.includes('png')) return 'image/png';
+  return ct || 'application/octet-stream';
+}
+
 /**
  * GET /documents/view?url=<cloudinaryUrl>&docType=<type>&ownerId=<id>
  *
- * Sederhana: log fingerprint akses ke AksesLog, lalu redirect ke Cloudinary.
- * Tidak ada fetch file, tidak ada modifikasi URL, tidak ada canary injection.
- * Untuk PDF: tambah transformasi fl_attachment:false agar tampil inline (tidak auto-download).
+ * Log akses ke AksesLog, lalu stream file dari Cloudinary dengan
+ * Content-Disposition: inline agar PDF tampil di iframe (tidak auto-download).
+ * Jika fetch gagal (401/404), fallback redirect ke URL asli.
  */
 export const viewDocument = async (req: Request, res: Response): Promise<void> => {
   const { url, docType = 'UNKNOWN', ownerId = 'unknown' } = req.query as Record<string, string>;
@@ -79,7 +88,7 @@ export const viewDocument = async (req: Request, res: Response): Promise<void> =
   const { id: adminId, nama: namaAdmin } = getAdminFromReq(req);
   const fingerprintHash = generateFingerprintHash(adminId, url);
 
-  // Log akses (await agar tercatat sebelum redirect — penting untuk audit)
+  // Log akses sebelum apapun — audit trail tetap utuh meski fetch gagal
   await logAccess({
     req,
     adminId,
@@ -90,12 +99,30 @@ export const viewDocument = async (req: Request, res: Response): Promise<void> =
     fingerprintHash,
   });
 
-  // PDF → inline preview (override Content-Disposition: attachment dari Cloudinary)
-  const redirectUrl = url.toLowerCase().endsWith('.pdf') && !url.includes('fl_attachment')
-    ? url.replace('/upload/', '/upload/fl_attachment:false/')
-    : url;
+  try {
+    // Stream-through proxy: ambil file lalu kirim dengan header inline
+    const response = await axios.get<Buffer>(url, {
+      responseType: 'arraybuffer',
+      timeout: 15_000,
+    });
 
-  res.redirect(302, redirectUrl);
+    const buffer = Buffer.from(new Uint8Array(response.data));
+    const mimetype = detectMimetype(url, response.headers as Record<string, string>);
+
+    res.setHeader('Content-Type', mimetype);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.end(buffer);
+  } catch (err: any) {
+    // Cloudinary tidak bisa diakses (401/404/network) → fallback redirect
+    // Agar file tetap terbuka meski preview inline tidak bisa
+    logger.warn(
+      { url, status: err.response?.status, code: err.code },
+      'Proxy fetch gagal, fallback redirect ke Cloudinary',
+    );
+    res.redirect(302, url);
+  }
 };
 
 // ─── Endpoint: Investigate (Fase 5) ──────────────────────────────────────────

@@ -127,11 +127,13 @@ export const uploadDocument = async (
 
   if (mimetype === 'application/pdf') {
     const watermarked = await applyPdfWatermark(fileBuffer);
+    // resource_type: 'image' agar PDF baru bisa diakses publik via /image/upload/
+    // URL lama yang sudah pakai /raw/upload/ tetap berfungsi via stream proxy di
+    // documentController. Tidak ada migration — kedua format hidup berdampingan.
     const url = await uploadStream(watermarked, {
       folder,
-      resource_type: 'raw',
+      resource_type: 'image',
       format: 'pdf',
-      access_mode: 'public',
     });
     return url.endsWith('.pdf') ? url : `${url}.pdf`;
   }
