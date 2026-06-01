@@ -315,6 +315,8 @@ export const fieldResolvers = {
         noHP: user.noHP,
         namaLengkap: user.namaLengkap,
         isVerified: user.isVerified,
+        accountStatus: user.accountStatus ?? null,
+        customerType: user.customerType ?? null,
         createdAt: user.createdAt?.toISOString() ?? null,
         updatedAt: user.updatedAt?.toISOString() ?? null,
       };
