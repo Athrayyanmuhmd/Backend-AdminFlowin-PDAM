@@ -241,10 +241,46 @@ async function cleanupStaleIndexes(): Promise<void> {
   }
 }
 
+// Sanitasi field dengan nilai legacy invalid yang bisa bikin Mongoose validation
+// fail saat user.save() — mis. customerType="" di dokumen penggunas yang lama.
+// Idempotent: cek dulu sebelum update, aman dijalankan tiap startup.
+async function sanitizeLegacyUserFields(): Promise<void> {
+  try {
+    const col = mongoose.connection.collection('penggunas');
+
+    // customerType="" → "rumah_tangga" (default enum)
+    const fixedCustomerType = await col.updateMany(
+      { customerType: '' },
+      { $set: { customerType: 'rumah_tangga' } },
+    );
+    if (fixedCustomerType.modifiedCount > 0) {
+      logger.info(
+        { count: fixedCustomerType.modifiedCount },
+        'Sanitized penggunas.customerType="" → "rumah_tangga"',
+      );
+    }
+
+    // accountStatus="" → "inactive" (default enum, jaga-jaga)
+    const fixedAccountStatus = await col.updateMany(
+      { accountStatus: '' },
+      { $set: { accountStatus: 'inactive' } },
+    );
+    if (fixedAccountStatus.modifiedCount > 0) {
+      logger.info(
+        { count: fixedAccountStatus.modifiedCount },
+        'Sanitized penggunas.accountStatus="" → "inactive"',
+      );
+    }
+  } catch (err) {
+    logger.warn({ err }, 'sanitizeLegacyUserFields: non-critical, lanjut');
+  }
+}
+
 // Initialization promise — runs once on cold start (Vercel) or on startup (local)
 const initPromise = connectDB()
   .then(async () => {
     await cleanupStaleIndexes();
+    await sanitizeLegacyUserFields();
     await setupApolloServer(app);
     logger.info('Server initialized (DB + Apollo ready)');
   })
