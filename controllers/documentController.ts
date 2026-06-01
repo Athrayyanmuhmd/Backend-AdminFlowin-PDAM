@@ -20,19 +20,25 @@ const CANARY_ENABLED  = () => process.env.CANARY_DOCUMENT_ENABLED !== 'false';
 function resolveCloudinaryFetchUrl(storedUrl: string): string {
   if (!storedUrl.includes('/raw/upload/')) return storedUrl;
 
-  const match = storedUrl.match(/\/raw\/upload\/(?:v\d+\/)?(.+)$/);
+  // Pisahkan public_id (tanpa ekstensi) dan format dari URL raw
+  // Cloudinary menyimpan public_id TANPA ekstensi; ekstensi = format terpisah
+  // Contoh URL: .../raw/upload/v123/aqualink/dokumen-pengajuan/abc123.pdf
+  //   → publicId = "aqualink/dokumen-pengajuan/abc123", format = "pdf"
+  const match = storedUrl.match(/\/raw\/upload\/(?:v\d+\/)?(.+?)\.([a-zA-Z0-9]+)$/);
   if (!match) return storedUrl;
 
-  const publicId = match[1]; // e.g. "aqualink/dokumen-pengajuan/abc123.pdf"
+  const publicId = match[1]; // tanpa ekstensi
+  const format   = match[2]; // ekstensi (pdf, jpg, dll)
   try {
     return cloudinaryV2.url(publicId, {
       resource_type: 'raw',
       type: 'upload',
+      format,
       sign_url: true,
       secure: true,
     });
   } catch {
-    return storedUrl; // fallback ke URL asli jika signing gagal
+    return storedUrl;
   }
 }
 
