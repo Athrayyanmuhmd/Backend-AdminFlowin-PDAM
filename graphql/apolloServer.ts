@@ -208,11 +208,17 @@ query LoginAdmin {
 </html>`;
 
 export async function setupApolloServer(app: Express): Promise<ApolloServer<any>> {
+  // Introspection: aktif di development, ATAU saat env var GRAPHQL_INTROSPECTION=true.
+  // Di production default OFF untuk keamanan (cegah dump schema oleh pihak luar).
+  // Set GRAPHQL_INTROSPECTION=true di Vercel env saat butuh inspect via GraphiQL/Postman.
+  const introspectionEnabled =
+    process.env.NODE_ENV !== 'production' ||
+    process.env.GRAPHQL_INTROSPECTION === 'true';
+
   const server = new ApolloServer<any>({
     typeDefs,
     resolvers,
-    // Introspection hanya aktif di development — dimatikan di production untuk keamanan
-    introspection: process.env.NODE_ENV !== 'production',
+    introspection: introspectionEnabled,
     validationRules: [depthLimit(7)],
     formatError: (error: any) => {
       logger.error({ err: error }, 'GraphQL Error');
