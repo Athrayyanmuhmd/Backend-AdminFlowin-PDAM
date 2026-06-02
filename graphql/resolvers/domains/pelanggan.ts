@@ -8,24 +8,50 @@ import Notification from '../../../models/Notification.js';
 import { verifyAdminToken, catatAuditLog, validateEmail, validatePhone } from '../helpers.js';
 import type { GraphQLContext } from '../../../types/index.js';
 
-async function batchPopulateAlamat(users: any[]): Promise<Map<string, string>> {
-  const missingIds = users.filter((u: any) => !u.address).map((u: any) => u._id);
-  const alamatMap = new Map<string, string>();
-  if (missingIds.length === 0) return alamatMap;
+/**
+ * Batch populate field yang kosong di User dari ConnectionData (pengajuan sambungan).
+ * Banyak User docs lama tidak punya nik/address tersimpan langsung — datanya cuma
+ * ada di koneksidatas. Helper ini ambil keduanya sekaligus (1 query) agar listing
+ * pelanggan tidak menampilkan "—" pada NIK/Alamat hanya karena field di User null.
+ */
+async function batchPopulateFromKoneksi(
+  users: any[],
+): Promise<Map<string, { nik?: string; address?: string }>> {
+  const missingIds = users
+    .filter((u: any) => !u.address || !u.nik)
+    .map((u: any) => u._id);
+  const map = new Map<string, { nik?: string; address?: string }>();
+  if (missingIds.length === 0) return map;
   const koneksiList = await ConnectionData.find(
     { IdPelanggan: { $in: missingIds } },
-    'IdPelanggan Alamat'
+    'IdPelanggan Alamat NIK',
   ).sort({ createdAt: -1 }).lean();
   (koneksiList as any[]).forEach((k: any) => {
     const key = k.IdPelanggan?.toString();
-    if (key && k.Alamat && !alamatMap.has(key)) alamatMap.set(key, k.Alamat);
+    if (!key) return;
+    const existing = map.get(key) ?? {};
+    // Prioritaskan koneksi terbaru (sort desc) — hanya isi kalau belum di-set
+    if (k.Alamat && !existing.address) existing.address = k.Alamat;
+    if (k.NIK && !existing.nik) existing.nik = k.NIK;
+    map.set(key, existing);
   });
-  return alamatMap;
+  return map;
 }
 
-function serializeUser(u: any, alamatMap?: Map<string, string>) {
-  const obj = { ...u, createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null, updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null };
-  if (!obj.address && alamatMap) obj.address = alamatMap.get(u._id.toString()) ?? null;
+function serializeUser(
+  u: any,
+  koneksiMap?: Map<string, { nik?: string; address?: string }>,
+) {
+  const obj = {
+    ...u,
+    createdAt: u.createdAt ? new Date(u.createdAt).toISOString() : null,
+    updatedAt: u.updatedAt ? new Date(u.updatedAt).toISOString() : null,
+  };
+  if (koneksiMap) {
+    const fallback = koneksiMap.get(u._id.toString());
+    if (!obj.address && fallback?.address) obj.address = fallback.address;
+    if (!obj.nik && fallback?.nik) obj.nik = fallback.nik;
+  }
   return obj;
 }
 
@@ -35,14 +61,15 @@ export const pelangganResolvers = {
       verifyAdminToken(token);
       const user = await User.findById(id).lean() as any;
       if (!user) return null;
-      return serializeUser(user);
+      const koneksiMap = await batchPopulateFromKoneksi([user]);
+      return serializeUser(user, koneksiMap);
     },
 
     getAllPengguna: async (_, { limit = 100, offset = 0 } = {}, { token }: GraphQLContext) => {
       verifyAdminToken(token);
       const users = await User.find().sort({ createdAt: -1 }).skip(offset).limit(Math.min(limit, 500)).lean() as any[];
-      const alamatMap = await batchPopulateAlamat(users);
-      return users.map(u => serializeUser(u, alamatMap));
+      const koneksiMap = await batchPopulateFromKoneksi(users);
+      return users.map(u => serializeUser(u, koneksiMap));
     },
 
     searchPengguna: async (_, { search }, { token }: GraphQLContext) => {
@@ -54,8 +81,8 @@ export const pelangganResolvers = {
           { noHP: { $regex: search, $options: 'i' } },
         ],
       }).sort({ createdAt: -1 }).lean() as any[];
-      const alamatMap = await batchPopulateAlamat(users);
-      return users.map(u => serializeUser(u, alamatMap));
+      const koneksiMap = await batchPopulateFromKoneksi(users);
+      return users.map(u => serializeUser(u, koneksiMap));
     },
   },
 
