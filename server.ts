@@ -248,15 +248,15 @@ async function sanitizeLegacyUserFields(): Promise<void> {
   try {
     const col = mongoose.connection.collection('penggunas');
 
-    // customerType="" → "rumah_tangga" (default enum)
+    // customerType="" → null (admin harus konfirmasi via UI, jangan auto-klasifikasi)
     const fixedCustomerType = await col.updateMany(
       { customerType: '' },
-      { $set: { customerType: 'rumah_tangga' } },
+      { $set: { customerType: null } },
     );
     if (fixedCustomerType.modifiedCount > 0) {
       logger.info(
         { count: fixedCustomerType.modifiedCount },
-        'Sanitized penggunas.customerType="" → "rumah_tangga"',
+        'Sanitized penggunas.customerType="" → null',
       );
     }
 

@@ -69,8 +69,11 @@ const UsersSchema = new Schema<IUser>(
     },
     customerType: {
       type: String,
-      enum: ['rumah_tangga', 'komersial', 'industri', 'sosial'],
-      default: 'rumah_tangga',
+      // null diperbolehkan: admin bisa biarkan "Belum Ditentukan" sampai survei selesai.
+      // Default sengaja tidak di-set ke 'rumah_tangga' agar tidak auto-klasifikasi
+      // yang rawan salah (UX risk).
+      enum: ['rumah_tangga', 'komersial', 'industri', 'sosial', null],
+      default: null,
     },
     accountStatus: {
       type: String,
