@@ -84,7 +84,9 @@ describe('[WHITEBOX] Middleware verifyAdmin — Otorisasi Request', () => {
 
   it('TC-MW-03 ✅ Token valid + admin ditemukan → next() dipanggil', async () => {
     const adminData = {
-      _id: 'adminId001',
+      // ObjectId valid — middleware verifyAdmin memvalidasi format ObjectId
+      // (mongoose.Types.ObjectId.isValid) sebelum memanggil findById.
+      _id: '507f1f77bcf86cd799439011',
       namaLengkap: 'Admin Test',
       email: 'admin@test.com',
     };
@@ -106,7 +108,8 @@ describe('[WHITEBOX] Middleware verifyAdmin — Otorisasi Request', () => {
 
   it('TC-MW-04 ❌ Token valid tapi admin tidak ditemukan di DB → status 403', async () => {
     const token = jwt.sign(
-      { id: 'adminIdTidakAda', email: 'ghost@test.com', role: 'admin' },
+      // ObjectId valid (lolos guard isValid) tapi tidak ada di DB → findById null
+      { id: '507f191e810c19729de860ea', email: 'ghost@test.com', role: 'admin' },
       JWT_SECRET
     );
 

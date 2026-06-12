@@ -58,9 +58,11 @@ beforeAll(async () => {
     namaLengkap: 'Teknisi Test',
     email: 'teknisi@test.com',
     password: await bcrypt.hash('teknisi123', 10),
-    NIP: 'NIPTEK001',
-    noHP: '08199999999',
-    divisi: 'TeknikCabang',
+    // Field names & enum disesuaikan dengan model TeknisiPerumdam aktual:
+    // nip/noHp (lowercase, required+unique) & divisi enum snake_case.
+    nip: 'NIPTEK001',
+    noHp: '08199999999',
+    divisi: 'teknik_cabang',
   });
 
   // Seed pengguna test
@@ -131,7 +133,9 @@ describe('[GREYBOX] GraphQL — loginAdmin', () => {
 
     const errors = response.body.singleResult.errors;
     expect(errors).toBeDefined();
-    expect(errors[0].message).toContain('Admin not found');
+    // Pesan sengaja generik (anti user-enumeration) — tidak membocorkan
+    // apakah email-nya yang salah atau password-nya.
+    expect(errors[0].message).toContain('Email atau kata sandi salah');
   });
 
   it('TC-GQL-03 ❌ Login dengan password salah harus return error', async () => {
@@ -145,7 +149,8 @@ describe('[GREYBOX] GraphQL — loginAdmin', () => {
 
     const errors = response.body.singleResult.errors;
     expect(errors).toBeDefined();
-    expect(errors[0].message).toContain('Invalid password');
+    // Pesan generik yang sama dengan email tidak terdaftar (anti user-enumeration).
+    expect(errors[0].message).toContain('Email atau kata sandi salah');
   });
 
   it('TC-GQL-04 ❌ Login dengan password kosong harus return error', async () => {
@@ -163,13 +168,12 @@ describe('[GREYBOX] GraphQL — loginAdmin', () => {
 });
 
 // ============================================================
-// SUITE 2: Authentication — loginTechnician (via REST, bukan GraphQL)
+// SUITE 2: Authentication — loginTechnician (GraphQL Query)
 // ============================================================
-// TEMUAN: loginTechnician tidak tersedia di GraphQL schema.
-// Autentikasi teknisi menggunakan REST endpoint POST /admin/auth/login
-// Ini adalah gap yang ditemukan saat testing — dokumentasi perlu diupdate.
-describe('[GREYBOX] GraphQL — loginTechnician (Not in GraphQL Schema)', () => {
-  it('TC-GQL-05 ℹ️ loginTechnician tidak tersedia di GraphQL — mengembalikan GraphQL error', async () => {
+// loginTechnician kini tersedia di GraphQL schema (Query, JWT 30 hari),
+// mengembalikan TechnicianAuthPayload { token, technician }.
+describe('[GREYBOX] GraphQL — loginTechnician', () => {
+  it('TC-GQL-05 ✅ loginTechnician dengan kredensial valid harus mengembalikan token', async () => {
     const response = await gqlQuery(`
       query {
         loginTechnician(email: "teknisi@test.com", password: "teknisi123") {
@@ -178,14 +182,11 @@ describe('[GREYBOX] GraphQL — loginTechnician (Not in GraphQL Schema)', () => 
       }
     `);
 
-    // loginTechnician tidak ada di typeDefs → GraphQL validation error
-    const errors = response.body.singleResult.errors;
-    expect(errors).toBeDefined();
-    // Harus ada error tentang field tidak dikenal
-    expect(errors[0].message).toMatch(/loginTechnician|Cannot query field/i);
+    expect(response.body.singleResult.errors).toBeUndefined();
+    expect(response.body.singleResult.data.loginTechnician.token).toBeTruthy();
   });
 
-  it('TC-GQL-06 ℹ️ loginTechnician dengan password salah juga return error (field tidak ada)', async () => {
+  it('TC-GQL-06 ❌ loginTechnician dengan password salah harus return error', async () => {
     const response = await gqlQuery(`
       query {
         loginTechnician(email: "teknisi@test.com", password: "salah") {
@@ -196,6 +197,7 @@ describe('[GREYBOX] GraphQL — loginTechnician (Not in GraphQL Schema)', () => 
 
     const errors = response.body.singleResult.errors;
     expect(errors).toBeDefined();
+    expect(errors[0].message).toContain('Email atau kata sandi salah');
   });
 });
 
@@ -248,8 +250,11 @@ describe('[GREYBOX] GraphQL — Protected Queries (Auth Required)', () => {
     expect(Array.isArray(data.getAuditLogs)).toBe(true);
   });
 
-  it('TC-GQL-09 ❌ getAllNotifikasiAdmin tanpa token harus return error auth (FIXED)', async () => {
-    // Fix diterapkan: getAllNotifikasiAdmin sekarang memanggil verifyAdminToken
+  it('TC-GQL-09 ✅ getAllNotifikasiAdmin tanpa token TIDAK throw (polling-safe) → array kosong', async () => {
+    // Desain sengaja: resolver ini di-polling frontend tiap 30 detik. Jika token
+    // invalid/expired, resolver mengembalikan [] (bukan throw) supaya UI tidak
+    // crash & log tidak dibanjiri error. Tanpa token = tidak ada data bocor, []
+    // dikembalikan — bukan celah keamanan, melainkan keputusan desain.
     const response = await gqlQuery(`
       query {
         getAllNotifikasiAdmin {
@@ -259,9 +264,8 @@ describe('[GREYBOX] GraphQL — Protected Queries (Auth Required)', () => {
       }
     `, {}, null);
 
-    const errors = response.body.singleResult.errors;
-    expect(errors).toBeDefined();
-    expect(errors[0].message).toContain('Token tidak ditemukan');
+    expect(response.body.singleResult.errors).toBeUndefined();
+    expect(response.body.singleResult.data.getAllNotifikasiAdmin).toEqual([]);
   });
 
   it('TC-GQL-10 ✅ getAllNotifikasiAdmin dengan token valid harus berhasil', async () => {
@@ -283,10 +287,25 @@ describe('[GREYBOX] GraphQL — Protected Queries (Auth Required)', () => {
 });
 
 // ============================================================
-// SUITE 4: Public Queries — Tanpa Token
+// SUITE 4: Pengguna Queries — Butuh Token (data PII pelanggan)
 // ============================================================
-describe('[GREYBOX] GraphQL — Public Queries', () => {
-  it('TC-GQL-11 ✅ getAllPengguna harus mengembalikan array data pengguna', async () => {
+// getAllPengguna & searchPengguna kini memanggil verifyAdminToken — data
+// pelanggan (nama, email, no HP) hanya boleh diakses admin terautentikasi.
+describe('[GREYBOX] GraphQL — Pengguna Queries (Auth Required)', () => {
+  let adminToken;
+
+  beforeAll(async () => {
+    const response = await gqlQuery(`
+      query {
+        loginAdmin(email: "admin@test.com", password: "admin123") {
+          token
+        }
+      }
+    `);
+    adminToken = response.body.singleResult.data.loginAdmin.token;
+  });
+
+  it('TC-GQL-11 ✅ getAllPengguna (dengan token) harus mengembalikan array data pengguna', async () => {
     const response = await gqlQuery(`
       query {
         getAllPengguna {
@@ -295,7 +314,7 @@ describe('[GREYBOX] GraphQL — Public Queries', () => {
           email
         }
       }
-    `);
+    `, {}, adminToken);
 
     expect(response.body.singleResult.errors).toBeUndefined();
     const data = response.body.singleResult.data;
@@ -311,7 +330,7 @@ describe('[GREYBOX] GraphQL — Public Queries', () => {
           email
         }
       }
-    `);
+    `, {}, adminToken);
 
     const pengguna = response.body.singleResult.data.getAllPengguna;
     const found = pengguna.find(p => p.email === 'pelanggan@test.com');
@@ -327,7 +346,7 @@ describe('[GREYBOX] GraphQL — Public Queries', () => {
           email
         }
       }
-    `);
+    `, {}, adminToken);
 
     expect(response.body.singleResult.errors).toBeUndefined();
     const results = response.body.singleResult.data.searchPengguna;
@@ -341,11 +360,23 @@ describe('[GREYBOX] GraphQL — Public Queries', () => {
           namaLengkap
         }
       }
-    `);
+    `, {}, adminToken);
 
     expect(response.body.singleResult.errors).toBeUndefined();
     const results = response.body.singleResult.data.searchPengguna;
     expect(results.length).toBe(0);
+  });
+
+  it('TC-GQL-14b ❌ getAllPengguna TANPA token harus return error auth', async () => {
+    const response = await gqlQuery(`
+      query {
+        getAllPengguna { _id }
+      }
+    `, {}, null);
+
+    const errors = response.body.singleResult.errors;
+    expect(errors).toBeDefined();
+    expect(errors[0].message).toContain('Token tidak ditemukan');
   });
 });
 
@@ -382,7 +413,7 @@ describe('[GREYBOX] GraphQL — Mutation createNotifikasi', () => {
       input: {
         judul: 'Test Notifikasi',
         pesan: 'Pesan test dari integration test',
-        kategori: 'Informasi',
+        kategori: 'INFORMASI',
         idPelanggan: userId,
       }
     }, adminToken);
@@ -407,7 +438,7 @@ describe('[GREYBOX] GraphQL — Mutation createNotifikasi', () => {
       input: {
         judul: 'Test Tanpa Auth',
         pesan: 'Test tanpa token',
-        kategori: 'Informasi',
+        kategori: 'INFORMASI',
       }
     }, null);
 
